@@ -180,18 +180,9 @@ class AssistantController extends Controller
         }
 
         try {
-            $headers = [
-                'token' => $token, 
-                'apikey' => $token, 
-                'Client-Token' => $token, 
-                'Authorization' => "Bearer {$token}", 
-                'Content-Type' => 'application/json', 
-                'Accept' => 'application/json'
-            ];
+            $headers = ['token' => $token, 'apikey' => $token, 'Client-Token' => $token, 'Authorization' => "Bearer {$token}", 'Content-Type' => 'application/json', 'Accept' => 'application/json'];
 
             if ($provider === 'uazapi' || $provider === 'evolution') {
-                
-                // Esta bateria é a que desconectou com sucesso da última vez!
                 $candidates = [
                     ['method' => 'POST',   'path' => "/instance/disconnect", 'body' => ['instanceName' => $instance]],
                     ['method' => 'POST',   'path' => "/instance/disconnect", 'body' => (object)[]],
@@ -202,20 +193,11 @@ class AssistantController extends Controller
                 ];
 
                 $errors = [];
-
                 foreach ($candidates as $cand) {
                     $req = Http::withHeaders($headers)->timeout(8);
-                    
-                    if ($cand['method'] === 'DELETE') {
-                        $res = $req->delete($url . $cand['path']);
-                    } else {
-                        $res = $req->post($url . $cand['path'], $cand['body']);
-                    }
+                    $res = ($cand['method'] === 'DELETE') ? $req->delete($url . $cand['path']) : $req->post($url . $cand['path'], $cand['body']);
 
-                    if ($res->successful()) {
-                        return response()->json(['success' => true]);
-                    }
-                    
+                    if ($res->successful()) return response()->json(['success' => true]);
                     $errors[] = "{$cand['method']} {$cand['path']}: {$res->status()}";
                 }
                 
@@ -228,6 +210,7 @@ class AssistantController extends Controller
         }
     }
 
+    // A MÁGICA DA CONEXÃO MULTI-ROTA (Evitando falha genérica após logout)
     private function testWaConnection(Request $request)
     {
         $provider = $request->input('provider');
@@ -243,39 +226,55 @@ class AssistantController extends Controller
             if ($provider === 'uazapi') {
                 $headers = ['token' => $token, 'apikey' => $token, 'Client-Token' => $token, 'Authorization' => "Bearer {$token}", 'Content-Type' => 'application/json', 'Accept' => 'application/json'];
                 
-                // REVERTIDO: Tirei a recriação de instância que estava causando o bug de "Instância já existe"
-                
-                $res = Http::withHeaders($headers)->timeout(10)->post("{$url}/instance/connect", ['instanceName' => $instance]);
-                if (!$res->successful() || $res->status() === 400) {
-                    $res = Http::withHeaders($headers)->timeout(10)->post("{$url}/instance/connect", (object)[]);
-                }
-                
-                if (!$res->successful()) {
-                    $res = Http::withHeaders($headers)->timeout(10)->get("{$url}/instance/connect/{$instance}");
-                }
-                if (!$res->successful()) {
-                    $res = Http::withHeaders($headers)->timeout(10)->get("{$url}/instance/status");
-                }
+                // Ele vai tentar as rotas normais. Se a instância dormiu, ele acorda no /init
+                $candidates = [
+                    ['method' => 'POST', 'path' => "/instance/connect", 'body' => (object)[]],
+                    ['method' => 'POST', 'path' => "/instance/connect", 'body' => ['instanceName' => $instance]],
+                    ['method' => 'GET',  'path' => "/instance/connect", 'body' => []],
+                    ['method' => 'POST', 'path' => "/instance/init",    'body' => (object)[]], // Acorda se dormiu
+                    ['method' => 'POST', 'path' => "/instance/init",    'body' => ['instanceName' => $instance]],
+                    ['method' => 'GET',  'path' => "/instance/status",  'body' => []]
+                ];
 
-                if ($res->successful()) {
-                    $data = $res->json();
-                    $inst = $data['instance'] ?? $data;
-                    $status = strtolower($inst['status'] ?? $inst['state'] ?? $data['status'] ?? $data['state'] ?? '');
+                $lastSuccessfulData = null;
+                $errors = [];
 
-                    if (in_array($status, ['open', 'connected', 'connecting_connected']) || ($data['connected'] ?? false) === true) {
-                        return response()->json(['success' => true, 'connected' => true, 'message' => '✅ WhatsApp pareado!']);
+                foreach ($candidates as $cand) {
+                    $req = Http::withHeaders($headers)->timeout(6);
+                    if ($cand['method'] === 'GET') {
+                        $res = $req->get($url . $cand['path']);
+                    } else {
+                        $res = $req->post($url . $cand['path'], $cand['body']);
                     }
 
-                    $qr = $this->extractQrCode($data);
-                    if ($qr) return response()->json(['success' => true, 'connected' => false, 'qr' => $qr, 'message' => 'Escaneie a imagem abaixo:']);
+                    if ($res->successful()) {
+                        $data = $res->json();
+                        $inst = $data['instance'] ?? $data;
+                        $status = strtolower($inst['status'] ?? $inst['state'] ?? $data['status'] ?? $data['state'] ?? '');
 
+                        if (in_array($status, ['open', 'connected', 'connecting_connected']) || ($data['connected'] ?? false) === true) {
+                            return response()->json(['success' => true, 'connected' => true, 'message' => '✅ WhatsApp pareado!']);
+                        }
+
+                        $qr = $this->extractQrCode($data);
+                        if ($qr) return response()->json(['success' => true, 'connected' => false, 'qr' => $qr, 'message' => 'Escaneie a imagem abaixo:']);
+
+                        $lastSuccessfulData = $data;
+                    } else {
+                        $err = $res->json();
+                        $errMsg = is_array($err) ? ($err['message'] ?? $err['error'] ?? 'Falha') : 'Erro';
+                        $errors[] = "{$cand['method']} {$cand['path']} ({$res->status()}): {$errMsg}";
+                    }
+                }
+
+                if ($lastSuccessfulData) {
+                    $inst = $lastSuccessfulData['instance'] ?? $lastSuccessfulData;
+                    $status = strtolower($inst['status'] ?? $inst['state'] ?? $lastSuccessfulData['status'] ?? $lastSuccessfulData['state'] ?? 'desconhecido');
                     return response()->json(['success' => true, 'connected' => false, 'qr' => null, 'message' => "Instância ligada (Status: {$status}). Gerando QR Code..."]);
                 }
 
-                // Log detalhado para não ficarmos cegos
-                $err = $res->json();
-                $errMsg = is_array($err) ? ($err['message'] ?? $err['error'] ?? json_encode($err)) : $res->body();
-                return response()->json(['success' => false, 'message' => "Erro API {$res->status()}: {$errMsg}"]);
+                // O LOG MATADOR DE BUGS VAI SURGIR AQUI SE TUDO FALHAR
+                return response()->json(['success' => false, 'message' => "LOG DE ERRO UAZAPI: \n" . implode(' | ', $errors)]);
             }
 
             if ($provider === 'evolution') {
@@ -299,7 +298,7 @@ class AssistantController extends Controller
             return response()->json(['success' => true, 'message' => "Integração em desenvolvimento."]);
 
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Erro de comunicação com servidor.']);
+            return response()->json(['success' => false, 'message' => 'Erro de comunicação com o servidor.']);
         }
     }
 
