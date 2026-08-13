@@ -94,7 +94,7 @@
                     waLoading: false,
                     waResult: null,
                     pollAttempts: 0,
-                    waStatus: 'unknown', // unknown, checking, connected, disconnected
+                    waStatus: 'unknown',
                     
                     getApiKey() {
                         if (this.provider === 'openai') return document.querySelector('input[name=\'openai_api_key\']').value;
@@ -130,21 +130,44 @@
                         }
                     },
 
-                    // Verifica o status silenciosamente ao abrir a página
+                    // Verifica o status de forma silenciosa e leve no carregamento
                     async checkWaStatusSilent() {
-                        if(!this.wa_provider || !document.querySelector('input[name=\'whatsapp_url\']')?.value || !document.querySelector('input[name=\'whatsapp_token\']')?.value) return;
+                        if(!this.wa_provider || !document.querySelector('input[name=\'whatsapp_url\']')?.value || !document.querySelector('input[name=\'whatsapp_token\']')?.value) {
+                            this.waStatus = 'disconnected';
+                            return;
+                        }
                         this.waStatus = 'checking';
                         try {
                             const params = this.getWaParams();
                             const response = await fetch('/', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-                                body: JSON.stringify({ action: 'test_whatsapp', ...params })
+                                body: JSON.stringify({ action: 'status_whatsapp', ...params })
                             });
                             const data = await response.json();
                             this.waStatus = data.connected ? 'connected' : 'disconnected';
                         } catch(e) {
                             this.waStatus = 'disconnected';
+                        }
+                    },
+
+                    // Dispara a desconexão (Logout)
+                    async disconnectWa() {
+                        if(!confirm('Tem certeza que deseja desconectar o WhatsApp deste número?')) return;
+                        this.waStatus = 'checking';
+                        try {
+                            const params = this.getWaParams();
+                            const response = await fetch('/', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                                body: JSON.stringify({ action: 'disconnect_whatsapp', ...params })
+                            });
+                            await response.json();
+                            this.waStatus = 'disconnected';
+                            alert('WhatsApp desconectado com sucesso!');
+                        } catch(e) {
+                            alert('Erro ao tentar desconectar.');
+                            this.checkWaStatusSilent();
                         }
                     },
 
@@ -169,8 +192,7 @@
                             const data = await response.json();
                             this.waResult = data;
                             
-                            // Atualiza a luzinha na hora se conectar pelo popup
-                            this.waStatus = data.connected ? 'connected' : 'disconnected';
+                            if (data.connected) this.waStatus = 'connected';
 
                             if (data.success && !data.qr && !data.connected && this.pollAttempts < 10 && this.showWaModal) {
                                 this.pollAttempts++;
@@ -185,8 +207,8 @@
                         }
                     }
                 }"
-                x-init="checkWaStatusSilent()"> <!-- RODA AUTOMATICO AO ABRIR -->
-
+                x-init="checkWaStatusSilent()">
+                
                 @csrf @method('PUT')
                 <input type="hidden" name="assistant_id" value="{{ $configuring->id }}">
 
@@ -277,27 +299,38 @@
 
                     <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-full flex flex-col">
                         
-                        <!-- HEADER COM O BADGE DE STATUS DINÂMICO -->
+                        <!-- HEADER COM OS BADGES DE STATUS -->
                         <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center justify-between">
                             <div class="flex items-center gap-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-green-500"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>
                                 Canal: WhatsApp
                             </div>
                             
-                            <!-- BADGE -->
-                            <div x-show="wa_provider !== ''" x-transition x-cloak>
+                            <!-- Badges e Botão Desconectar Dinâmicos -->
+                            <div class="flex items-center gap-2" x-show="wa_provider !== ''" x-cloak>
+                                <!-- Loader -->
                                 <span x-show="waStatus === 'checking'" class="text-[10px] uppercase font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-500 animate-pulse border border-gray-200">Verificando...</span>
+                                
+                                <!-- Conectado -->
                                 <span x-show="waStatus === 'connected'" class="text-[10px] uppercase font-bold px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 flex items-center gap-1.5 border border-emerald-200 shadow-sm">
                                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>Conectado
                                 </span>
+                                
+                                <!-- Desconectado -->
                                 <span x-show="waStatus === 'disconnected'" class="text-[10px] uppercase font-bold px-2 py-1 rounded-full bg-red-50 text-red-600 flex items-center gap-1.5 border border-red-200 shadow-sm">
                                     <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>Desconectado
                                 </span>
+
+                                <!-- Botão Desconectar Vermelho -->
+                                <button type="button" x-show="waStatus === 'connected'" @click="disconnectWa()" class="text-[10px] uppercase font-bold px-2 py-1 rounded-md bg-red-100 hover:bg-red-200 text-red-700 transition border border-red-200 flex items-center gap-1 cursor-pointer">
+                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.636 5.636a9 9 0 1012.728 0M12 3v9" /></svg>
+                                    Desconectar
+                                </button>
                             </div>
                         </h2>
 
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Plataforma</label>
-                        <select name="whatsapp_provider" x-model="wa_provider" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-5 focus:ring-2 focus:ring-indigo-500">
+                        <select name="whatsapp_provider" x-model="wa_provider" @change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-5 focus:ring-2 focus:ring-indigo-500">
                             <option value="">Desativado</option>
                             <option value="uazapi">UaZapi</option>
                             <option value="evolution">Evolution API</option>
@@ -310,11 +343,11 @@
                             <template x-if="wa_provider === 'uazapi'">
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">URL (UaZapi)</label>
-                                    <input type="url" name="whatsapp_url" value="{{ $configuring->whatsapp_url }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="https://api.uazapi.dev">
+                                    <input type="url" name="whatsapp_url" value="{{ $configuring->whatsapp_url }}" @change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="https://api.uazapi.dev">
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">Nome da Instância</label>
                                     <input type="text" name="whatsapp_instance" value="{{ $configuring->whatsapp_instance }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="Ex: suporte">
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">Instance Token</label>
-                                    <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="Ex: T0K3N...">
+                                    <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" @change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="Ex: T0K3N...">
                                 </div>
                             </template>
                             <template x-if="wa_provider === 'evolution'">
@@ -567,8 +600,6 @@
                                     </form>
                                 </td>
                             </tr>
-                        @empty
-                            <tr><td colspan="3" class="text-center py-8 text-gray-400">Nenhum assistente cadastrado.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
