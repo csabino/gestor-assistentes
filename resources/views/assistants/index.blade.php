@@ -7,18 +7,21 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
-<body class="bg-gray-50 font-sans text-gray-900" x-data="{ 
-    view: 'card', 
-    filter: 'active',
-    total: {{ $assistants->count() }},
-    activeCount: {{ $assistants->where('is_active', true)->count() }},
-    inactiveCount: {{ $assistants->where('is_active', false)->count() }},
-    get currentCount() {
-        if (this.filter === 'active') return this.activeCount;
-        if (this.filter === 'inactive') return this.inactiveCount;
-        return this.total;
-    }
-}">
+<body class="bg-gray-50 font-sans text-gray-900" 
+    x-data="{ 
+        view: 'card', 
+        filter: localStorage.getItem('assistant_filter') || 'active',
+        total: {{ $assistants->count() }},
+        activeCount: {{ $assistants->where('is_active', true)->count() }},
+        inactiveCount: {{ $assistants->where('is_active', false)->count() }},
+        get currentCount() {
+            if (this.filter === 'active') return this.activeCount;
+            if (this.filter === 'inactive') return this.inactiveCount;
+            return this.total;
+        }
+    }"
+    x-init="$watch('filter', value => localStorage.setItem('assistant_filter', value))"
+>
     
     <!-- HEADER DA APLICAÇÃO -->
     <nav class="bg-indigo-600 text-white shadow-sm relative z-50">
@@ -255,7 +258,7 @@
                     Assistentes Cadastrados (<span x-text="currentCount"></span>/<span x-text="total"></span>)
                 </h2>
                 
-                <!-- Combo Box com padrão 'active' -->
+                <!-- Combo Box com Persistência -->
                 <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm self-end sm:self-auto">
                     <label class="text-xs text-gray-500 font-medium">Status:</label>
                     <select x-model="filter" class="text-xs font-bold text-gray-700 bg-transparent focus:outline-none cursor-pointer">
@@ -336,7 +339,7 @@
                                 </td>
                                 <td class="py-4 px-5 text-right flex justify-end items-center gap-3 opacity-90 group-hover:opacity-100 transition">
                                     <a href="/?configure={{ $assistant->id }}" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-2 px-4 rounded-lg text-sm transition flex items-center justify-center gap-2">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3" /></svg> Configurar
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3" /></svg> Configurar
                                     </a>
                                     
                                     <form action="/" method="POST" onsubmit="return confirm('Tem certeza que deseja excluir este assistente?');">
