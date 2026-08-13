@@ -39,7 +39,8 @@ class AssistantController extends Controller
         
         $assistant->update($request->only([
             'provider', 'model', 'system_prompt', 
-            'openai_api_key', 'gemini_api_key', 'anthropic_api_key', 'grok_api_key'
+            'openai_api_key', 'gemini_api_key', 'anthropic_api_key', 'grok_api_key',
+            'whatsapp_provider', 'whatsapp_url', 'whatsapp_instance', 'whatsapp_token', 'whatsapp_verify_token'
         ]));
 
         if ($request->hasFile('documents')) {
@@ -62,7 +63,7 @@ class AssistantController extends Controller
                 $assistant->update(['knowledge_files' => $files]);
                 return redirect('/?configure=' . $assistant->id)->with('success', "{$uploadedCount} arquivo(s) anexado(s) com sucesso!");
             } else {
-                return redirect('/?configure=' . $assistant->id)->with('error', 'Falha ao subir o arquivo. Verifique se o arquivo não ultrapassa o limite permitido.');
+                return redirect('/?configure=' . $assistant->id)->with('error', 'Falha ao subir o arquivo. Verifique o limite de tamanho.');
             }
         }
 
