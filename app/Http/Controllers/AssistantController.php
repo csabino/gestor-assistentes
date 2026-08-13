@@ -4,13 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Assistant;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class AssistantController extends Controller
 {
     public function index(Request $request)
     {
-        $assistants = Assistant::latest()->get();
+        // Ordenação alfabética crescente (A-Z)
+        $assistants = Assistant::orderBy('name', 'asc')->get();
         $configuring = $request->has('configure') ? Assistant::find($request->configure) : null;
         
         return view('assistants.index', compact('assistants', 'configuring'));
@@ -27,16 +27,14 @@ class AssistantController extends Controller
     {
         $assistant = Assistant::findOrFail($request->assistant_id);
         
-        // Atualiza os campos de texto
         $assistant->update($request->only([
             'provider', 'model', 'system_prompt', 
             'openai_api_key', 'gemini_api_key', 'anthropic_api_key', 'grok_api_key'
         ]));
 
-        // Lógica de Upload da Base de Conhecimento
         if ($request->hasFile('document')) {
             $file = $request->file('document');
-            $path = $file->store('knowledge_bases'); // Salva na pasta segura do servidor
+            $path = $file->store('knowledge_bases');
             
             $files = $assistant->knowledge_files ?? [];
             $files[] = [
@@ -56,7 +54,6 @@ class AssistantController extends Controller
         $assistant = Assistant::findOrFail($request->assistant_id);
         $assistant->update(['is_active' => !$assistant->is_active]);
         
-        // Se estiver na tela de configuração, volta para ela
         if ($request->has('from_config')) {
             return redirect('/?configure=' . $assistant->id)->with('success', 'Status alterado!');
         }
