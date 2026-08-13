@@ -150,33 +150,21 @@ class AssistantController extends Controller
         }
 
         try {
-            // LÓGICA EXCLUSIVA E DIRETA PARA A UAZAPI
+            // LÓGICA EXCLUSIVA PARA A UAZAPI
             if ($provider === 'uazapi') {
                 $response = Http::withHeaders([
                     'token' => $token,
-                    'apikey' => $token,
-                    'Content-Type' => 'application/json'
-                ])->timeout(10)->post("{$url}/instance/connect", []);
-
-                if (!$response->successful()) {
-                    $response = Http::withHeaders([
-                        'token' => $token,
-                        'apikey' => $token,
-                    ])->timeout(10)->get("{$url}/instance/status");
-                }
+                    'Client-Token' => $token,
+                    'apikey' => $token
+                ])->timeout(10)->get("{$url}/instance/connect");
 
                 if ($response->successful()) {
                     $data = $response->json();
+                    $inst = $data['instance'] ?? $data;
 
-                    $status = strtolower(
-                        $data['instance']['status'] 
-                        ?? $data['instance']['state'] 
-                        ?? $data['status'] 
-                        ?? $data['state'] 
-                        ?? ''
-                    );
+                    $status = strtolower($inst['status'] ?? $inst['state'] ?? '');
 
-                    if ($status === 'open' || $status === 'connected' || $status === 'connecting_connected' || ($data['connected'] ?? false) === true) {
+                    if ($status === 'open' || $status === 'connected' || ($data['connected'] ?? false) === true) {
                         return response()->json([
                             'success' => true,
                             'connected' => true,
@@ -184,12 +172,14 @@ class AssistantController extends Controller
                         ]);
                     }
 
-                    $qr = $this->extractQrCode($data);
-                    if ($qr) {
+                    $qr = $inst['qrcode'] ?? $inst['qr'] ?? $data['qrcode'] ?? $data['base64'] ?? null;
+
+                    if (!empty($qr) && is_string($qr) && strlen(trim($qr)) > 30) {
+                        $qrFormatted = $this->formatBase64Image($qr);
                         return response()->json([
                             'success' => true,
                             'connected' => false,
-                            'qr' => $qr,
+                            'qr' => $qrFormatted,
                             'message' => 'Abra seu WhatsApp > Aparelhos Conectados e escaneie a imagem abaixo:'
                         ]);
                     }
@@ -198,7 +188,7 @@ class AssistantController extends Controller
                         'success' => true,
                         'connected' => false,
                         'qr' => null,
-                        'message' => "Instância UaZapi ligada (Status: " . ($status ?: 'desconectado') . "). Gerando QR Code..."
+                        'message' => "Instância UaZapi acionada (Status: " . ($status ?: 'desconectado') . "). Gerando QR Code..."
                     ]);
                 } else {
                     $errorData = $response->json();
@@ -229,12 +219,12 @@ class AssistantController extends Controller
                         ]);
                     }
 
-                    $qr = $this->extractQrCode($data);
-                    if ($qr) {
+                    $qr = $data['instance']['qrcode'] ?? $data['base64'] ?? null;
+                    if (!empty($qr) && is_string($qr) && strlen(trim($qr)) > 30) {
                         return response()->json([
                             'success' => true,
                             'connected' => false,
-                            'qr' => $qr,
+                            'qr' => $this->formatBase64Image($qr),
                             'message' => 'Abra seu WhatsApp > Aparelhos Conectados e escaneie a imagem abaixo:'
                         ]);
                     }
@@ -256,35 +246,8 @@ class AssistantController extends Controller
             return response()->json(['success' => true, 'message' => "Integração para {$provider} em desenvolvimento."]);
 
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Erro de comunicação de rede com o servidor da UaZapi.']);
+            return response()->json(['success' => false, 'message' => 'Erro de comunicação de rede com o servidor.']);
         }
-    }
-
-    private function extractQrCode($data)
-    {
-        if (!is_array($data)) return null;
-
-        $candidates = [
-            $data['instance']['qrcode'] ?? null,
-            $data['instance']['qr'] ?? null,
-            $data['qrcode'] ?? null,
-            $data['base64'] ?? null,
-            $data['qr'] ?? null,
-            $data['code'] ?? null,
-        ];
-
-        foreach ($candidates as $cand) {
-            if (is_string($cand) && strlen(trim($cand)) > 30) {
-                return $this->formatBase64Image($cand);
-            }
-        }
-
-        $recursive = $this->findQrCodeInArray($data);
-        if ($recursive) {
-            return $this->formatBase64Image($recursive);
-        }
-
-        return null;
     }
 
     private function formatBase64Image($str) {
@@ -297,20 +260,5 @@ class AssistantController extends Controller
             }
         }
         return $str;
-    }
-
-    private function findQrCodeInArray($array) {
-        if (!is_array($array)) return null;
-        foreach ($array as $key => $value) {
-            if (is_string($value) && strlen(trim($value)) > 30) {
-                if (str_starts_with($value, 'data:image') || str_contains($key, 'qr') || str_contains($key, 'code') || str_contains($key, 'base64')) {
-                    return $value;
-                }
-            } elseif (is_array($value)) {
-                $found = $this->findQrCodeInArray($value);
-                if ($found) return $found;
-            }
-        }
-        return null;
     }
 }
