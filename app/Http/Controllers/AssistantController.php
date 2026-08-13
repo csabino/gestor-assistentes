@@ -65,11 +65,11 @@ class AssistantController extends Controller
                 $assistant->update(['knowledge_files' => $files]);
                 return redirect('/?configure=' . $assistant->id)->with('success', "{$uploadedCount} arquivo(s) anexado(s) com sucesso!");
             } else {
-                return redirect('/?configure=' . $assistant->id)->with('error', 'Falha ao subir o arquivo.');
+                return redirect('/?configure=' . $assistant->id)->with('error', 'Falha ao subir o arquivo. Verifique o limite de tamanho.');
             }
         }
 
-        return redirect('/?configure=' . $assistant->id)->with('success', 'Configurações atualizadas!');
+        return redirect('/?configure=' . $assistant->id)->with('success', 'Configurações atualizadas e salvas!');
     }
 
     public function toggleStatus(Request $request)
@@ -109,7 +109,7 @@ class AssistantController extends Controller
         $provider = $request->input('provider');
         $apiKey = $request->input('api_key');
 
-        if (empty($apiKey)) return response()->json(['success' => false, 'message' => 'Informe a API Key para testar.']);
+        if (empty($apiKey)) return response()->json(['success' => false, 'message' => 'Informe a API Key do provedor.']);
 
         try {
             if ($provider === 'openai') {
@@ -124,15 +124,12 @@ class AssistantController extends Controller
                 return response()->json(['success' => false, 'message' => 'Provedor inválido.']);
             }
 
-            return $res->successful() 
-                ? response()->json(['success' => true, 'message' => 'Conexão estabelecida com sucesso!']) 
-                : response()->json(['success' => false, 'message' => 'Falha na conexão de IA.']);
+            return $res->successful() ? response()->json(['success' => true, 'message' => 'Conexão estabelecida!']) : response()->json(['success' => false, 'message' => 'Falha na conexão de IA.']);
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Erro ao conectar na IA.']);
+            return response()->json(['success' => false, 'message' => 'Erro ao conectar.']);
         }
     }
 
-    // NOVA FUNÇÃO: Checagem rápida e silenciosa de status
     private function statusWaConnection(Request $request)
     {
         $provider = $request->input('provider');
@@ -140,28 +137,29 @@ class AssistantController extends Controller
         $instance = trim($request->input('instance'));
         $token = trim($request->input('token'));
 
-        if (empty($provider) || empty($url) || empty($token)) {
-            return response()->json(['connected' => false]);
-        }
+        if (empty($provider) || empty($url) || empty($token)) return response()->json(['connected' => false]);
 
         try {
             $headers = ['token' => $token, 'apikey' => $token, 'Client-Token' => $token, 'Authorization' => "Bearer {$token}"];
 
             if ($provider === 'uazapi') {
-                $res = Http::withHeaders($headers)->timeout(5)->get("{$url}/instance/connect");
+                $paths = ["/instance/status", "/instance/status/{$instance}", "/instance/connect/{$instance}"];
+                foreach($paths as $path) {
+                    $res = Http::withHeaders($headers)->timeout(4)->get($url . $path);
+                    if ($res->successful()) {
+                        $data = $res->json();
+                        $status = strtolower($data['instance']['state'] ?? $data['instance']['status'] ?? $data['status'] ?? $data['state'] ?? '');
+                        if (in_array($status, ['open', 'connected', 'connecting_connected'])) {
+                            return response()->json(['connected' => true]);
+                        }
+                        return response()->json(['connected' => false]);
+                    }
+                }
             } elseif ($provider === 'evolution') {
-                $res = Http::withHeaders($headers)->timeout(5)->get("{$url}/instance/connect/{$instance}");
-            } else {
-                return response()->json(['connected' => false]);
-            }
-
-            if ($res->successful()) {
-                $data = $res->json();
-                $inst = $data['instance'] ?? $data;
-                $status = strtolower($inst['state'] ?? $inst['status'] ?? $data['status'] ?? $data['state'] ?? '');
-                
-                if ($status === 'open' || $status === 'connected' || ($data['connected'] ?? false) === true) {
-                    return response()->json(['connected' => true]);
+                $res = Http::withHeaders($headers)->timeout(4)->get("{$url}/instance/connect/{$instance}");
+                if ($res->successful()) {
+                    $status = strtolower($res->json()['instance']['state'] ?? '');
+                    return response()->json(['connected' => in_array($status, ['open', 'connected'])]);
                 }
             }
             return response()->json(['connected' => false]);
@@ -170,7 +168,6 @@ class AssistantController extends Controller
         }
     }
 
-    // NOVA FUNÇÃO: Desconectar / Fazer Logout da Instância remotamente
     private function disconnectWaConnection(Request $request)
     {
         $provider = $request->input('provider');
@@ -186,14 +183,12 @@ class AssistantController extends Controller
             } elseif ($provider === 'evolution') {
                 Http::withHeaders($headers)->timeout(8)->delete("{$url}/instance/logout/{$instance}");
             }
-
             return response()->json(['success' => true]);
         } catch (\Exception $e) {
             return response()->json(['success' => false]);
         }
     }
 
-    // Geração do QR Code e Conexão Manual
     private function testWaConnection(Request $request)
     {
         $provider = $request->input('provider');
@@ -201,58 +196,77 @@ class AssistantController extends Controller
         $instance = trim($request->input('instance'));
         $token = trim($request->input('token'));
 
+        if (empty($provider) || empty($instance) || empty($token)) {
+            return response()->json(['success' => false, 'message' => 'Preencha URL, Instância e Token.']);
+        }
+
         try {
-            $headers = [
-                'token' => $token, 'apikey' => $token, 'Client-Token' => $token, 
-                'Authorization' => "Bearer {$token}", 'Content-Type' => 'application/json'
-            ];
-
             if ($provider === 'uazapi') {
-                $response = Http::withHeaders($headers)->timeout(10)->post("{$url}/instance/connect", (object)[]);
+                $headers = ['token' => $token, 'apikey' => $token, 'Client-Token' => $token, 'Authorization' => "Bearer {$token}", 'Content-Type' => 'application/json', 'Accept' => 'application/json'];
+                
+                // Dispara o POST válido para UaZapi (baseado no seu log de sucesso anterior)
+                $res = Http::withHeaders($headers)->timeout(10)->post("{$url}/instance/connect", ['instanceName' => $instance]);
+                if (!$res->successful() || $res->status() === 400) {
+                    $res = Http::withHeaders($headers)->timeout(10)->post("{$url}/instance/connect", (object)[]);
+                }
+                
+                // Fallbacks seguros de leitura de status
+                if (!$res->successful()) {
+                    $res = Http::withHeaders($headers)->timeout(10)->get("{$url}/instance/connect/{$instance}");
+                }
+                if (!$res->successful()) {
+                    $res = Http::withHeaders($headers)->timeout(10)->get("{$url}/instance/status");
+                }
 
-                if ($response->successful()) {
-                    $data = $response->json();
+                if ($res->successful()) {
+                    $data = $res->json();
                     $inst = $data['instance'] ?? $data;
                     $status = strtolower($inst['status'] ?? $inst['state'] ?? $data['status'] ?? $data['state'] ?? '');
 
-                    if ($status === 'open' || $status === 'connected' || ($data['connected'] ?? false) === true) {
-                        return response()->json(['success' => true, 'connected' => true, 'message' => '✅ WhatsApp pareado com sucesso!']);
+                    if (in_array($status, ['open', 'connected', 'connecting_connected']) || ($data['connected'] ?? false) === true) {
+                        return response()->json(['success' => true, 'connected' => true, 'message' => '✅ WhatsApp pareado!']);
                     }
 
                     $qr = $this->extractQrCode($data);
-                    if ($qr) return response()->json(['success' => true, 'connected' => false, 'qr' => $qr, 'message' => 'Escaneie o QR Code abaixo:']);
+                    if ($qr) return response()->json(['success' => true, 'connected' => false, 'qr' => $qr, 'message' => 'Escaneie a imagem abaixo:']);
 
-                    return response()->json(['success' => true, 'connected' => false, 'qr' => null, 'message' => "Aguardando imagem (Status: {$status})..."]);
+                    return response()->json(['success' => true, 'connected' => false, 'qr' => null, 'message' => "Instância UaZapi ligada (Status: {$status}). Gerando QR Code..."]);
                 }
-                return response()->json(['success' => false, 'message' => "Erro na UaZapi. Verifique credenciais."]);
+
+                $err = $res->json();
+                return response()->json(['success' => false, 'message' => "Erro {$res->status()}: " . ($err['message'] ?? $err['error'] ?? 'Verifique credenciais.')]);
             }
 
             if ($provider === 'evolution') {
-                $response = Http::withHeaders($headers)->timeout(10)->get("{$url}/instance/connect/{$instance}");
-                if ($response->successful()) {
-                    $data = $response->json();
+                $headers = ['apikey' => $token, 'Authorization' => "Bearer {$token}"];
+                $res = Http::withHeaders($headers)->timeout(10)->get("{$url}/instance/connect/{$instance}");
+
+                if ($res->successful()) {
+                    $data = $res->json();
                     $status = strtolower($data['instance']['state'] ?? $data['state'] ?? '');
                     
-                    if ($status === 'open' || $status === 'connected') return response()->json(['success' => true, 'connected' => true, 'message' => '✅ WhatsApp pareado!']);
-                    
+                    if ($status === 'open' || $status === 'connected') return response()->json(['success' => true, 'connected' => true, 'message' => '✅ WhatsApp conectado!']);
+
                     $qr = $this->extractQrCode($data);
                     if ($qr) return response()->json(['success' => true, 'connected' => false, 'qr' => $qr, 'message' => 'Escaneie a imagem abaixo:']);
-                    
-                    return response()->json(['success' => true, 'connected' => false, 'qr' => null, 'message' => "Aguardando imagem..."]);
+
+                    return response()->json(['success' => true, 'connected' => false, 'qr' => null, 'message' => "Aguardando imagem da Evolution API..."]);
                 }
-                return response()->json(['success' => false, 'message' => "Erro na Evolution API."]);
+                return response()->json(['success' => false, 'message' => "Erro {$res->status()} na Evolution API."]);
             }
 
             return response()->json(['success' => true, 'message' => "Integração em desenvolvimento."]);
+
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Erro de comunicação de rede.']);
+            return response()->json(['success' => false, 'message' => 'Erro de comunicação com servidor.']);
         }
     }
 
     private function extractQrCode($data)
     {
         if (!is_array($data)) return null;
-        $candidates = [$data['instance']['qrcode'] ?? null, $data['instance']['qr'] ?? null, $data['qrcode'] ?? null, $data['base64'] ?? null, $data['qr'] ?? null];
+
+        $candidates = [$data['instance']['qrcode'] ?? null, $data['instance']['qr'] ?? null, $data['qrcode'] ?? null, $data['base64'] ?? null, $data['qr'] ?? null, $data['code'] ?? null];
 
         foreach ($candidates as $cand) {
             if (is_string($cand) && strlen(trim($cand)) > 30) return $this->formatBase64Image($cand);

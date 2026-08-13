@@ -130,7 +130,6 @@
                         }
                     },
 
-                    // Verifica o status de forma silenciosa e leve no carregamento
                     async checkWaStatusSilent() {
                         if(!this.wa_provider || !document.querySelector('input[name=\'whatsapp_url\']')?.value || !document.querySelector('input[name=\'whatsapp_token\']')?.value) {
                             this.waStatus = 'disconnected';
@@ -151,7 +150,6 @@
                         }
                     },
 
-                    // Dispara a desconexão (Logout)
                     async disconnectWa() {
                         if(!confirm('Tem certeza que deseja desconectar o WhatsApp deste número?')) return;
                         this.waStatus = 'checking';
@@ -230,7 +228,7 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z" /></svg>
                                 Conexão IA
                             </h2>
-                            <button type="button" @click="testConnection()" :disabled="testing" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded-lg border border-indigo-200 flex items-center shrink-0">
+                            <button type="button" x-on:click="testConnection()" :disabled="testing" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded-lg border border-indigo-200 flex items-center shrink-0">
                                 <span x-text="testing ? '⌛ Testando...' : '⚡ Testar'"></span>
                             </button>
                         </div>
@@ -306,31 +304,22 @@
                                 Canal: WhatsApp
                             </div>
                             
-                            <!-- Badges e Botão Desconectar Dinâmicos -->
                             <div class="flex items-center gap-2" x-show="wa_provider !== ''" x-cloak>
-                                <!-- Loader -->
                                 <span x-show="waStatus === 'checking'" class="text-[10px] uppercase font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-500 animate-pulse border border-gray-200">Verificando...</span>
-                                
-                                <!-- Conectado -->
                                 <span x-show="waStatus === 'connected'" class="text-[10px] uppercase font-bold px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 flex items-center gap-1.5 border border-emerald-200 shadow-sm">
                                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>Conectado
                                 </span>
-                                
-                                <!-- Desconectado -->
                                 <span x-show="waStatus === 'disconnected'" class="text-[10px] uppercase font-bold px-2 py-1 rounded-full bg-red-50 text-red-600 flex items-center gap-1.5 border border-red-200 shadow-sm">
                                     <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>Desconectado
                                 </span>
-
-                                <!-- Botão Desconectar Vermelho -->
-                                <button type="button" x-show="waStatus === 'connected'" @click="disconnectWa()" class="text-[10px] uppercase font-bold px-2 py-1 rounded-md bg-red-100 hover:bg-red-200 text-red-700 transition border border-red-200 flex items-center gap-1 cursor-pointer">
-                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.636 5.636a9 9 0 1012.728 0M12 3v9" /></svg>
-                                    Desconectar
+                                <button type="button" x-show="waStatus === 'connected'" x-on:click="disconnectWa()" class="text-[10px] uppercase font-bold px-2 py-1 rounded-md bg-red-100 hover:bg-red-200 text-red-700 transition border border-red-200 flex items-center gap-1 cursor-pointer">
+                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.636 5.636a9 9 0 1012.728 0M12 3v9" /></svg> Desconectar
                                 </button>
                             </div>
                         </h2>
 
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Plataforma</label>
-                        <select name="whatsapp_provider" x-model="wa_provider" @change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-5 focus:ring-2 focus:ring-indigo-500">
+                        <select name="whatsapp_provider" x-model="wa_provider" x-on:change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-5 focus:ring-2 focus:ring-indigo-500">
                             <option value="">Desativado</option>
                             <option value="uazapi">UaZapi</option>
                             <option value="evolution">Evolution API</option>
@@ -343,11 +332,11 @@
                             <template x-if="wa_provider === 'uazapi'">
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">URL (UaZapi)</label>
-                                    <input type="url" name="whatsapp_url" value="{{ $configuring->whatsapp_url }}" @change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="https://api.uazapi.dev">
+                                    <input type="url" name="whatsapp_url" value="{{ $configuring->whatsapp_url }}" x-on:change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="https://api.uazapi.dev">
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">Nome da Instância</label>
                                     <input type="text" name="whatsapp_instance" value="{{ $configuring->whatsapp_instance }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="Ex: suporte">
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">Instance Token</label>
-                                    <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" @change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="Ex: T0K3N...">
+                                    <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" x-on:change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="Ex: T0K3N...">
                                 </div>
                             </template>
                             <template x-if="wa_provider === 'evolution'">
@@ -398,7 +387,7 @@
                                 <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('webhookUrl').value); alert('Webhook copiado!');" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg transition text-xs font-bold flex items-center shrink-0">Copiar</button>
                             </div>
                             
-                            <button type="button" @click="startWaConnection()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2 shadow-sm">
+                            <button type="button" x-on:click="startWaConnection()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2 shadow-sm">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" /></svg>
                                 Conectar / Exibir QR Code
                             </button>
@@ -408,9 +397,9 @@
 
                 <!-- MODAL POPUP DO WHATSAPP COM AUTAPOLLING -->
                 <div x-show="showWaModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4" x-transition>
-                    <div @click.away="showWaModal = false" class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center relative border border-gray-100">
+                    <div x-on:click.away="showWaModal = false" class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center relative border border-gray-100">
                         
-                        <button type="button" @click="showWaModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition p-1 rounded-lg">
+                        <button type="button" x-on:click="showWaModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition p-1 rounded-lg">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
 
@@ -473,10 +462,10 @@
 
                         <!-- RODAPÉ DO MODAL -->
                         <div class="mt-6 pt-4 border-t border-gray-100 flex gap-2">
-                            <button type="button" @click="runWaPoll()" :disabled="waLoading" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 rounded-lg text-xs transition">
+                            <button type="button" x-on:click="runWaPoll()" :disabled="waLoading" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 rounded-lg text-xs transition">
                                 Tentar Novamente
                             </button>
-                            <button type="button" @click="showWaModal = false" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2 rounded-lg text-xs transition">
+                            <button type="button" x-on:click="showWaModal = false" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2 rounded-lg text-xs transition">
                                 Fechar
                             </button>
                         </div>
@@ -600,6 +589,8 @@
                                     </form>
                                 </td>
                             </tr>
+                        @empty
+                            <tr><td colspan="3" class="text-center py-8 text-gray-400">Nenhum assistente cadastrado.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
