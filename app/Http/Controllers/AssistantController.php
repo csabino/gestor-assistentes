@@ -150,20 +150,23 @@ class AssistantController extends Controller
         }
 
         try {
-            // LÓGICA EXCLUSIVA PARA A UAZAPI
-            if ($provider === 'uazapi') {
+            // LÓGICA UNIFICADA: UAZAPI E EVOLUTION API
+            if ($provider === 'uazapi' || $provider === 'evolution') {
+                
+                // Agora enviamos a ROTA CORRETA com o /{$instance} no final
                 $response = Http::withHeaders([
-                    'token' => $token,
-                    'Client-Token' => $token,
-                    'apikey' => $token
-                ])->timeout(10)->get("{$url}/instance/connect");
+                    'apikey' => $token,
+                    'Authorization' => "Bearer {$token}"
+                ])->timeout(10)->get("{$url}/instance/connect/{$instance}");
 
                 if ($response->successful()) {
                     $data = $response->json();
+                    
+                    // A API pode retornar os dados na raiz ou dentro de 'instance'
                     $inst = $data['instance'] ?? $data;
-
-                    $status = strtolower($inst['status'] ?? $inst['state'] ?? '');
-
+                    $status = strtolower($inst['state'] ?? $inst['status'] ?? $data['status'] ?? $data['state'] ?? '');
+                    
+                    // Verifica se já está pareado e logado
                     if ($status === 'open' || $status === 'connected' || ($data['connected'] ?? false) === true) {
                         return response()->json([
                             'success' => true,
@@ -172,54 +175,10 @@ class AssistantController extends Controller
                         ]);
                     }
 
+                    // Extrai a imagem do QR Code
                     $qr = $inst['qrcode'] ?? $inst['qr'] ?? $data['qrcode'] ?? $data['base64'] ?? null;
 
-                    if (!empty($qr) && is_string($qr) && strlen(trim($qr)) > 30) {
-                        $qrFormatted = $this->formatBase64Image($qr);
-                        return response()->json([
-                            'success' => true,
-                            'connected' => false,
-                            'qr' => $qrFormatted,
-                            'message' => 'Abra seu WhatsApp > Aparelhos Conectados e escaneie a imagem abaixo:'
-                        ]);
-                    }
-
-                    return response()->json([
-                        'success' => true,
-                        'connected' => false,
-                        'qr' => null,
-                        'message' => "Instância UaZapi acionada (Status: " . ($status ?: 'desconectado') . "). Gerando QR Code..."
-                    ]);
-                } else {
-                    $errorData = $response->json();
-                    $errorMsg = $errorData['message'] ?? $errorData['error'] ?? 'Verifique a URL e o Token da UaZapi.';
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Erro {$response->status()}: {$errorMsg}"
-                    ]);
-                }
-            }
-
-            // LÓGICA PARA EVOLUTION API
-            if ($provider === 'evolution') {
-                $response = Http::withHeaders([
-                    'apikey' => $token,
-                    'Authorization' => "Bearer {$token}"
-                ])->timeout(10)->get("{$url}/instance/connect/{$instance}");
-
-                if ($response->successful()) {
-                    $data = $response->json();
-                    $status = strtolower($data['instance']['state'] ?? $data['state'] ?? '');
-                    
-                    if ($status === 'open' || $status === 'connected') {
-                        return response()->json([
-                            'success' => true,
-                            'connected' => true,
-                            'message' => '✅ WhatsApp pareado e conectado com sucesso!'
-                        ]);
-                    }
-
-                    $qr = $data['instance']['qrcode'] ?? $data['base64'] ?? null;
+                    // Valida se o QR Code já existe e não é uma string vazia ""
                     if (!empty($qr) && is_string($qr) && strlen(trim($qr)) > 30) {
                         return response()->json([
                             'success' => true,
@@ -229,16 +188,19 @@ class AssistantController extends Controller
                         ]);
                     }
 
+                    // Se a API retornou 200 OK mas o QR Code veio vazio, avisa o polling do Javascript
                     return response()->json([
                         'success' => true,
                         'connected' => false,
                         'qr' => null,
-                        'message' => "Instância Evolution ligada (Status: {$status}). Gerando QR Code..."
+                        'message' => "Instância ligada (Status: " . ($status ?: 'desconectado') . "). O servidor está gerando a imagem do QR Code..."
                     ]);
                 } else {
+                    $errorData = $response->json();
+                    $errorMsg = $errorData['message'] ?? $errorData['error'] ?? 'Verifique se a URL, Instância e Token estão corretos.';
                     return response()->json([
                         'success' => false,
-                        'message' => "Erro {$response->status()} na Evolution API."
+                        'message' => "Erro {$response->status()}: {$errorMsg}"
                     ]);
                 }
             }
