@@ -150,63 +150,68 @@ class AssistantController extends Controller
         }
 
         try {
-            // LÓGICA UNIFICADA: UAZAPI E EVOLUTION API
-            if ($provider === 'uazapi' || $provider === 'evolution') {
+            $headers = [
+                'token' => $token,
+                'apikey' => $token,
+                'Client-Token' => $token,
+                'Authorization' => "Bearer {$token}"
+            ];
+
+            // ROTA EXCLUSIVA DA UAZAPI (SEM NOME DA INSTANCIA NO FINAL)
+            if ($provider === 'uazapi') {
+                $response = Http::withHeaders($headers)->timeout(10)->get("{$url}/instance/connect");
+            } 
+            // ROTA EXCLUSIVA DA EVOLUTION (COM NOME DA INSTANCIA NO FINAL)
+            elseif ($provider === 'evolution') {
+                $response = Http::withHeaders($headers)->timeout(10)->get("{$url}/instance/connect/{$instance}");
+            } 
+            else {
+                return response()->json(['success' => true, 'message' => "Integração para {$provider} em desenvolvimento."]);
+            }
+
+            if ($response->successful()) {
+                $data = $response->json();
                 
-                // Agora enviamos a ROTA CORRETA com o /{$instance} no final
-                $response = Http::withHeaders([
-                    'apikey' => $token,
-                    'Authorization' => "Bearer {$token}"
-                ])->timeout(10)->get("{$url}/instance/connect/{$instance}");
+                $inst = $data['instance'] ?? $data;
+                $status = strtolower($inst['state'] ?? $inst['status'] ?? $data['status'] ?? $data['state'] ?? '');
+                
+                // Verifica se já está pareado
+                if ($status === 'open' || $status === 'connected' || ($data['connected'] ?? false) === true) {
+                    return response()->json([
+                        'success' => true,
+                        'connected' => true,
+                        'message' => '✅ WhatsApp pareado e conectado com sucesso!'
+                    ]);
+                }
 
-                if ($response->successful()) {
-                    $data = $response->json();
-                    
-                    // A API pode retornar os dados na raiz ou dentro de 'instance'
-                    $inst = $data['instance'] ?? $data;
-                    $status = strtolower($inst['state'] ?? $inst['status'] ?? $data['status'] ?? $data['state'] ?? '');
-                    
-                    // Verifica se já está pareado e logado
-                    if ($status === 'open' || $status === 'connected' || ($data['connected'] ?? false) === true) {
-                        return response()->json([
-                            'success' => true,
-                            'connected' => true,
-                            'message' => '✅ WhatsApp pareado e conectado com sucesso!'
-                        ]);
-                    }
+                // Extrai a imagem do QR Code
+                $qr = $inst['qrcode'] ?? $inst['qr'] ?? $data['qrcode'] ?? $data['base64'] ?? null;
 
-                    // Extrai a imagem do QR Code
-                    $qr = $inst['qrcode'] ?? $inst['qr'] ?? $data['qrcode'] ?? $data['base64'] ?? null;
-
-                    // Valida se o QR Code já existe e não é uma string vazia ""
-                    if (!empty($qr) && is_string($qr) && strlen(trim($qr)) > 30) {
-                        return response()->json([
-                            'success' => true,
-                            'connected' => false,
-                            'qr' => $this->formatBase64Image($qr),
-                            'message' => 'Abra seu WhatsApp > Aparelhos Conectados e escaneie a imagem abaixo:'
-                        ]);
-                    }
-
-                    // Se a API retornou 200 OK mas o QR Code veio vazio, avisa o polling do Javascript
+                // Valida se o QR Code já existe e não é vazio
+                if (!empty($qr) && is_string($qr) && strlen(trim($qr)) > 30) {
                     return response()->json([
                         'success' => true,
                         'connected' => false,
-                        'qr' => null,
-                        'message' => "Instância ligada (Status: " . ($status ?: 'desconectado') . "). O servidor está gerando a imagem do QR Code..."
-                    ]);
-                } else {
-                    $errorData = $response->json();
-                    $errorMsg = $errorData['message'] ?? $errorData['error'] ?? 'Verifique se a URL, Instância e Token estão corretos.';
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Erro {$response->status()}: {$errorMsg}"
+                        'qr' => $this->formatBase64Image($qr),
+                        'message' => 'Abra seu WhatsApp > Aparelhos Conectados e escaneie a imagem abaixo:'
                     ]);
                 }
+
+                // Se ligou mas a imagem ainda não gerou, avisa o Javascript para continuar o Polling
+                return response()->json([
+                    'success' => true,
+                    'connected' => false,
+                    'qr' => null,
+                    'message' => "Instância conectada (Status: " . ($status ?: 'aguardando') . "). Gerando QR Code..."
+                ]);
+            } else {
+                $errorData = $response->json();
+                $errorMsg = $errorData['message'] ?? $errorData['error'] ?? 'Verifique se a URL e o Token estão corretos.';
+                return response()->json([
+                    'success' => false,
+                    'message' => "Erro {$response->status()}: {$errorMsg}"
+                ]);
             }
-
-            return response()->json(['success' => true, 'message' => "Integração para {$provider} em desenvolvimento."]);
-
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Erro de comunicação de rede com o servidor.']);
         }
