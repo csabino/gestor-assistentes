@@ -150,8 +150,9 @@
                         }
                     },
 
+                    // O JAVASCRIPT CORRIGIDO: Só desliga a luz se der success na API!
                     async disconnectWa() {
-                        if(!confirm('Tem certeza que deseja desconectar o WhatsApp deste número?')) return;
+                        if(!confirm('Tem certeza que deseja desconectar o WhatsApp deste celular?')) return;
                         this.waStatus = 'checking';
                         try {
                             const params = this.getWaParams();
@@ -160,11 +161,17 @@
                                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
                                 body: JSON.stringify({ action: 'disconnect_whatsapp', ...params })
                             });
-                            await response.json();
-                            this.waStatus = 'disconnected';
-                            alert('WhatsApp desconectado com sucesso!');
+                            const data = await response.json();
+                            
+                            if (data.success) {
+                                this.waStatus = 'disconnected';
+                                alert('WhatsApp desconectado com sucesso da UaZapi!');
+                            } else {
+                                alert('A API não conseguiu desconectar: ' + (data.message || 'Erro desconhecido.'));
+                                this.checkWaStatusSilent(); // Restaura o status real
+                            }
                         } catch(e) {
-                            alert('Erro ao tentar desconectar.');
+                            alert('Erro na requisição. Verifique o console.');
                             this.checkWaStatusSilent();
                         }
                     },

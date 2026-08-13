@@ -168,6 +168,7 @@ class AssistantController extends Controller
         }
     }
 
+    // A LÓGICA DE LOGOUT BLINDADA AQUI!
     private function disconnectWaConnection(Request $request)
     {
         $provider = $request->input('provider');
@@ -175,17 +176,42 @@ class AssistantController extends Controller
         $instance = trim($request->input('instance'));
         $token = trim($request->input('token'));
 
+        if (empty($provider) || empty($url) || empty($token)) {
+            return response()->json(['success' => false, 'message' => 'Parâmetros de configuração incompletos.']);
+        }
+
         try {
             $headers = ['token' => $token, 'apikey' => $token, 'Client-Token' => $token, 'Authorization' => "Bearer {$token}"];
 
             if ($provider === 'uazapi') {
-                Http::withHeaders($headers)->timeout(8)->delete("{$url}/instance/logout");
-            } elseif ($provider === 'evolution') {
-                Http::withHeaders($headers)->timeout(8)->delete("{$url}/instance/logout/{$instance}");
+                // Tenta as duas rotas padrões de logout da UaZapi / CodeChat
+                $candidates = ['/instance/logout', "/instance/logout/{$instance}"];
+                $lastError = '';
+
+                foreach ($candidates as $path) {
+                    $res = Http::withHeaders($headers)->timeout(8)->delete($url . $path);
+
+                    if ($res->successful()) {
+                        return response()->json(['success' => true]);
+                    }
+                    $err = $res->json();
+                    $lastError = $res->status() . ' - ' . ($err['message'] ?? $err['error'] ?? 'Ação negada');
+                }
+                
+                return response()->json(['success' => false, 'message' => $lastError]);
+            } 
+            
+            if ($provider === 'evolution') {
+                $res = Http::withHeaders($headers)->timeout(8)->delete("{$url}/instance/logout/{$instance}");
+                if ($res->successful()) {
+                    return response()->json(['success' => true]);
+                }
+                return response()->json(['success' => false, 'message' => "Evolution API Error: " . $res->status()]);
             }
-            return response()->json(['success' => true]);
+
+            return response()->json(['success' => false, 'message' => 'Ação não suportada para este provedor.']);
         } catch (\Exception $e) {
-            return response()->json(['success' => false]);
+            return response()->json(['success' => false, 'message' => 'Erro de conexão com a API.']);
         }
     }
 
@@ -197,20 +223,18 @@ class AssistantController extends Controller
         $token = trim($request->input('token'));
 
         if (empty($provider) || empty($instance) || empty($token)) {
-            return response()->json(['success' => false, 'message' => 'Preencha URL, Instância e Token.']);
+            return response()->json(['success' => false, 'message' => 'Preencha URL, Instância e Token para testar a conexão.']);
         }
 
         try {
             if ($provider === 'uazapi') {
                 $headers = ['token' => $token, 'apikey' => $token, 'Client-Token' => $token, 'Authorization' => "Bearer {$token}", 'Content-Type' => 'application/json', 'Accept' => 'application/json'];
                 
-                // Dispara o POST válido para UaZapi (baseado no seu log de sucesso anterior)
                 $res = Http::withHeaders($headers)->timeout(10)->post("{$url}/instance/connect", ['instanceName' => $instance]);
                 if (!$res->successful() || $res->status() === 400) {
                     $res = Http::withHeaders($headers)->timeout(10)->post("{$url}/instance/connect", (object)[]);
                 }
                 
-                // Fallbacks seguros de leitura de status
                 if (!$res->successful()) {
                     $res = Http::withHeaders($headers)->timeout(10)->get("{$url}/instance/connect/{$instance}");
                 }
