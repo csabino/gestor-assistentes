@@ -152,32 +152,32 @@ class AssistantController extends Controller
         try {
             if ($provider === 'uazapi' || $provider === 'evolution') {
                 
-                // Força tentativas de inicialização/geração do QR Code na UaZapi / Evolution
-                $candidates = [
+                $headers = [
+                    'token' => $token,
+                    'apikey' => $token,
+                    'Client-Token' => $token,
+                    'Authorization' => "Bearer {$token}"
+                ];
+
+                // 1. Tenta acionar a conexão via POST e GET
+                $endpoints = [
                     ['method' => 'POST', 'path' => "/instance/connect"],
                     ['method' => 'GET',  'path' => "/instance/connect"],
-                    ['method' => 'POST', 'path' => "/instance/connect/{$instance}"],
-                    ['method' => 'GET',  'path' => "/instance/connect/{$instance}"],
                     ['method' => 'GET',  'path' => "/instance/qrcode"],
                     ['method' => 'GET',  'path' => "/instance/status"],
                 ];
 
-                foreach ($candidates as $candidate) {
-                    $endpoint = $url . $candidate['path'];
-                    $headers = [
-                        'token' => $token,
-                        'apikey' => $token,
-                        'Client-Token' => $token,
-                        'Authorization' => "Bearer {$token}"
-                    ];
+                $rawResponses = [];
 
-                    $req = Http::withHeaders($headers)->timeout(10);
-                    $response = ($candidate['method'] === 'POST') ? $req->post($endpoint) : $req->get($endpoint);
+                foreach ($endpoints as $ep) {
+                    $req = Http::withHeaders($headers)->timeout(8);
+                    $res = ($ep['method'] === 'POST') ? $req->post($url . $ep['path']) : $req->get($url . $ep['path']);
+                    
+                    if ($res->successful()) {
+                        $data = $res->json();
+                        $rawResponses[] = $data;
 
-                    if ($response->successful()) {
-                        $data = $response->json();
-
-                        // Verifica se o WhatsApp já está conectado
+                        // Verifica se já está conectado
                         $state = $data['instance']['state'] ?? $data['status'] ?? $data['state'] ?? null;
                         if ($state === 'open' || $state === 'connected' || ($data['connected'] ?? false) === true) {
                             return response()->json([
@@ -187,15 +187,13 @@ class AssistantController extends Controller
                             ]);
                         }
 
-                        // Busca QR Code em qualquer profundidade da resposta
+                        // Busca QR Code em qualquer campo
                         $qr = $this->findQrCodeInArray($data);
                         if ($qr) {
                             if (!str_starts_with($qr, 'data:image')) {
-                                if (str_contains($qr, 'base64,')) {
-                                    $qr = 'data:image/png;' . substr($qr, strpos($qr, 'base64,'));
-                                } else {
-                                    $qr = 'data:image/png;base64,' . $qr;
-                                }
+                                $qr = str_contains($qr, 'base64,') 
+                                    ? 'data:image/png;' . substr($qr, strpos($qr, 'base64,')) 
+                                    : 'data:image/png;base64,' . $qr;
                             }
                             return response()->json([
                                 'success' => true,
@@ -207,9 +205,11 @@ class AssistantController extends Controller
                     }
                 }
 
+                // Se respondeu mas não achou QR nem Conectado, exibe o JSON real retornado no modal
+                $lastJson = !empty($rawResponses) ? json_encode(end($rawResponses)) : 'Sem conteúdo';
                 return response()->json([
                     'success' => false,
-                    'message' => 'A API respondeu, mas não retornou o QR Code. Tente novamente em alguns segundos.'
+                    'message' => 'API respondeu: ' . substr($lastJson, 0, 200)
                 ]);
             }
 
@@ -224,7 +224,7 @@ class AssistantController extends Controller
         if (!is_array($array)) return null;
         foreach ($array as $key => $value) {
             if (is_string($value)) {
-                if (str_starts_with($value, 'data:image') || (strlen($value) > 100 && (str_contains($key, 'qr') || str_contains($key, 'code') || str_contains($key, 'base64')))) {
+                if (str_starts_with($value, 'data:image') || (strlen($value) > 80 && (str_contains($key, 'qr') || str_contains($key, 'code') || str_contains($key, 'base64')))) {
                     return $value;
                 }
             } elseif (is_array($value)) {
