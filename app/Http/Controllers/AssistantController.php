@@ -19,7 +19,6 @@ class AssistantController extends Controller
 
     public function store(Request $request)
     {
-        // Se a requisição for um Teste de Conexão com a IA
         if ($request->input('action') === 'test_ai') {
             return $this->testAiConnection($request);
         }
@@ -45,17 +44,26 @@ class AssistantController extends Controller
 
         if ($request->hasFile('documents')) {
             $files = $assistant->knowledge_files ?? [];
+            $uploadedCount = 0;
             
             foreach ($request->file('documents') as $file) {
-                $path = $file->store('knowledge_bases');
-                $files[] = [
-                    'name' => $file->getClientOriginalName(),
-                    'path' => $path,
-                    'type' => $file->getClientMimeType()
-                ];
+                if ($file->isValid()) {
+                    $path = $file->store('knowledge_bases');
+                    $files[] = [
+                        'name' => $file->getClientOriginalName(),
+                        'path' => $path,
+                        'type' => $file->getClientMimeType()
+                    ];
+                    $uploadedCount++;
+                }
             }
             
-            $assistant->update(['knowledge_files' => $files]);
+            if ($uploadedCount > 0) {
+                $assistant->update(['knowledge_files' => $files]);
+                return redirect('/?configure=' . $assistant->id)->with('success', "{$uploadedCount} arquivo(s) anexado(s) com sucesso!");
+            } else {
+                return redirect('/?configure=' . $assistant->id)->with('error', 'Falha ao subir o arquivo. Verifique se o arquivo não ultrapassa o limite permitido.');
+            }
         }
 
         return redirect('/?configure=' . $assistant->id)->with('success', 'Configurações atualizadas e salvas!');

@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestor de Assistentes AI</title>
     
-    <!-- Favicon de Inteligência Artificial -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234F46E5' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z'/></svg>">
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -27,7 +26,6 @@
     x-init="$watch('filter', value => localStorage.setItem('assistant_filter', value))"
 >
     
-    <!-- HEADER DA APLICAÇÃO -->
     <nav class="bg-indigo-600 text-white shadow-sm relative z-50">
         <div class="container mx-auto px-4 py-3 flex justify-between items-center">
             <a href="/" class="font-bold text-lg flex items-center gap-2.5 hover:text-indigo-200 transition">
@@ -42,7 +40,7 @@
 
     <div class="container mx-auto px-4 max-w-6xl mb-12">
         
-        <!-- MENSAGEM DE SUCESSO -->
+        <!-- MENSAGENS DE FEEDBACK -->
         @if(session('success'))
             <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-lg mt-6 text-sm flex items-center gap-2 shadow-sm">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-emerald-600">
@@ -52,12 +50,17 @@
             </div>
         @endif
 
-        <!-- ==============================================
-             TELA DE CONFIGURAÇÃO DO ASSISTENTE
-             ============================================== -->
+        @if(session('error'))
+            <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mt-6 text-sm flex items-center gap-2 shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-red-600">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                </svg>
+                {{ session('error') }}
+            </div>
+        @endif
+
         @if($configuring)
             
-            <!-- BARRA FIXA SUPERIOR (STICKY HEADER) -->
             <div class="sticky top-0 z-40 bg-gray-50/90 backdrop-blur-md py-4 mb-6 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4 -mx-4 px-4 sm:mx-0 sm:px-0 shadow-sm mt-4">
                 
                 <div class="flex items-center gap-4">
@@ -92,7 +95,6 @@
                 </div>
             </div>
 
-            <!-- Formulário Dinâmico com Teste de IA embutido no Alpine -->
             <form id="configForm" action="/" method="POST" enctype="multipart/form-data" 
                 x-data="{ 
                     provider: '{{ $configuring->provider ?? 'openai' }}',
@@ -136,7 +138,6 @@
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     
                     <div class="lg:col-span-2 space-y-6">
-                        <!-- CÉREBRO DA IA -->
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                             <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" /></svg>
@@ -147,7 +148,6 @@
                             <textarea name="system_prompt" rows="12" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="Ex: Você é um vendedor especializado na loja X. Seja cordial e sempre consulte a base de conhecimento...">{{ $configuring->system_prompt }}</textarea>
                         </div>
 
-                        <!-- BASE DE CONHECIMENTO -->
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                             <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776" /></svg>
@@ -182,7 +182,6 @@
                                 </div>
                             @endif
 
-                            <!-- Campo com Botão "+ Anexar" ao lado -->
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Anexar Arquivos (PDF, Word, TXT)</label>
                             <p class="text-xs text-gray-500 mb-3">Escolha os arquivos e clique no botão <b>+ Anexar</b> ao lado para subir para a lista acima.</p>
                             
@@ -197,7 +196,6 @@
                     </div>
 
                     <div class="space-y-6">
-                        <!-- CONEXÃO E MODELOS (Com botão de Testar) -->
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                             
                             <div class="border-b border-gray-100 pb-3 mb-4 flex items-center justify-between gap-2">
@@ -206,7 +204,6 @@
                                     Conexão IA
                                 </h2>
 
-                                <!-- Botão Testar Conexão -->
                                 <button type="button" @click="testConnection()" :disabled="testing"
                                     class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded-lg transition border border-indigo-200 flex items-center gap-1.5 shrink-0">
                                     <template x-if="!testing">
@@ -218,7 +215,6 @@
                                 </button>
                             </div>
 
-                            <!-- Alerta de Resultado do Teste -->
                             <div x-show="testResult !== null" x-transition class="mb-4 p-3 rounded-lg text-xs border"
                                 :class="testResult?.success ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'">
                                 <p class="font-bold mb-0.5" x-text="testResult?.success ? '✅ Sucesso!' : '❌ Falha na Conexão'"></p>
@@ -233,7 +229,6 @@
                                 <option value="grok">xAI (Grok)</option>
                             </select>
 
-                            <!-- Campos OPENAI -->
                             <div x-show="provider === 'openai'" x-transition>
                                 <label class="block text-sm font-semibold text-gray-700 mb-1">Modelo da OpenAI</label>
                                 <select name="model" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4 focus:ring-2 focus:ring-indigo-500">
@@ -244,7 +239,6 @@
                                 <input type="password" name="openai_api_key" value="{{ $configuring->openai_api_key }}" placeholder="sk-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500">
                             </div>
 
-                            <!-- Campos GEMINI -->
                             <div x-show="provider === 'gemini'" x-transition style="display: none;">
                                 <label class="block text-sm font-semibold text-gray-700 mb-1">Modelo do Google</label>
                                 <select name="model" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4 focus:ring-2 focus:ring-indigo-500">
@@ -255,7 +249,6 @@
                                 <input type="password" name="gemini_api_key" value="{{ $configuring->gemini_api_key }}" placeholder="AIza..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500">
                             </div>
 
-                            <!-- Campos CLAUDE -->
                             <div x-show="provider === 'anthropic'" x-transition style="display: none;">
                                 <label class="block text-sm font-semibold text-gray-700 mb-1">Modelo do Claude</label>
                                 <select name="model" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4 focus:ring-2 focus:ring-indigo-500">
@@ -266,7 +259,6 @@
                                 <input type="password" name="anthropic_api_key" value="{{ $configuring->anthropic_api_key }}" placeholder="sk-ant-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500">
                             </div>
 
-                            <!-- Campos GROK -->
                             <div x-show="provider === 'grok'" x-transition style="display: none;">
                                 <label class="block text-sm font-semibold text-gray-700 mb-1">Modelo do Grok</label>
                                 <select name="model" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4 focus:ring-2 focus:ring-indigo-500">
@@ -278,7 +270,6 @@
                             </div>
                         </div>
 
-                        <!-- CARD WHATSAPP -->
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 relative overflow-hidden group">
                             <div class="absolute inset-0 bg-gray-50/80 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center opacity-0 hover:opacity-100 transition duration-300 rounded-xl">
                                 <span class="bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-full mb-2">Próxima Etapa</span>
@@ -307,11 +298,7 @@
                 </div>
             </form>
 
-        <!-- ==============================================
-             TELA DE LISTAGEM DOS ASSISTENTES
-             ============================================== -->
         @else
-            <!-- Banner Superior -->
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mt-6 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
                 <form action="/" method="POST" class="flex items-center gap-2 w-full md:w-auto flex-1 max-w-lg">
                     @csrf
@@ -334,7 +321,6 @@
                 </div>
             </div>
 
-            <!-- Título da Seção + CONTADOR DINÂMICO (X/Y) -->
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
                 <h2 class="text-base font-bold text-gray-700">
                     Assistentes Cadastrados (<span x-text="currentCount"></span>/<span x-text="total"></span>)
@@ -350,7 +336,6 @@
                 </div>
             </div>
             
-            <!-- CARDS -->
             <div x-show="view === 'card'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" style="display: none;" x-transition>
                 @forelse($assistants as $assistant)
                     <div x-show="(filter === 'all') || (filter === 'active' && {{ $assistant->is_active ? 'true' : 'false' }}) || (filter === 'inactive' && {{ !$assistant->is_active ? 'true' : 'false' }})"
@@ -390,7 +375,6 @@
                 @endforelse
             </div>
 
-            <!-- LISTA -->
             <div x-show="view === 'list'" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden" style="display: none;" x-transition>
                 <table class="w-full text-left border-collapse text-sm">
                     <thead>
