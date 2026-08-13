@@ -54,7 +54,6 @@
 
         @if($configuring)
             
-            <!-- STICKY HEADER -->
             <div class="sticky top-0 z-40 bg-gray-50/90 backdrop-blur-md py-4 mb-6 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4 -mx-4 px-4 sm:mx-0 sm:px-0 shadow-sm mt-4">
                 <div class="flex items-center gap-4">
                     <a href="/" class="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1.5 text-sm transition bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-100">
@@ -90,6 +89,9 @@
                     wa_provider: '{{ $configuring->whatsapp_provider ?? '' }}',
                     testing: false,
                     testResult: null,
+                    testingWa: false,
+                    waResult: null,
+                    
                     getApiKey() {
                         if (this.provider === 'openai') return document.querySelector('input[name=\'openai_api_key\']').value;
                         if (this.provider === 'gemini') return document.querySelector('input[name=\'gemini_api_key\']').value;
@@ -97,6 +99,16 @@
                         if (this.provider === 'grok') return document.querySelector('input[name=\'grok_api_key\']').value;
                         return '';
                     },
+                    
+                    getWaParams() {
+                        return {
+                            provider: this.wa_provider,
+                            url: document.querySelector('input[name=\'whatsapp_url\']')?.value || '',
+                            instance: document.querySelector('input[name=\'whatsapp_instance\']')?.value || '',
+                            token: document.querySelector('input[name=\'whatsapp_token\']')?.value || ''
+                        };
+                    },
+
                     async testConnection() {
                         this.testing = true;
                         this.testResult = null;
@@ -112,6 +124,24 @@
                         } finally {
                             this.testing = false;
                         }
+                    },
+
+                    async testWhatsApp() {
+                        this.testingWa = true;
+                        this.waResult = null;
+                        try {
+                            const params = this.getWaParams();
+                            const response = await fetch('/', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                                body: JSON.stringify({ action: 'test_whatsapp', ...params })
+                            });
+                            this.waResult = await response.json();
+                        } catch (e) {
+                            this.waResult = { success: false, message: 'Falha na requisição de rede.' };
+                        } finally {
+                            this.testingWa = false;
+                        }
                     }
                 }">
                 @csrf @method('PUT')
@@ -122,7 +152,6 @@
                      ========================================== -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                     
-                    <!-- CÉREBRO DA IA (2/3) -->
                     <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-full">
                         <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" /></svg>
@@ -133,7 +162,6 @@
                         <textarea name="system_prompt" rows="12" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="Ex: Você é um vendedor especializado na loja X...">{{ $configuring->system_prompt }}</textarea>
                     </div>
 
-                    <!-- CONEXÃO DE IA (1/3) -->
                     <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-full">
                         <div class="border-b border-gray-100 pb-3 mb-4 flex items-center justify-between gap-2">
                             <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
@@ -283,19 +311,39 @@
                             </template>
                         </div>
 
-                        <!-- WEBHOOK & Botão QR Code (Fica sempre no rodapé do Card) -->
-                        <div x-show="wa_provider !== ''" x-transition class="mt-auto border-t border-gray-100 pt-5 mt-5">
+                        <!-- RESULTADO DO TESTE DO WHATSAPP (MENSAGEM OU QR CODE) -->
+                        <div x-show="waResult !== null" x-transition class="mt-4 p-3 rounded-lg text-xs border text-center" :class="waResult?.success ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'">
+                            <p class="font-bold mb-1" x-text="waResult?.success ? '✅ Status da Conexão' : '❌ Falha'"></p>
+                            <p x-text="waResult?.message"></p>
+                            
+                            <!-- Exibição do QR Code Base64 caso a UaZapi envie -->
+                            <template x-if="waResult?.qr">
+                                <div class="mt-3 bg-white p-2 rounded-lg inline-block border border-gray-200 shadow-sm">
+                                    <img :src="waResult.qr" alt="QR Code WhatsApp" class="w-40 h-40 object-contain mx-auto">
+                                    <p class="text-[10px] text-gray-500 mt-1 font-semibold uppercase">Escaneie pelo WhatsApp</p>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- WEBHOOK & Botão QR Code -->
+                        <div x-show="wa_provider !== ''" x-transition class="mt-auto border-t border-gray-100 pt-4 mt-5">
                             <label class="block text-xs font-semibold text-gray-700 mb-1">Seu Webhook (Copie e cole no provedor)</label>
-                            <div class="flex items-center gap-2 mb-4">
+                            <div class="flex items-center gap-2 mb-3">
                                 <input type="text" readonly id="webhookUrl" value="https://gestor-assistentes-painel-web.nn8oij.easypanel.host/webhook/whatsapp/{{ $configuring->id }}" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-2 text-xs text-gray-500 font-mono outline-none">
                                 <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('webhookUrl').value); alert('Webhook copiado!');" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg transition text-xs font-bold flex items-center shrink-0">Copiar</button>
                             </div>
-                            <button type="button" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2 shadow-sm">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" /></svg>
-                                Verificar Status / QR Code
+                            <button type="button" @click="testWhatsApp()" :disabled="testingWa" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2 shadow-sm">
+                                <template x-if="!testingWa">
+                                    <span class="flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" /></svg>
+                                        Verificar Status / QR Code
+                                    </span>
+                                </template>
+                                <template x-if="testingWa">
+                                    <span class="flex items-center gap-2">⌛ Conectando na API...</span>
+                                </template>
                             </button>
                         </div>
-
                     </div>
                 </div>
 
@@ -349,7 +397,6 @@
                             </form>
                         </div>
                         
-                        <!-- BOTÕES CARD: Configurar + Agenda + Lixeira -->
                         <div class="flex items-center justify-between border-t border-gray-100 pt-5 gap-2 mt-2">
                             <a href="/?configure={{ $assistant->id }}" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-2 px-2 rounded-lg text-xs transition flex-1 flex items-center justify-center gap-1">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg>
