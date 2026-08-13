@@ -8,6 +8,22 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>[x-cloak] { display: none !important; }</style>
+
+    <!-- SCRIPT DE MEMÓRIA DE ROLAGEM (SCROLL RETENTION) -->
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const key = 'scrollpos_' + window.location.search;
+            const scrollpos = sessionStorage.getItem(key);
+            if (scrollpos) {
+                window.scrollTo(0, parseInt(scrollpos));
+                sessionStorage.removeItem(key);
+            }
+        });
+        window.addEventListener("beforeunload", function() {
+            const key = 'scrollpos_' + window.location.search;
+            sessionStorage.setItem(key, window.scrollY);
+        });
+    </script>
 </head>
 <body class="bg-gray-50 font-sans text-gray-900" 
     x-data="{ 
@@ -165,9 +181,10 @@
                             if (data.success) {
                                 this.waStatus = 'disconnected';
                                 alert('WhatsApp desconectado com sucesso da UaZapi!');
+                                window.location.reload(); // Recarrega a página após desconectar para garantir
                             } else {
                                 alert('A API não conseguiu desconectar: \n' + (data.message || 'Erro desconhecido.'));
-                                this.checkWaStatusSilent(); // Volta pro status real
+                                this.checkWaStatusSilent(); 
                             }
                         } catch(e) {
                             alert('Erro na requisição. Verifique o console.');
@@ -196,9 +213,14 @@
                             const data = await response.json();
                             this.waResult = data;
                             
-                            if (data.connected) this.waStatus = 'connected';
-
-                            if (data.success && !data.qr && !data.connected && this.pollAttempts < 10 && this.showWaModal) {
+                            if (data.connected) {
+                                this.waStatus = 'connected';
+                                // MÁGICA 1: Fecha e atualiza a página sozinho 2 segundos após parear
+                                setTimeout(() => {
+                                    this.showWaModal = false;
+                                    window.location.reload();
+                                }, 2000);
+                            } else if (data.success && !data.qr && this.pollAttempts < 10 && this.showWaModal) {
                                 this.pollAttempts++;
                                 setTimeout(() => {
                                     if (this.showWaModal) this.runWaPoll();
@@ -303,7 +325,6 @@
 
                     <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-full flex flex-col">
                         
-                        <!-- HEADER COM OS BADGES DE STATUS E O NOVO BOTÃO BOLINHA -->
                         <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center justify-between">
                             <div class="flex items-center gap-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-green-500"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>
@@ -319,7 +340,6 @@
                                     <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>Desconectado
                                 </span>
                                 
-                                <!-- NOVO BOTÃO BOLINHA COM TOOLTIP -->
                                 <button type="button" title="Desconectar" x-show="waStatus === 'connected'" x-on:click="disconnectWa()" class="w-6 h-6 rounded-full bg-red-50 hover:bg-red-100 text-red-600 transition border border-red-200 flex items-center justify-center cursor-pointer shadow-sm shrink-0">
                                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.636 5.636a9 9 0 1012.728 0M12 3v9" /></svg>
                                 </button>
