@@ -55,7 +55,6 @@
 
         @if($configuring)
             
-            <!-- STICKY HEADER -->
             <div class="sticky top-0 z-40 bg-gray-50/90 backdrop-blur-md py-4 mb-6 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4 -mx-4 px-4 sm:mx-0 sm:px-0 shadow-sm mt-4">
                 <div class="flex items-center gap-4">
                     <a href="/" class="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1.5 text-sm transition bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-100">
@@ -94,6 +93,7 @@
                     showWaModal: false,
                     waLoading: false,
                     waResult: null,
+                    pollAttempts: 0,
                     
                     getApiKey() {
                         if (this.provider === 'openai') return document.querySelector('input[name=\'openai_api_key\']').value;
@@ -129,10 +129,15 @@
                         }
                     },
 
-                    async testWhatsApp() {
+                    async startWaConnection() {
                         this.showWaModal = true;
-                        this.waLoading = true;
+                        this.pollAttempts = 0;
                         this.waResult = null;
+                        await this.fetchWaStatus();
+                    },
+
+                    async fetchWaStatus() {
+                        this.waLoading = true;
                         try {
                             const params = this.getWaParams();
                             const response = await fetch('/', {
@@ -140,9 +145,18 @@
                                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
                                 body: JSON.stringify({ action: 'test_whatsapp', ...params })
                             });
-                            this.waResult = await response.json();
+                            const data = await response.json();
+                            this.waResult = data;
+
+                            // Se deu sucesso mas ainda nao veio o QR nem esta conectado, faz POLLING automatico a cada 2.5s (ate 6 tentativas)
+                            if (data.success && !data.qr && !data.connected && this.pollAttempts < 6 && this.showWaModal) {
+                                this.pollAttempts++;
+                                setTimeout(() => {
+                                    if (this.showWaModal) this.fetchWaStatus();
+                                }, 2500);
+                            }
                         } catch (e) {
-                            this.waResult = { success: false, message: 'Falha na requisição com o servidor.' };
+                            this.waResult = { success: false, message: 'Falha de comunicacao com o servidor.' };
                         } finally {
                             this.waLoading = false;
                         }
@@ -166,7 +180,7 @@
                     <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-full">
                         <div class="border-b border-gray-100 pb-3 mb-4 flex items-center justify-between gap-2">
                             <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z" /></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z" /></svg>
                                 Conexão IA
                             </h2>
                             <button type="button" @click="testConnection()" :disabled="testing" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded-lg border border-indigo-200 flex items-center shrink-0">
@@ -311,18 +325,15 @@
                                 <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('webhookUrl').value); alert('Webhook copiado!');" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg transition text-xs font-bold flex items-center shrink-0">Copiar</button>
                             </div>
                             
-                            <!-- BOTAO DE ABRIR O MODAL -->
-                            <button type="button" @click="testWhatsApp()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2 shadow-sm">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c0 .621-.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" /></svg>
+                            <button type="button" @click="startWaConnection()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2 shadow-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" /></svg>
                                 Conectar / Exibir QR Code
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- ==========================================
-                     MODAL POPUP DO WHATSAPP (QR CODE)
-                     ========================================== -->
+                <!-- MODAL POPUP DO WHATSAPP COM AUTAPOLLING -->
                 <div x-show="showWaModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4" x-transition>
                     <div @click.away="showWaModal = false" class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center relative border border-gray-100">
                         
@@ -336,16 +347,17 @@
                         </h3>
                         <p class="text-xs text-gray-500 mb-6">{{ $configuring->name }}</p>
 
-                        <!-- ESTADO 1: CARREGANDO -->
-                        <div x-show="waLoading" class="py-8 space-y-3">
+                        <!-- ESTADO 1: CARREGANDO E GERANDO -->
+                        <div x-show="waLoading && (!waResult || !waResult.qr)" class="py-8 space-y-3">
                             <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-emerald-500 border-t-transparent"></div>
-                            <p class="text-sm font-semibold text-gray-600">Buscando QR Code na API...</p>
+                            <p class="text-sm font-semibold text-gray-600">Iniciando instância e gerando QR Code...</p>
+                            <p class="text-xs text-gray-400">Aguarde alguns segundos enquanto a UaZapi prepara a imagem.</p>
                         </div>
 
-                        <!-- ESTADO 2: RESPOSTA COM QR CODE OU STATUS -->
-                        <div x-show="!waLoading && waResult !== null">
+                        <!-- ESTADO 2: RESPOSTAS -->
+                        <div x-show="waResult !== null">
                             
-                            <!-- SE JÁ ESTIVER CONECTADO -->
+                            <!-- JÁ CONECTADO -->
                             <template x-if="waResult?.connected">
                                 <div class="py-6 space-y-3">
                                     <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
@@ -356,7 +368,7 @@
                                 </div>
                             </template>
 
-                            <!-- SE PRECISAR LER O QR CODE -->
+                            <!-- QR CODE PRONTO PARA LEITURA -->
                             <template x-if="waResult?.qr">
                                 <div class="space-y-4">
                                     <p class="text-xs text-gray-600 font-medium" x-text="waResult?.message"></p>
@@ -367,8 +379,17 @@
                                 </div>
                             </template>
 
-                            <!-- SE HOUVER ERRO DE COMUNICAÇÃO -->
-                            <template x-if="!waResult?.qr && !waResult?.connected">
+                            <!-- AGUARDANDO RETRY DO POLLING -->
+                            <template x-if="!waResult?.qr && !waResult?.connected && waResult?.success">
+                                <div class="py-6 space-y-3">
+                                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-3 border-emerald-500 border-t-transparent"></div>
+                                    <p class="text-xs text-gray-600 font-semibold">Instância acordou! Obtendo imagem do QR Code...</p>
+                                    <p class="text-[11px] text-gray-400" x-text="`Tentativa ${pollAttempts} de 6`"></p>
+                                </div>
+                            </template>
+
+                            <!-- ERRO DE FATO -->
+                            <template x-if="!waResult?.success">
                                 <div class="py-4 space-y-2">
                                     <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
                                         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
@@ -380,8 +401,8 @@
 
                         <!-- RODAPÉ DO MODAL -->
                         <div class="mt-6 pt-4 border-t border-gray-100 flex gap-2">
-                            <button type="button" @click="testWhatsApp()" :disabled="waLoading" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 rounded-lg text-xs transition">
-                                Atualizar / Tentar Novamente
+                            <button type="button" @click="fetchWaStatus()" :disabled="waLoading" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 rounded-lg text-xs transition">
+                                Tentar Novamente
                             </button>
                             <button type="button" @click="showWaModal = false" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2 rounded-lg text-xs transition">
                                 Fechar
