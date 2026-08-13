@@ -9,7 +9,6 @@ class AssistantController extends Controller
 {
     public function index(Request $request)
     {
-        // Ordenação alfabética crescente (A-Z)
         $assistants = Assistant::orderBy('name', 'asc')->get();
         $configuring = $request->has('configure') ? Assistant::find($request->configure) : null;
         
@@ -19,8 +18,14 @@ class AssistantController extends Controller
     public function store(Request $request)
     {
         $request->validate(['name' => 'required|string|max:255']);
-        Assistant::create(['name' => $request->name, 'is_active' => true]);
-        return redirect('/')->with('success', 'Assistente criado com sucesso!');
+        
+        // Criado como Inativo (false) por padrão
+        Assistant::create([
+            'name' => $request->name, 
+            'is_active' => false
+        ]);
+        
+        return redirect('/')->with('success', 'Assistente criado com sucesso (Inativo por padrão)!');
     }
 
     public function updateConfig(Request $request)

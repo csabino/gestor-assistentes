@@ -7,7 +7,18 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
-<body class="bg-gray-50 font-sans text-gray-900" x-data="{ view: 'card', filter: 'all' }">
+<body class="bg-gray-50 font-sans text-gray-900" x-data="{ 
+    view: 'card', 
+    filter: 'active',
+    total: {{ $assistants->count() }},
+    activeCount: {{ $assistants->where('is_active', true)->count() }},
+    inactiveCount: {{ $assistants->where('is_active', false)->count() }},
+    get currentCount() {
+        if (this.filter === 'active') return this.activeCount;
+        if (this.filter === 'inactive') return this.inactiveCount;
+        return this.total;
+    }
+}">
     
     <!-- HEADER DA APLICAÇÃO -->
     <nav class="bg-indigo-600 text-white shadow-sm relative z-50">
@@ -54,7 +65,6 @@
                 </div>
                 
                 <div class="flex items-center gap-3 w-full md:w-auto">
-                    <!-- Toggle Status -->
                     <form action="/" method="POST" class="flex-1 md:flex-none">
                         @csrf @method('PATCH')
                         <input type="hidden" name="assistant_id" value="{{ $configuring->id }}">
@@ -68,7 +78,6 @@
                         </button>
                     </form>
 
-                    <!-- BOTÃO SALVAR FIXO -->
                     <button type="submit" form="configForm" class="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition text-sm flex justify-center items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
                         Salvar Configurações
@@ -184,7 +193,7 @@
                             </div>
                         </div>
 
-                        <!-- CARD DO WHATSAPP -->
+                        <!-- CARD WHATSAPP -->
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 relative overflow-hidden group">
                             <div class="absolute inset-0 bg-gray-50/80 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center opacity-0 hover:opacity-100 transition duration-300 rounded-xl">
                                 <span class="bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-full mb-2">Próxima Etapa</span>
@@ -217,7 +226,7 @@
              TELA DE LISTAGEM DOS ASSISTENTES
              ============================================== -->
         @else
-            <!-- Banner Superior (Listagem) -->
+            <!-- Banner Superior -->
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mt-6 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
                 <form action="/" method="POST" class="flex items-center gap-2 w-full md:w-auto flex-1 max-w-lg">
                     @csrf
@@ -240,17 +249,19 @@
                 </div>
             </div>
 
-            <!-- Título da Seção + COMBO BOX FILTRO DE STATUS -->
+            <!-- Título da Seção + CONTADOR DINÂMICO (X/Y) -->
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-                <h2 class="text-base font-bold text-gray-700">Assistentes Cadastrados ({{ $assistants->count() }})</h2>
+                <h2 class="text-base font-bold text-gray-700">
+                    Assistentes Cadastrados (<span x-text="currentCount"></span>/<span x-text="total"></span>)
+                </h2>
                 
-                <!-- Combo Box de Filtro de Status -->
+                <!-- Combo Box com padrão 'active' -->
                 <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm self-end sm:self-auto">
                     <label class="text-xs text-gray-500 font-medium">Status:</label>
                     <select x-model="filter" class="text-xs font-bold text-gray-700 bg-transparent focus:outline-none cursor-pointer">
-                        <option value="all">Todos</option>
                         <option value="active">🟢 Ativos</option>
                         <option value="inactive">⚪ Inativos</option>
+                        <option value="all">Todos</option>
                     </select>
                 </div>
             </div>
