@@ -94,6 +94,7 @@
                     waLoading: false,
                     waResult: null,
                     pollAttempts: 0,
+                    waStatus: 'unknown', // unknown, checking, connected, disconnected
                     
                     getApiKey() {
                         if (this.provider === 'openai') return document.querySelector('input[name=\'openai_api_key\']').value;
@@ -129,6 +130,24 @@
                         }
                     },
 
+                    // Verifica o status silenciosamente ao abrir a página
+                    async checkWaStatusSilent() {
+                        if(!this.wa_provider || !document.querySelector('input[name=\'whatsapp_url\']')?.value || !document.querySelector('input[name=\'whatsapp_token\']')?.value) return;
+                        this.waStatus = 'checking';
+                        try {
+                            const params = this.getWaParams();
+                            const response = await fetch('/', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                                body: JSON.stringify({ action: 'test_whatsapp', ...params })
+                            });
+                            const data = await response.json();
+                            this.waStatus = data.connected ? 'connected' : 'disconnected';
+                        } catch(e) {
+                            this.waStatus = 'disconnected';
+                        }
+                    },
+
                     async startWaConnection() {
                         this.showWaModal = true;
                         this.pollAttempts = 0;
@@ -149,6 +168,9 @@
                             });
                             const data = await response.json();
                             this.waResult = data;
+                            
+                            // Atualiza a luzinha na hora se conectar pelo popup
+                            this.waStatus = data.connected ? 'connected' : 'disconnected';
 
                             if (data.success && !data.qr && !data.connected && this.pollAttempts < 10 && this.showWaModal) {
                                 this.pollAttempts++;
@@ -162,7 +184,9 @@
                             this.waLoading = false;
                         }
                     }
-                }">
+                }"
+                x-init="checkWaStatusSilent()"> <!-- RODA AUTOMATICO AO ABRIR -->
+
                 @csrf @method('PUT')
                 <input type="hidden" name="assistant_id" value="{{ $configuring->id }}">
 
@@ -252,9 +276,24 @@
                     </div>
 
                     <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-full flex flex-col">
-                        <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-green-500"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>
-                            Canal: WhatsApp
+                        
+                        <!-- HEADER COM O BADGE DE STATUS DINÂMICO -->
+                        <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-green-500"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>
+                                Canal: WhatsApp
+                            </div>
+                            
+                            <!-- BADGE -->
+                            <div x-show="wa_provider !== ''" x-transition x-cloak>
+                                <span x-show="waStatus === 'checking'" class="text-[10px] uppercase font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-500 animate-pulse border border-gray-200">Verificando...</span>
+                                <span x-show="waStatus === 'connected'" class="text-[10px] uppercase font-bold px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 flex items-center gap-1.5 border border-emerald-200 shadow-sm">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>Conectado
+                                </span>
+                                <span x-show="waStatus === 'disconnected'" class="text-[10px] uppercase font-bold px-2 py-1 rounded-full bg-red-50 text-red-600 flex items-center gap-1.5 border border-red-200 shadow-sm">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>Desconectado
+                                </span>
+                            </div>
                         </h2>
 
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Plataforma</label>
