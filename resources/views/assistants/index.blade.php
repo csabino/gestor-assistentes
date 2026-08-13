@@ -23,7 +23,7 @@
 
         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
             <h2 class="text-lg font-bold mb-4 text-gray-800 border-b pb-2">➕ Novo Assistente</h2>
-            <form action="/assistants" method="POST" class="flex flex-col md:flex-row gap-4">
+            <form action="/" method="POST" class="flex flex-col md:flex-row gap-4">
                 @csrf
                 <input type="text" name="name" placeholder="Nome do Assistente (ex: Vânia)" required
                     class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
