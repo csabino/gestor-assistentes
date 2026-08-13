@@ -12,14 +12,30 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('assistants', function (Blueprint $table) {
-            $table->string('provider')->default('openai')->nullable();
-            $table->text('system_prompt')->nullable();
-            $table->string('model')->default('gpt-4o-mini')->nullable();
-            $table->text('openai_api_key')->nullable();
-            $table->text('gemini_api_key')->nullable();
-            $table->text('anthropic_api_key')->nullable();
-            $table->text('grok_api_key')->nullable();
-            $table->json('knowledge_files')->nullable();
+            if (!Schema::hasColumn('assistants', 'provider')) {
+                $table->string('provider')->default('openai')->nullable();
+            }
+            if (!Schema::hasColumn('assistants', 'system_prompt')) {
+                $table->text('system_prompt')->nullable();
+            }
+            if (!Schema::hasColumn('assistants', 'model')) {
+                $table->string('model')->default('gpt-4o-mini')->nullable();
+            }
+            if (!Schema::hasColumn('assistants', 'openai_api_key')) {
+                $table->text('openai_api_key')->nullable();
+            }
+            if (!Schema::hasColumn('assistants', 'gemini_api_key')) {
+                $table->text('gemini_api_key')->nullable();
+            }
+            if (!Schema::hasColumn('assistants', 'anthropic_api_key')) {
+                $table->text('anthropic_api_key')->nullable();
+            }
+            if (!Schema::hasColumn('assistants', 'grok_api_key')) {
+                $table->text('grok_api_key')->nullable();
+            }
+            if (!Schema::hasColumn('assistants', 'knowledge_files')) {
+                $table->json('knowledge_files')->nullable();
+            }
         });
     }
 
