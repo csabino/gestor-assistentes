@@ -13,7 +13,6 @@
     <nav class="bg-indigo-600 text-white shadow-sm">
         <div class="container mx-auto px-4 py-3 flex justify-between items-center">
             <div class="font-bold text-lg flex items-center gap-2.5">
-                <!-- Ícone AI Moderno (CPU) -->
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-indigo-200">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z" />
                 </svg>
@@ -35,10 +34,9 @@
             </div>
         @endif
 
-        <!-- Banner Superior: Formulário Compacto + Alternador de Visualização -->
+        <!-- Banner Superior -->
         <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
             
-            <!-- Criar Assistente -->
             <form action="/" method="POST" class="flex items-center gap-2 w-full md:w-auto flex-1 max-w-lg">
                 @csrf
                 <input type="text" name="name" placeholder="Nome do assistente (ex: Vânia - Vendas)" required
@@ -52,7 +50,6 @@
                 </button>
             </form>
 
-            <!-- Botões de Alternar Visualização -->
             <div class="flex items-center gap-1 bg-gray-100 p-1 rounded-lg border border-gray-200 self-end md:self-auto">
                 <button @click="view = 'card'" 
                     :class="view === 'card' ? 'bg-white shadow-sm text-indigo-600 font-bold' : 'text-gray-500 hover:text-gray-700'"
@@ -84,8 +81,8 @@
                     <div class="flex justify-between items-start gap-2">
                         <h3 class="font-bold text-gray-800 truncate text-base">{{ $assistant->name }}</h3>
                         
-                        <!-- Botão Alternar Status -->
-                        <form action="{{ route('assistants.toggle', $assistant) }}" method="POST">
+                        <!-- ROTA CORRIGIDA PARA TOGGLE -->
+                        <form action="/assistants/{{ $assistant->id }}/toggle" method="POST">
                             @csrf
                             @method('PATCH')
                             <button type="submit" class="text-xs px-2.5 py-1 rounded-full font-semibold transition border flex items-center gap-1.5 {{ $assistant->is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200' }}">
@@ -107,8 +104,8 @@
                             Configurar
                         </button>
                         
-                        <!-- Botão Deletar -->
-                        <form action="{{ route('assistants.destroy', $assistant) }}" method="POST" onsubmit="return confirm('Tem certeza que deseja excluir este assistente?');">
+                        <!-- ROTA CORRIGIDA PARA DELETAR -->
+                        <form action="/assistants/{{ $assistant->id }}" method="POST" onsubmit="return confirm('Tem certeza que deseja excluir este assistente?');">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition text-xs flex items-center justify-center" title="Excluir">
@@ -141,7 +138,8 @@
                         <tr class="hover:bg-gray-50 transition duration-150 group">
                             <td class="py-3 px-4 font-medium text-gray-800">{{ $assistant->name }}</td>
                             <td class="py-3 px-4">
-                                <form action="{{ route('assistants.toggle', $assistant) }}" method="POST">
+                                <!-- ROTA CORRIGIDA PARA TOGGLE -->
+                                <form action="/assistants/{{ $assistant->id }}/toggle" method="POST">
                                     @csrf
                                     @method('PATCH')
                                     <button type="submit" class="text-xs px-2.5 py-0.5 rounded-full font-semibold transition border flex items-center gap-1.5 w-max {{ $assistant->is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200' }}">
@@ -161,7 +159,9 @@
                                     </svg>
                                     Configurar
                                 </button>
-                                <form action="{{ route('assistants.destroy', $assistant) }}" method="POST" onsubmit="return confirm('Tem certeza que deseja excluir este assistente?');">
+                                
+                                <!-- ROTA CORRIGIDA PARA DELETAR -->
+                                <form action="/assistants/{{ $assistant->id }}" method="POST" onsubmit="return confirm('Tem certeza que deseja excluir este assistente?');">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="text-gray-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-md transition text-xs flex items-center justify-center" title="Excluir">
