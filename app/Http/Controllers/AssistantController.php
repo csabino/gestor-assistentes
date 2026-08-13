@@ -27,7 +27,11 @@ class AssistantController extends Controller
 
         $request->validate(['name' => 'required|string|max:255']);
         
-        Assistant::create(['name' => $request->name, 'is_active' => false]);
+        Assistant::create([
+            'name' => $request->name, 
+            'is_active' => false
+        ]);
+        
         return redirect('/')->with('success', 'Assistente criado com sucesso (Inativo por padrão)!');
     }
 
@@ -56,10 +60,16 @@ class AssistantController extends Controller
                     $uploadedCount++;
                 }
             }
-            if ($uploadedCount > 0) $assistant->update(['knowledge_files' => $files]);
+            
+            if ($uploadedCount > 0) {
+                $assistant->update(['knowledge_files' => $files]);
+                return redirect('/?configure=' . $assistant->id)->with('success', "{$uploadedCount} arquivo(s) anexado(s) com sucesso!");
+            } else {
+                return redirect('/?configure=' . $assistant->id)->with('error', 'Falha ao subir o arquivo. Verifique o limite de tamanho.');
+            }
         }
 
-        return redirect('/?configure=' . $assistant->id)->with('success', 'Configurações atualizadas!');
+        return redirect('/?configure=' . $assistant->id)->with('success', 'Configurações atualizadas e salvas!');
     }
 
     public function toggleStatus(Request $request)
@@ -67,7 +77,9 @@ class AssistantController extends Controller
         $assistant = Assistant::findOrFail($request->assistant_id);
         $assistant->update(['is_active' => !$assistant->is_active]);
         
-        if ($request->has('from_config')) return redirect('/?configure=' . $assistant->id)->with('success', 'Status alterado!');
+        if ($request->has('from_config')) {
+            return redirect('/?configure=' . $assistant->id)->with('success', 'Status alterado!');
+        }
         return redirect('/')->with('success', 'Status atualizado!');
     }
 
@@ -78,12 +90,14 @@ class AssistantController extends Controller
         if ($request->has('file_index')) {
             $files = $assistant->knowledge_files ?? [];
             $index = $request->file_index;
+
             if (isset($files[$index])) {
                 Storage::delete($files[$index]['path']);
                 unset($files[$index]);
                 $assistant->update(['knowledge_files' => array_values($files)]);
             }
-            return redirect('/?configure=' . $assistant->id)->with('success', 'Arquivo removido!');
+
+            return redirect('/?configure=' . $assistant->id)->with('success', 'Arquivo removido da base de conhecimento!');
         }
 
         $assistant->delete();
@@ -110,7 +124,7 @@ class AssistantController extends Controller
                 return response()->json(['success' => false, 'message' => 'Provedor inválido.']);
             }
 
-            return $res->successful() ? response()->json(['success' => true, 'message' => 'Conexão IA estabelecida!']) : response()->json(['success' => false, 'message' => 'Falha na conexão de IA.']);
+            return $res->successful() ? response()->json(['success' => true, 'message' => 'Conexão estabelecida!']) : response()->json(['success' => false, 'message' => 'Falha na conexão de IA.']);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Erro ao conectar.']);
         }
@@ -135,7 +149,9 @@ class AssistantController extends Controller
                     if ($res->successful()) {
                         $data = $res->json();
                         $status = strtolower($data['instance']['state'] ?? $data['instance']['status'] ?? $data['status'] ?? $data['state'] ?? '');
-                        if (in_array($status, ['open', 'connected', 'connecting_connected'])) return response()->json(['connected' => true]);
+                        if (in_array($status, ['open', 'connected', 'connecting_connected'])) {
+                            return response()->json(['connected' => true]);
+                        }
                         return response()->json(['connected' => false]);
                     }
                 }
@@ -152,7 +168,6 @@ class AssistantController extends Controller
         }
     }
 
-    // A MÁGICA DA DESVINCULAÇÃO FEROZ ACONTECE AQUI
     private function disconnectWaConnection(Request $request)
     {
         $provider = $request->input('provider');
@@ -165,41 +180,51 @@ class AssistantController extends Controller
         }
 
         try {
-            $headers = ['token' => $token, 'apikey' => $token, 'Client-Token' => $token, 'Authorization' => "Bearer {$token}", 'Content-Type' => 'application/json', 'Accept' => 'application/json'];
+            $headers = [
+                'token' => $token, 
+                'apikey' => $token, 
+                'Client-Token' => $token, 
+                'Authorization' => "Bearer {$token}", 
+                'Content-Type' => 'application/json', 
+                'Accept' => 'application/json'
+            ];
 
             if ($provider === 'uazapi' || $provider === 'evolution') {
+                
+                // Esta bateria é a que desconectou com sucesso da última vez!
                 $candidates = [
-                    // Tentativa 1: Evolution / CodeChat (Logout real)
+                    ['method' => 'POST',   'path' => "/instance/disconnect", 'body' => ['instanceName' => $instance]],
+                    ['method' => 'POST',   'path' => "/instance/disconnect", 'body' => (object)[]],
+                    ['method' => 'DELETE', 'path' => "/instance/disconnect"],
                     ['method' => 'DELETE', 'path' => "/instance/logout/{$instance}"],
                     ['method' => 'DELETE', 'path' => "/instance/logout"],
-                    // Tentativa 2: UaZapi v2 (Deleta a instância e empurra a desvinculação pro WhatsApp do celular)
-                    ['method' => 'DELETE', 'path' => "/instance/delete/{$instance}"],
-                    ['method' => 'DELETE', 'path' => "/instance", 'body' => ['instanceName' => $instance]],
-                    ['method' => 'DELETE', 'path' => "/instance/{$instance}"],
-                    // Tentativa 3: Se tudo falhar, tenta apenas o websocket disconnect
-                    ['method' => 'POST',   'path' => "/instance/disconnect", 'body' => ['instanceName' => $instance]],
-                    ['method' => 'POST',   'path' => "/instance/disconnect", 'body' => (object)[]]
+                    ['method' => 'POST',   'path' => "/instance/logout", 'body' => (object)[]]
                 ];
 
+                $errors = [];
+
                 foreach ($candidates as $cand) {
-                    $req = Http::withHeaders($headers)->timeout(6);
-                    $body = $cand['body'] ?? [];
+                    $req = Http::withHeaders($headers)->timeout(8);
                     
                     if ($cand['method'] === 'DELETE') {
-                        $res = empty($body) ? $req->delete($url . $cand['path']) : $req->delete($url . $cand['path'], $body);
+                        $res = $req->delete($url . $cand['path']);
                     } else {
-                        $res = $req->post($url . $cand['path'], $body);
+                        $res = $req->post($url . $cand['path'], $cand['body']);
                     }
 
                     if ($res->successful()) {
                         return response()->json(['success' => true]);
                     }
+                    
+                    $errors[] = "{$cand['method']} {$cand['path']}: {$res->status()}";
                 }
-                return response()->json(['success' => false, 'message' => "Todas as rotas de logout falharam."]);
+                
+                return response()->json(['success' => false, 'message' => implode(' | ', $errors)]);
             }
+
             return response()->json(['success' => false, 'message' => 'Provedor não suportado.']);
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Erro de comunicação com servidor.']);
+            return response()->json(['success' => false, 'message' => 'Erro de conexão com a API.']);
         }
     }
 
@@ -211,20 +236,20 @@ class AssistantController extends Controller
         $token = trim($request->input('token'));
 
         if (empty($provider) || empty($instance) || empty($token)) {
-            return response()->json(['success' => false, 'message' => 'Preencha URL, Instância e Token.']);
+            return response()->json(['success' => false, 'message' => 'Preencha URL, Instância e Token para testar a conexão.']);
         }
 
         try {
             if ($provider === 'uazapi') {
                 $headers = ['token' => $token, 'apikey' => $token, 'Client-Token' => $token, 'Authorization' => "Bearer {$token}", 'Content-Type' => 'application/json', 'Accept' => 'application/json'];
                 
-                // INVISÍVEL: Se deletamos a instância antes para deslogar, inicializa ela de novo aqui!
-                Http::withHeaders($headers)->timeout(4)->post("{$url}/instance/init", ['instanceName' => $instance]);
+                // REVERTIDO: Tirei a recriação de instância que estava causando o bug de "Instância já existe"
                 
                 $res = Http::withHeaders($headers)->timeout(10)->post("{$url}/instance/connect", ['instanceName' => $instance]);
                 if (!$res->successful() || $res->status() === 400) {
                     $res = Http::withHeaders($headers)->timeout(10)->post("{$url}/instance/connect", (object)[]);
                 }
+                
                 if (!$res->successful()) {
                     $res = Http::withHeaders($headers)->timeout(10)->get("{$url}/instance/connect/{$instance}");
                 }
@@ -244,10 +269,13 @@ class AssistantController extends Controller
                     $qr = $this->extractQrCode($data);
                     if ($qr) return response()->json(['success' => true, 'connected' => false, 'qr' => $qr, 'message' => 'Escaneie a imagem abaixo:']);
 
-                    return response()->json(['success' => true, 'connected' => false, 'qr' => null, 'message' => "Aguardando QRCode (Status: {$status})..."]);
+                    return response()->json(['success' => true, 'connected' => false, 'qr' => null, 'message' => "Instância ligada (Status: {$status}). Gerando QR Code..."]);
                 }
 
-                return response()->json(['success' => false, 'message' => "Erro de requisição na UaZapi."]);
+                // Log detalhado para não ficarmos cegos
+                $err = $res->json();
+                $errMsg = is_array($err) ? ($err['message'] ?? $err['error'] ?? json_encode($err)) : $res->body();
+                return response()->json(['success' => false, 'message' => "Erro API {$res->status()}: {$errMsg}"]);
             }
 
             if ($provider === 'evolution') {
@@ -278,6 +306,7 @@ class AssistantController extends Controller
     private function extractQrCode($data)
     {
         if (!is_array($data)) return null;
+
         $candidates = [$data['instance']['qrcode'] ?? null, $data['instance']['qr'] ?? null, $data['qrcode'] ?? null, $data['base64'] ?? null, $data['qr'] ?? null, $data['code'] ?? null];
 
         foreach ($candidates as $cand) {
