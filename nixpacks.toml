@@ -1,2 +1,2 @@
 [variables]
-NIXPACKS_DOCUMENT_ROOT = 'public'
+NIXPACKS_PHP_ROOT_DIR = 'public'
