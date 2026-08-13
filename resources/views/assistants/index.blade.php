@@ -141,7 +141,6 @@
                         <tr>
                             <td colspan="3" class="text-center py-8 text-gray-400">Nenhum assistente cadastrado ainda.</td>
                         </tr>
-                    @empty
                     @endforelse
                 </tbody>
             </table>
