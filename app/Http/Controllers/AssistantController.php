@@ -65,7 +65,7 @@ class AssistantController extends Controller
                 $assistant->update(['knowledge_files' => $files]);
                 return redirect('/?configure=' . $assistant->id)->with('success', "{$uploadedCount} arquivo(s) anexado(s) com sucesso!");
             } else {
-                return redirect('/?configure=' . $assistant->id)->with('error', 'Falha ao subir o arquivo. Verifique o limite de tamanho.');
+                return redirect('/?configure=' . $assistant->id)->with('error', 'Falha ao subir o arquivo.');
             }
         }
 
@@ -168,7 +168,7 @@ class AssistantController extends Controller
         }
     }
 
-    // LÓGICA DE LOGOUT EXPANDIDA (Tentando GET, DELETE e caminhos de connection)
+    // LÓGICA CORRIGIDA COM AS ROTAS OFICIAIS DE DISCONNECT
     private function disconnectWaConnection(Request $request)
     {
         $provider = $request->input('provider');
@@ -192,15 +192,15 @@ class AssistantController extends Controller
 
             if ($provider === 'uazapi' || $provider === 'evolution') {
                 
+                // Rotas reais com /instance/disconnect e variações de métodos HTTP
                 $candidates = [
-                    ['method' => 'DELETE', 'path' => "/instance/logout"],
-                    ['method' => 'DELETE', 'path' => "/instance/logout/{$instance}"],
-                    ['method' => 'GET',    'path' => "/instance/logout"],
-                    ['method' => 'GET',    'path' => "/instance/logout/{$instance}"],
-                    ['method' => 'DELETE', 'path' => "/instance/connection"],
-                    ['method' => 'DELETE', 'path' => "/instance/connection/{$instance}"],
-                    ['method' => 'POST',   'path' => "/instance/logout", 'body' => (object)[]],
-                    ['method' => 'POST',   'path' => "/instance/logout/{$instance}", 'body' => (object)[]]
+                    ['method' => 'POST',   'path' => "/instance/disconnect", 'body' => ['instanceName' => $instance]],
+                    ['method' => 'POST',   'path' => "/instance/disconnect", 'body' => (object)[]],
+                    ['method' => 'DELETE', 'path' => "/instance/disconnect"],
+                    ['method' => 'POST',   'path' => "/instance/disconnect/{$instance}", 'body' => (object)[]],
+                    ['method' => 'DELETE', 'path' => "/instance/disconnect/{$instance}"],
+                    ['method' => 'POST',   'path' => "/instance/delete", 'body' => (object)[]],
+                    ['method' => 'DELETE', 'path' => "/instance/delete"],
                 ];
 
                 $errors = [];
@@ -210,10 +210,8 @@ class AssistantController extends Controller
                     
                     if ($cand['method'] === 'DELETE') {
                         $res = $req->delete($url . $cand['path']);
-                    } elseif ($cand['method'] === 'GET') {
-                        $res = $req->get($url . $cand['path']);
                     } else {
-                        $res = $req->post($url . $cand['path'], $cand['body']);
+                        $res = $req->post($url . $cand['path'], $cand['body'] ?? (object)[]);
                     }
 
                     if ($res->successful()) {
