@@ -150,29 +150,33 @@ class AssistantController extends Controller
         }
 
         try {
-            if ($provider === 'uazapi' || $provider === 'evolution') {
-                
-                $headers = [
+            // LÓGICA EXCLUSIVA E DIRETA PARA A UAZAPI
+            if ($provider === 'uazapi') {
+                $response = Http::withHeaders([
                     'token' => $token,
                     'apikey' => $token,
-                    'Client-Token' => $token,
-                    'Authorization' => "Bearer {$token}"
-                ];
-
-                // Força disparo na rota /instance/connect
-                $connectUrl = $url . "/instance/connect";
-                $response = Http::withHeaders($headers)->timeout(10)->post($connectUrl);
+                    'Content-Type' => 'application/json'
+                ])->timeout(10)->post("{$url}/instance/connect", []);
 
                 if (!$response->successful()) {
-                    $response = Http::withHeaders($headers)->timeout(10)->get($connectUrl);
+                    $response = Http::withHeaders([
+                        'token' => $token,
+                        'apikey' => $token,
+                    ])->timeout(10)->get("{$url}/instance/status");
                 }
 
                 if ($response->successful()) {
                     $data = $response->json();
 
-                    // Verifica se já está conectado
-                    $state = $data['instance']['state'] ?? $data['instance']['status'] ?? $data['status'] ?? $data['state'] ?? null;
-                    if ($state === 'open' || $state === 'connected' || ($data['connected'] ?? false) === true) {
+                    $status = strtolower(
+                        $data['instance']['status'] 
+                        ?? $data['instance']['state'] 
+                        ?? $data['status'] 
+                        ?? $data['state'] 
+                        ?? ''
+                    );
+
+                    if ($status === 'open' || $status === 'connected' || $status === 'connecting_connected' || ($data['connected'] ?? false) === true) {
                         return response()->json([
                             'success' => true,
                             'connected' => true,
@@ -180,15 +184,12 @@ class AssistantController extends Controller
                         ]);
                     }
 
-                    // Extrai QR Code filtrando apenas strings não vazias
                     $qr = $this->extractQrCode($data);
-
                     if ($qr) {
                         return response()->json([
                             'success' => true,
                             'connected' => false,
                             'qr' => $qr,
-                            'paircode' => $data['instance']['paircode'] ?? null,
                             'message' => 'Abra seu WhatsApp > Aparelhos Conectados e escaneie a imagem abaixo:'
                         ]);
                     }
@@ -197,14 +198,59 @@ class AssistantController extends Controller
                         'success' => true,
                         'connected' => false,
                         'qr' => null,
-                        'message' => 'Instância inicializada! Aguardando o servidor da UaZapi renderizar a imagem...'
+                        'message' => "Instância UaZapi ligada (Status: " . ($status ?: 'desconectado') . "). Gerando QR Code..."
+                    ]);
+                } else {
+                    $errorData = $response->json();
+                    $errorMsg = $errorData['message'] ?? $errorData['error'] ?? 'Verifique a URL e o Token da UaZapi.';
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Erro {$response->status()}: {$errorMsg}"
                     ]);
                 }
+            }
 
-                return response()->json([
-                    'success' => false,
-                    'message' => "Erro {$response->status()}: " . substr(strip_tags($response->body()), 0, 150)
-                ]);
+            // LÓGICA PARA EVOLUTION API
+            if ($provider === 'evolution') {
+                $response = Http::withHeaders([
+                    'apikey' => $token,
+                    'Authorization' => "Bearer {$token}"
+                ])->timeout(10)->get("{$url}/instance/connect/{$instance}");
+
+                if ($response->successful()) {
+                    $data = $response->json();
+                    $status = strtolower($data['instance']['state'] ?? $data['state'] ?? '');
+                    
+                    if ($status === 'open' || $status === 'connected') {
+                        return response()->json([
+                            'success' => true,
+                            'connected' => true,
+                            'message' => '✅ WhatsApp pareado e conectado com sucesso!'
+                        ]);
+                    }
+
+                    $qr = $this->extractQrCode($data);
+                    if ($qr) {
+                        return response()->json([
+                            'success' => true,
+                            'connected' => false,
+                            'qr' => $qr,
+                            'message' => 'Abra seu WhatsApp > Aparelhos Conectados e escaneie a imagem abaixo:'
+                        ]);
+                    }
+
+                    return response()->json([
+                        'success' => true,
+                        'connected' => false,
+                        'qr' => null,
+                        'message' => "Instância Evolution ligada (Status: {$status}). Gerando QR Code..."
+                    ]);
+                } else {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Erro {$response->status()} na Evolution API."
+                    ]);
+                }
             }
 
             return response()->json(['success' => true, 'message' => "Integração para {$provider} em desenvolvimento."]);
@@ -218,7 +264,6 @@ class AssistantController extends Controller
     {
         if (!is_array($data)) return null;
 
-        // Lista de candidatos verificando se NÃO são vazios
         $candidates = [
             $data['instance']['qrcode'] ?? null,
             $data['instance']['qr'] ?? null,
@@ -234,7 +279,6 @@ class AssistantController extends Controller
             }
         }
 
-        // Busca recursiva caso esteja profundo no JSON
         $recursive = $this->findQrCodeInArray($data);
         if ($recursive) {
             return $this->formatBase64Image($recursive);
