@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Assistant;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class AssistantController extends Controller
 {
@@ -19,7 +20,6 @@ class AssistantController extends Controller
     {
         $request->validate(['name' => 'required|string|max:255']);
         
-        // Criado como Inativo (false) por padrão
         Assistant::create([
             'name' => $request->name, 
             'is_active' => false
@@ -37,16 +37,18 @@ class AssistantController extends Controller
             'openai_api_key', 'gemini_api_key', 'anthropic_api_key', 'grok_api_key'
         ]));
 
-        if ($request->hasFile('document')) {
-            $file = $request->file('document');
-            $path = $file->store('knowledge_bases');
-            
+        // Lógica para upload de MÚLTIPLOS arquivos de uma vez
+        if ($request->hasFile('documents')) {
             $files = $assistant->knowledge_files ?? [];
-            $files[] = [
-                'name' => $file->getClientOriginalName(),
-                'path' => $path,
-                'type' => $file->getClientMimeType()
-            ];
+            
+            foreach ($request->file('documents') as $file) {
+                $path = $file->store('knowledge_bases');
+                $files[] = [
+                    'name' => $file->getClientOriginalName(),
+                    'path' => $path,
+                    'type' => $file->getClientMimeType()
+                ];
+            }
             
             $assistant->update(['knowledge_files' => $files]);
         }
@@ -68,6 +70,24 @@ class AssistantController extends Controller
     public function destroy(Request $request)
     {
         $assistant = Assistant::findOrFail($request->assistant_id);
+
+        // Se a requisição veio para excluir APENAS um arquivo específico
+        if ($request->has('file_index')) {
+            $files = $assistant->knowledge_files ?? [];
+            $index = $request->file_index;
+
+            if (isset($files[$index])) {
+                // Deleta o arquivo do disco do servidor
+                Storage::delete($files[$index]['path']);
+                // Remove do array e reindexa
+                unset($files[$index]);
+                $assistant->update(['knowledge_files' => array_values($files)]);
+            }
+
+            return redirect('/?configure=' . $assistant->id)->with('success', 'Arquivo removido da base de conhecimento!');
+        }
+
+        // Caso contrário, exclui o assistente completo
         $assistant->delete();
         return redirect('/')->with('success', 'Assistente removido!');
     }
