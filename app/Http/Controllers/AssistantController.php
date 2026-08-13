@@ -150,71 +150,113 @@ class AssistantController extends Controller
         }
 
         try {
-            $headers = [
-                'token' => $token,
-                'apikey' => $token,
-                'Client-Token' => $token,
-                'Authorization' => "Bearer {$token}"
-            ];
-
-            // ROTA EXCLUSIVA DA UAZAPI (SEM NOME DA INSTANCIA NO FINAL)
-            if ($provider === 'uazapi') {
-                $response = Http::withHeaders($headers)->timeout(10)->get("{$url}/instance/connect");
-            } 
-            // ROTA EXCLUSIVA DA EVOLUTION (COM NOME DA INSTANCIA NO FINAL)
-            elseif ($provider === 'evolution') {
-                $response = Http::withHeaders($headers)->timeout(10)->get("{$url}/instance/connect/{$instance}");
-            } 
-            else {
-                return response()->json(['success' => true, 'message' => "Integração para {$provider} em desenvolvimento."]);
-            }
-
-            if ($response->successful()) {
-                $data = $response->json();
+            if ($provider === 'uazapi' || $provider === 'evolution') {
                 
-                $inst = $data['instance'] ?? $data;
-                $status = strtolower($inst['state'] ?? $inst['status'] ?? $data['status'] ?? $data['state'] ?? '');
-                
-                // Verifica se já está pareado
-                if ($status === 'open' || $status === 'connected' || ($data['connected'] ?? false) === true) {
-                    return response()->json([
-                        'success' => true,
-                        'connected' => true,
-                        'message' => '✅ WhatsApp pareado e conectado com sucesso!'
-                    ]);
+                $headers = [
+                    'token' => $token,
+                    'apikey' => $token,
+                    'Client-Token' => $token,
+                    'Authorization' => "Bearer {$token}"
+                ];
+
+                // Motor de Busca Restaurado: Tenta as rotas até achar uma que responda 200 OK
+                $candidates = [
+                    ['method' => 'GET',  'path' => "/instance/connect/{$instance}"],
+                    ['method' => 'POST', 'path' => "/instance/connect/{$instance}"],
+                    ['method' => 'GET',  'path' => "/instance/status/{$instance}"],
+                    ['method' => 'GET',  'path' => "/instance/connect"],
+                    ['method' => 'POST', 'path' => "/instance/connect"],
+                    ['method' => 'GET',  'path' => "/instance/connect?token={$token}"],
+                ];
+
+                $lastSuccessfulData = null;
+                $lastSuccessfulRoute = '';
+                $allErrors = [];
+
+                foreach ($candidates as $cand) {
+                    $endpoint = $url . $cand['path'];
+                    $req = Http::withHeaders($headers)->timeout(6);
+                    $res = ($cand['method'] === 'POST') ? $req->post($endpoint) : $req->get($endpoint);
+
+                    if ($res->successful()) {
+                        $data = $res->json();
+                        $lastSuccessfulData = $data;
+                        $lastSuccessfulRoute = "{$cand['method']} {$cand['path']}";
+
+                        $state = strtolower($data['instance']['state'] ?? $data['instance']['status'] ?? $data['status'] ?? $data['state'] ?? '');
+                        
+                        if ($state === 'open' || $state === 'connected' || ($data['connected'] ?? false) === true) {
+                            return response()->json([
+                                'success' => true,
+                                'connected' => true,
+                                'message' => "✅ WhatsApp pareado com sucesso! (Via {$lastSuccessfulRoute})"
+                            ]);
+                        }
+
+                        $qr = $this->extractQrCode($data);
+                        if ($qr) {
+                            return response()->json([
+                                'success' => true,
+                                'connected' => false,
+                                'qr' => $qr,
+                                'message' => "QR Code recebido via {$lastSuccessfulRoute}"
+                            ]);
+                        }
+                    } else {
+                        $err = $res->json();
+                        $allErrors[] = "{$cand['method']} {$cand['path']} -> " . ($err['message'] ?? $err['error'] ?? $res->status());
+                    }
                 }
 
-                // Extrai a imagem do QR Code
-                $qr = $inst['qrcode'] ?? $inst['qr'] ?? $data['qrcode'] ?? $data['base64'] ?? null;
-
-                // Valida se o QR Code já existe e não é vazio
-                if (!empty($qr) && is_string($qr) && strlen(trim($qr)) > 30) {
+                // Se alguma rota funcionou (Status 200) mas NÃO tinha QR Code, mostra TUDO na tela:
+                if ($lastSuccessfulData !== null) {
                     return response()->json([
                         'success' => true,
                         'connected' => false,
-                        'qr' => $this->formatBase64Image($qr),
-                        'message' => 'Abra seu WhatsApp > Aparelhos Conectados e escaneie a imagem abaixo:'
+                        'qr' => null,
+                        'message' => "ROTA OK: {$lastSuccessfulRoute} | JSON RETORNADO: " . json_encode($lastSuccessfulData)
                     ]);
                 }
 
-                // Se ligou mas a imagem ainda não gerou, avisa o Javascript para continuar o Polling
-                return response()->json([
-                    'success' => true,
-                    'connected' => false,
-                    'qr' => null,
-                    'message' => "Instância conectada (Status: " . ($status ?: 'aguardando') . "). Gerando QR Code..."
-                ]);
-            } else {
-                $errorData = $response->json();
-                $errorMsg = $errorData['message'] ?? $errorData['error'] ?? 'Verifique se a URL e o Token estão corretos.';
+                // Se todas as tentativas falharam com 404/erro
                 return response()->json([
                     'success' => false,
-                    'message' => "Erro {$response->status()}: {$errorMsg}"
+                    'message' => "Todas as rotas falharam. Log: " . implode(" | ", $allErrors)
                 ]);
             }
+
+            return response()->json(['success' => true, 'message' => "Integração em desenvolvimento."]);
+
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Erro de comunicação de rede com o servidor.']);
+            return response()->json(['success' => false, 'message' => 'Erro de comunicação de rede: ' . $e->getMessage()]);
         }
+    }
+
+    private function extractQrCode($data)
+    {
+        if (!is_array($data)) return null;
+
+        $candidates = [
+            $data['instance']['qrcode'] ?? null,
+            $data['instance']['qr'] ?? null,
+            $data['qrcode'] ?? null,
+            $data['base64'] ?? null,
+            $data['qr'] ?? null,
+            $data['code'] ?? null,
+        ];
+
+        foreach ($candidates as $cand) {
+            if (is_string($cand) && strlen(trim($cand)) > 30) {
+                return $this->formatBase64Image($cand);
+            }
+        }
+
+        $recursive = $this->findQrCodeInArray($data);
+        if ($recursive) {
+            return $this->formatBase64Image($recursive);
+        }
+
+        return null;
     }
 
     private function formatBase64Image($str) {
@@ -227,5 +269,20 @@ class AssistantController extends Controller
             }
         }
         return $str;
+    }
+
+    private function findQrCodeInArray($array) {
+        if (!is_array($array)) return null;
+        foreach ($array as $key => $value) {
+            if (is_string($value) && strlen(trim($value)) > 30) {
+                if (str_starts_with($value, 'data:image') || str_contains($key, 'qr') || str_contains($key, 'code') || str_contains($key, 'base64')) {
+                    return $value;
+                }
+            } elseif (is_array($value)) {
+                $found = $this->findQrCodeInArray($value);
+                if ($found) return $found;
+            }
+        }
+        return null;
     }
 }
