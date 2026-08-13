@@ -133,11 +133,13 @@
                         this.showWaModal = true;
                         this.pollAttempts = 0;
                         this.waResult = null;
-                        await this.fetchWaStatus();
+                        await this.runWaPoll();
                     },
 
-                    async fetchWaStatus() {
+                    async runWaPoll() {
+                        if (!this.showWaModal) return;
                         this.waLoading = true;
+                        
                         try {
                             const params = this.getWaParams();
                             const response = await fetch('/', {
@@ -148,15 +150,15 @@
                             const data = await response.json();
                             this.waResult = data;
 
-                            // Se deu sucesso mas ainda nao veio o QR nem esta conectado, faz POLLING automatico a cada 2.5s (ate 6 tentativas)
-                            if (data.success && !data.qr && !data.connected && this.pollAttempts < 6 && this.showWaModal) {
+                            // Se deu certo mas ainda nao veio QR nem conectou, espera 3.5 segundos REAIS para fazer a proxima tentativa
+                            if (data.success && !data.qr && !data.connected && this.pollAttempts < 8 && this.showWaModal) {
                                 this.pollAttempts++;
                                 setTimeout(() => {
-                                    if (this.showWaModal) this.fetchWaStatus();
-                                }, 2500);
+                                    if (this.showWaModal) this.runWaPoll();
+                                }, 3500);
                             }
                         } catch (e) {
-                            this.waResult = { success: false, message: 'Falha de comunicacao com o servidor.' };
+                            this.waResult = { success: false, message: 'Falha de comunicação com o servidor.' };
                         } finally {
                             this.waLoading = false;
                         }
@@ -180,7 +182,7 @@
                     <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-full">
                         <div class="border-b border-gray-100 pb-3 mb-4 flex items-center justify-between gap-2">
                             <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z" /></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z" /></svg>
                                 Conexão IA
                             </h2>
                             <button type="button" @click="testConnection()" :disabled="testing" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded-lg border border-indigo-200 flex items-center shrink-0">
@@ -347,11 +349,10 @@
                         </h3>
                         <p class="text-xs text-gray-500 mb-6">{{ $configuring->name }}</p>
 
-                        <!-- ESTADO 1: CARREGANDO E GERANDO -->
-                        <div x-show="waLoading && (!waResult || !waResult.qr)" class="py-8 space-y-3">
+                        <!-- ESTADO 1: CARREGANDO INICIAL -->
+                        <div x-show="waLoading && !waResult" class="py-8 space-y-3">
                             <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-emerald-500 border-t-transparent"></div>
-                            <p class="text-sm font-semibold text-gray-600">Iniciando instância e gerando QR Code...</p>
-                            <p class="text-xs text-gray-400">Aguarde alguns segundos enquanto a UaZapi prepara a imagem.</p>
+                            <p class="text-sm font-semibold text-gray-600">Conectando na UaZapi...</p>
                         </div>
 
                         <!-- ESTADO 2: RESPOSTAS -->
@@ -379,12 +380,12 @@
                                 </div>
                             </template>
 
-                            <!-- AGUARDANDO RETRY DO POLLING -->
+                            <!-- AGUARDANDO COM CONTADOR DE TEMPO (3.5s) -->
                             <template x-if="!waResult?.qr && !waResult?.connected && waResult?.success">
                                 <div class="py-6 space-y-3">
                                     <div class="inline-block animate-spin rounded-full h-8 w-8 border-3 border-emerald-500 border-t-transparent"></div>
                                     <p class="text-xs text-gray-600 font-semibold">Instância acordou! Obtendo imagem do QR Code...</p>
-                                    <p class="text-[11px] text-gray-400" x-text="`Tentativa ${pollAttempts} de 6`"></p>
+                                    <p class="text-[11px] text-gray-400" x-text="`Tentativa ${pollAttempts} de 8 (Aguarde 3s...)`"></p>
                                 </div>
                             </template>
 
@@ -401,7 +402,7 @@
 
                         <!-- RODAPÉ DO MODAL -->
                         <div class="mt-6 pt-4 border-t border-gray-100 flex gap-2">
-                            <button type="button" @click="fetchWaStatus()" :disabled="waLoading" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 rounded-lg text-xs transition">
+                            <button type="button" @click="runWaPoll()" :disabled="waLoading" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 rounded-lg text-xs transition">
                                 Tentar Novamente
                             </button>
                             <button type="button" @click="showWaModal = false" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2 rounded-lg text-xs transition">
@@ -512,7 +513,7 @@
                                 </td>
                                 <td class="py-4 px-5 text-right flex justify-end items-center gap-2 opacity-90 group-hover:opacity-100 transition">
                                     <a href="/?configure={{ $assistant->id }}" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-1.5 px-3 rounded-lg text-xs transition flex items-center justify-center gap-1.5">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg> Configurar
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 01-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg> Configurar
                                     </a>
 
                                     <a href="#" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-1.5 px-3 rounded-lg text-xs transition flex items-center justify-center gap-1.5 opacity-70">
