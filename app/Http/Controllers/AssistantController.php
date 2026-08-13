@@ -149,7 +149,7 @@ class AssistantController extends Controller
                     if ($res->successful()) {
                         $data = $res->json();
                         $status = strtolower($data['instance']['state'] ?? $data['instance']['status'] ?? $data['status'] ?? $data['state'] ?? '');
-                        if (in_array($status, ['open', 'connected', 'connecting_connected']) || ($data['connected'] ?? false) === true) {
+                        if (in_array($status, ['open', 'connected', 'connecting_connected'])) {
                             return response()->json(['connected' => true]);
                         }
                         return response()->json(['connected' => false]);
@@ -168,6 +168,7 @@ class AssistantController extends Controller
         }
     }
 
+    // A LÓGICA BLINDADA DE DESCONEXÃO QUE ACEITA AS ROTAS CORRETAS
     private function disconnectWaConnection(Request $request)
     {
         $provider = $request->input('provider');
@@ -181,34 +182,44 @@ class AssistantController extends Controller
 
         try {
             $headers = [
-                'token' => $token, 'apikey' => $token, 'Client-Token' => $token, 
-                'Authorization' => "Bearer {$token}", 'Content-Type' => 'application/json', 'Accept' => 'application/json'
+                'token' => $token, 
+                'apikey' => $token, 
+                'Client-Token' => $token, 
+                'Authorization' => "Bearer {$token}", 
+                'Content-Type' => 'application/json', 
+                'Accept' => 'application/json'
             ];
 
             if ($provider === 'uazapi' || $provider === 'evolution') {
+                
                 $candidates = [
                     ['method' => 'POST',   'path' => "/instance/disconnect", 'body' => ['instanceName' => $instance]],
                     ['method' => 'POST',   'path' => "/instance/disconnect", 'body' => (object)[]],
                     ['method' => 'DELETE', 'path' => "/instance/disconnect"],
-                    ['method' => 'POST',   'path' => "/instance/disconnect/{$instance}", 'body' => (object)[]],
-                    ['method' => 'DELETE', 'path' => "/instance/disconnect/{$instance}"],
-                    ['method' => 'POST',   'path' => "/instance/delete", 'body' => (object)[]],
-                    ['method' => 'DELETE', 'path' => "/instance/delete"],
+                    ['method' => 'DELETE', 'path' => "/instance/logout/{$instance}"], // Evolution default
+                    ['method' => 'DELETE', 'path' => "/instance/logout"],
+                    ['method' => 'POST',   'path' => "/instance/logout", 'body' => (object)[]]
                 ];
+
+                $errors = [];
 
                 foreach ($candidates as $cand) {
                     $req = Http::withHeaders($headers)->timeout(8);
+                    
                     if ($cand['method'] === 'DELETE') {
                         $res = $req->delete($url . $cand['path']);
                     } else {
-                        $res = $req->post($url . $cand['path'], $cand['body'] ?? (object)[]);
+                        $res = $req->post($url . $cand['path'], $cand['body']);
                     }
 
                     if ($res->successful()) {
                         return response()->json(['success' => true]);
                     }
+                    
+                    $errors[] = "{$cand['method']} {$cand['path']}: {$res->status()}";
                 }
-                return response()->json(['success' => false, 'message' => "Servidor recusou a desconexão."]);
+                
+                return response()->json(['success' => false, 'message' => implode(' | ', $errors)]);
             }
 
             return response()->json(['success' => false, 'message' => 'Provedor não suportado.']);
@@ -225,7 +236,7 @@ class AssistantController extends Controller
         $token = trim($request->input('token'));
 
         if (empty($provider) || empty($instance) || empty($token)) {
-            return response()->json(['success' => false, 'message' => 'Preencha URL, Instância e Token.']);
+            return response()->json(['success' => false, 'message' => 'Preencha URL, Instância e Token para testar a conexão.']);
         }
 
         try {
@@ -236,6 +247,7 @@ class AssistantController extends Controller
                 if (!$res->successful() || $res->status() === 400) {
                     $res = Http::withHeaders($headers)->timeout(10)->post("{$url}/instance/connect", (object)[]);
                 }
+                
                 if (!$res->successful()) {
                     $res = Http::withHeaders($headers)->timeout(10)->get("{$url}/instance/connect/{$instance}");
                 }
@@ -258,7 +270,8 @@ class AssistantController extends Controller
                     return response()->json(['success' => true, 'connected' => false, 'qr' => null, 'message' => "Instância UaZapi ligada (Status: {$status}). Gerando QR Code..."]);
                 }
 
-                return response()->json(['success' => false, 'message' => "Erro {$res->status()}: Verifique credenciais."]);
+                $err = $res->json();
+                return response()->json(['success' => false, 'message' => "Erro {$res->status()}: " . ($err['message'] ?? $err['error'] ?? 'Verifique credenciais.')]);
             }
 
             if ($provider === 'evolution') {
