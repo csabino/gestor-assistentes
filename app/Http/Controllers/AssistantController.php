@@ -27,8 +27,9 @@ class AssistantController extends Controller
         return redirect('/')->with('success', 'Assistente criado com sucesso!');
     }
 
-    public function toggleStatus(Assistant $assistant)
+    public function toggleStatus(Request $request)
     {
+        $assistant = Assistant::findOrFail($request->assistant_id);
         $assistant->update([
             'is_active' => !$assistant->is_active,
         ]);
@@ -36,8 +37,9 @@ class AssistantController extends Controller
         return redirect('/')->with('success', 'Status do assistente atualizado!');
     }
 
-    public function destroy(Assistant $assistant)
+    public function destroy(Request $request)
     {
+        $assistant = Assistant::findOrFail($request->assistant_id);
         $assistant->delete();
 
         return redirect('/')->with('success', 'Assistente removido!');
