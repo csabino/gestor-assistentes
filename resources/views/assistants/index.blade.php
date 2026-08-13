@@ -92,8 +92,43 @@
                 </div>
             </div>
 
-            <!-- Formulário Dinâmico -->
-            <form id="configForm" action="/" method="POST" enctype="multipart/form-data" x-data="{ provider: '{{ $configuring->provider ?? 'openai' }}' }">
+            <!-- Formulário Dinâmico com Teste de IA embutido no Alpine -->
+            <form id="configForm" action="/" method="POST" enctype="multipart/form-data" 
+                x-data="{ 
+                    provider: '{{ $configuring->provider ?? 'openai' }}',
+                    testing: false,
+                    testResult: null,
+                    getApiKey() {
+                        if (this.provider === 'openai') return document.querySelector('input[name=\'openai_api_key\']').value;
+                        if (this.provider === 'gemini') return document.querySelector('input[name=\'gemini_api_key\']').value;
+                        if (this.provider === 'anthropic') return document.querySelector('input[name=\'anthropic_api_key\']').value;
+                        if (this.provider === 'grok') return document.querySelector('input[name=\'grok_api_key\']').value;
+                        return '';
+                    },
+                    async testConnection() {
+                        this.testing = true;
+                        this.testResult = null;
+                        try {
+                            const response = await fetch('/', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                                },
+                                body: JSON.stringify({
+                                    action: 'test_ai',
+                                    provider: this.provider,
+                                    api_key: this.getApiKey()
+                                })
+                            });
+                            this.testResult = await response.json();
+                        } catch (e) {
+                            this.testResult = { success: false, message: 'Erro ao processar requisição de teste.' };
+                        } finally {
+                            this.testing = false;
+                        }
+                    }
+                }">
                 @csrf
                 @method('PUT')
                 <input type="hidden" name="assistant_id" value="{{ $configuring->id }}">
@@ -119,7 +154,6 @@
                                 Base de Conhecimento
                             </h2>
                             
-                            <!-- Lista de Arquivos com Botão "X" de Exclusão -->
                             @if($configuring->knowledge_files && count($configuring->knowledge_files) > 0)
                                 <div class="mb-5 bg-gray-50 p-4 rounded-lg border border-gray-200">
                                     <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
@@ -133,7 +167,6 @@
                                                     <span class="truncate font-medium">{{ $file['name'] }}</span>
                                                 </div>
                                                 
-                                                <!-- Botão Excluir Arquivo Específico -->
                                                 <form action="/" method="POST" onsubmit="return confirm('Deseja remover este arquivo da base de conhecimento?');">
                                                     @csrf
                                                     @method('DELETE')
@@ -149,21 +182,49 @@
                                 </div>
                             @endif
 
-                            <!-- Upload Múltiplo -->
+                            <!-- Campo com Botão "+ Anexar" ao lado -->
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Anexar Arquivos (PDF, Word, TXT)</label>
-                            <p class="text-xs text-gray-500 mb-3">Você pode selecionar múltiplos arquivos de uma só vez segurando a tecla Ctrl/Cmd.</p>
-                            <input type="file" name="documents[]" multiple accept=".pdf,.doc,.docx,.txt" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition">
+                            <p class="text-xs text-gray-500 mb-3">Escolha os arquivos e clique no botão <b>+ Anexar</b> ao lado para subir para a lista acima.</p>
+                            
+                            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                <input type="file" name="documents[]" multiple accept=".pdf,.doc,.docx,.txt" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition border border-gray-200 rounded-lg p-1">
+                                <button type="submit" form="configForm" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 px-4 rounded-lg transition shadow-sm flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                                    Anexar
+                                </button>
+                            </div>
                         </div>
                     </div>
 
                     <div class="space-y-6">
-                        <!-- CONEXÃO E MODELOS -->
+                        <!-- CONEXÃO E MODELOS (Com botão de Testar) -->
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                            <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z" /></svg>
-                                Conexão IA
-                            </h2>
                             
+                            <div class="border-b border-gray-100 pb-3 mb-4 flex items-center justify-between gap-2">
+                                <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z" /></svg>
+                                    Conexão IA
+                                </h2>
+
+                                <!-- Botão Testar Conexão -->
+                                <button type="button" @click="testConnection()" :disabled="testing"
+                                    class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded-lg transition border border-indigo-200 flex items-center gap-1.5 shrink-0">
+                                    <template x-if="!testing">
+                                        <span class="flex items-center gap-1">⚡ Testar</span>
+                                    </template>
+                                    <template x-if="testing">
+                                        <span class="flex items-center gap-1">⌛ Testando...</span>
+                                    </template>
+                                </button>
+                            </div>
+
+                            <!-- Alerta de Resultado do Teste -->
+                            <div x-show="testResult !== null" x-transition class="mb-4 p-3 rounded-lg text-xs border"
+                                :class="testResult?.success ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'">
+                                <p class="font-bold mb-0.5" x-text="testResult?.success ? '✅ Sucesso!' : '❌ Falha na Conexão'"></p>
+                                <p x-text="testResult?.message"></p>
+                            </div>
+
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Provedor</label>
                             <select name="provider" x-model="provider" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
                                 <option value="openai">OpenAI (ChatGPT)</option>

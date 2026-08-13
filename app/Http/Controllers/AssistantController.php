@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Assistant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Http;
 
 class AssistantController extends Controller
 {
@@ -18,6 +19,11 @@ class AssistantController extends Controller
 
     public function store(Request $request)
     {
+        // Se a requisição for um Teste de Conexão com a IA
+        if ($request->input('action') === 'test_ai') {
+            return $this->testAiConnection($request);
+        }
+
         $request->validate(['name' => 'required|string|max:255']);
         
         Assistant::create([
@@ -37,7 +43,6 @@ class AssistantController extends Controller
             'openai_api_key', 'gemini_api_key', 'anthropic_api_key', 'grok_api_key'
         ]));
 
-        // Lógica para upload de MÚLTIPLOS arquivos de uma vez
         if ($request->hasFile('documents')) {
             $files = $assistant->knowledge_files ?? [];
             
@@ -71,15 +76,12 @@ class AssistantController extends Controller
     {
         $assistant = Assistant::findOrFail($request->assistant_id);
 
-        // Se a requisição veio para excluir APENAS um arquivo específico
         if ($request->has('file_index')) {
             $files = $assistant->knowledge_files ?? [];
             $index = $request->file_index;
 
             if (isset($files[$index])) {
-                // Deleta o arquivo do disco do servidor
                 Storage::delete($files[$index]['path']);
-                // Remove do array e reindexa
                 unset($files[$index]);
                 $assistant->update(['knowledge_files' => array_values($files)]);
             }
@@ -87,8 +89,55 @@ class AssistantController extends Controller
             return redirect('/?configure=' . $assistant->id)->with('success', 'Arquivo removido da base de conhecimento!');
         }
 
-        // Caso contrário, exclui o assistente completo
         $assistant->delete();
         return redirect('/')->with('success', 'Assistente removido!');
+    }
+
+    private function testAiConnection(Request $request)
+    {
+        $provider = $request->input('provider');
+        $apiKey = $request->input('api_key');
+
+        if (empty($apiKey)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Informe a API Key do provedor selecionado para testar.'
+            ]);
+        }
+
+        try {
+            if ($provider === 'openai') {
+                $res = Http::withToken($apiKey)->get('https://api.openai.com/v1/models');
+            } elseif ($provider === 'gemini') {
+                $res = Http::get("https://generativelanguage.googleapis.com/v1beta/models?key={$apiKey}");
+            } elseif ($provider === 'anthropic') {
+                $res = Http::withHeaders([
+                    'x-api-key' => $apiKey,
+                    'anthropic-version' => '2023-06-01'
+                ])->get('https://api.anthropic.com/v1/models');
+            } elseif ($provider === 'grok') {
+                $res = Http::withToken($apiKey)->get('https://api.x.ai/v1/models');
+            } else {
+                return response()->json(['success' => false, 'message' => 'Provedor inválido.']);
+            }
+
+            if ($res->successful()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Conexão estabelecida com sucesso! API Key e provedor validados.'
+                ]);
+            } else {
+                $err = $res->json()['error']['message'] ?? 'Erro de autenticação.';
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Falha na conexão: ' . substr($err, 0, 120)
+                ]);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao conectar: ' . $e->getMessage()
+            ]);
+        }
     }
 }
