@@ -54,6 +54,7 @@
 
         @if($configuring)
             
+            <!-- STICKY HEADER -->
             <div class="sticky top-0 z-40 bg-gray-50/90 backdrop-blur-md py-4 mb-6 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4 -mx-4 px-4 sm:mx-0 sm:px-0 shadow-sm mt-4">
                 <div class="flex items-center gap-4">
                     <a href="/" class="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1.5 text-sm transition bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-100">
@@ -188,7 +189,7 @@
                                                     <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
                                                     <span class="truncate font-medium">{{ $file['name'] }}</span>
                                                 </div>
-                                                <button type="submit" form="deleteFileForm_{{ $index }}" onclick="return confirm('Remover arquivo?');" class="text-gray-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition">
+                                                <button type="button" onclick="if(confirm('Remover arquivo?')) document.getElementById('deleteFileForm_{{ $index }}').submit();" class="text-gray-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition">
                                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                                                 </button>
                                             </li>
@@ -209,8 +210,8 @@
                         </div>
                     </div>
 
-                    <!-- CONEXÃO WHATSAPP (1/3) - ALINHADA PERFEITAMENTE COM A BASE DE CONHECIMENTO -->
-                    <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-full">
+                    <!-- CONEXÃO WHATSAPP (1/3) -->
+                    <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-full flex flex-col">
                         <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-green-500"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>
                             Canal: WhatsApp
@@ -226,7 +227,7 @@
                             <option value="chatpro">ChatPro</option>
                         </select>
 
-                        <div x-show="wa_provider !== ''" x-transition class="space-y-4">
+                        <div x-show="wa_provider !== ''" x-transition class="space-y-4 flex-1">
                             <!-- UAZAPI -->
                             <template x-if="wa_provider === 'uazapi'">
                                 <div>
@@ -281,6 +282,20 @@
                                 </div>
                             </template>
                         </div>
+
+                        <!-- WEBHOOK & Botão QR Code (Fica sempre no rodapé do Card) -->
+                        <div x-show="wa_provider !== ''" x-transition class="mt-auto border-t border-gray-100 pt-5 mt-5">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Seu Webhook (Copie e cole no provedor)</label>
+                            <div class="flex items-center gap-2 mb-4">
+                                <input type="text" readonly id="webhookUrl" value="https://gestor-assistentes-painel-web.nn8oij.easypanel.host/webhook/whatsapp/{{ $configuring->id }}" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-2 text-xs text-gray-500 font-mono outline-none">
+                                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('webhookUrl').value); alert('Webhook copiado!');" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg transition text-xs font-bold flex items-center shrink-0">Copiar</button>
+                            </div>
+                            <button type="button" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2 shadow-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" /></svg>
+                                Verificar Status / QR Code
+                            </button>
+                        </div>
+
                     </div>
                 </div>
 
@@ -360,7 +375,6 @@
                 @endforelse
             </div>
             
-            <!-- LISTA -->
             <div x-show="view === 'list'" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden" style="display: none;" x-transition>
                 <table class="w-full text-left border-collapse text-sm">
                     <thead>
@@ -393,7 +407,7 @@
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008z" /></svg> Agenda
                                     </a>
                                     
-                                    <form action="/" method="POST" onsubmit="return confirm('Tem certeza?');">
+                                    <form action="/" method="POST" onsubmit="return confirm('Tem certeza que deseja excluir?');">
                                         @csrf @method('DELETE')
                                         <input type="hidden" name="assistant_id" value="{{ $assistant->id }}">
                                         <button type="submit" class="text-gray-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-md transition text-xs flex items-center justify-center" title="Excluir">
