@@ -10,15 +10,18 @@ return new class extends Migration
      * Run the migrations.
      */
     public function up(): void
-{
-    Schema::table('assistants', function (Blueprint $table) {
-        $table->string('provider')->default('openai')->after('is_active');
-        $table->text('gemini_api_key')->nullable()->after('openai_api_key');
-        $table->text('anthropic_api_key')->nullable()->after('gemini_api_key');
-        $table->text('grok_api_key')->nullable()->after('anthropic_api_key');
-        $table->json('knowledge_files')->nullable()->after('grok_api_key');
-    });
-}
+    {
+        Schema::table('assistants', function (Blueprint $table) {
+            $table->string('provider')->default('openai')->nullable();
+            $table->text('system_prompt')->nullable();
+            $table->string('model')->default('gpt-4o-mini')->nullable();
+            $table->text('openai_api_key')->nullable();
+            $table->text('gemini_api_key')->nullable();
+            $table->text('anthropic_api_key')->nullable();
+            $table->text('grok_api_key')->nullable();
+            $table->json('knowledge_files')->nullable();
+        });
+    }
 
     /**
      * Reverse the migrations.
@@ -26,7 +29,11 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('assistants', function (Blueprint $table) {
-            //
+            $table->dropColumn([
+                'provider', 'system_prompt', 'model', 
+                'openai_api_key', 'gemini_api_key', 'anthropic_api_key', 
+                'grok_api_key', 'knowledge_files'
+            ]);
         });
     }
 };
