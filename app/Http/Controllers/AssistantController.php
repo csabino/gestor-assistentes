@@ -142,82 +142,98 @@ class AssistantController extends Controller
     {
         $provider = $request->input('provider');
         $url = rtrim($request->input('url'), '/');
-        $instance = $request->input('instance');
-        $token = $request->input('token');
+        $instance = trim($request->input('instance'));
+        $token = trim($request->input('token'));
 
         if (empty($provider) || empty($instance) || empty($token)) {
             return response()->json(['success' => false, 'message' => 'Preencha URL, Instância e Token para testar a conexão.']);
         }
 
         try {
-            // LÓGICA ESPECÍFICA PARA A UAZAPI
-            if ($provider === 'uazapi') {
-                $response = Http::withHeaders([
-                    'token' => $token,
-                    'apikey' => $token,
-                    'Client-Token' => $token
-                ])->get("{$url}/instance/connect");
+            if ($provider === 'uazapi' || $provider === 'evolution') {
+                
+                // Rotas candidatas de conexão e status
+                $candidates = [
+                    ['method' => 'GET',  'path' => "/instance/connect"],
+                    ['method' => 'GET',  'path' => "/instance/connect/{$instance}"],
+                    ['method' => 'GET',  'path' => "/instance/status"],
+                    ['method' => 'GET',  'path' => "/instance/status/{$instance}"],
+                    ['method' => 'GET',  'path' => "/instance/qrcode"],
+                    ['method' => 'GET',  'path' => "/instance/qrcode/{$instance}"],
+                    ['method' => 'GET',  'path' => "/instance/fetchInstances"],
+                    ['method' => 'POST', 'path' => "/instance/connect"],
+                    ['method' => 'POST', 'path' => "/instance/connect/{$instance}"],
+                ];
 
-                // Se a UaZapi retornar 404 na rota direta, tenta o fallback com o nome da instância no path
-                if ($response->status() === 404) {
-                    $response = Http::withHeaders(['token' => $token, 'apikey' => $token])->get("{$url}/instance/connect/{$instance}");
-                }
+                $lastStatus = 404;
+                $lastBody = '';
 
-                if ($response->successful()) {
-                    $data = $response->json();
-                    
-                    // Extrai o QR Code
-                    $qr = $data['base64'] ?? $data['qrcode'] ?? $data['instance']['qrcode'] ?? null;
-                    if ($qr) {
-                        if (!str_starts_with($qr, 'data:image')) {
-                            $qr = 'data:image/png;base64,' . $qr;
+                foreach ($candidates as $candidate) {
+                    $endpoint = $url . $candidate['path'];
+                    $req = Http::withHeaders([
+                        'token' => $token,
+                        'apikey' => $token,
+                        'Client-Token' => $token,
+                        'Authorization' => "Bearer {$token}"
+                    ])->timeout(8);
+
+                    $response = ($candidate['method'] === 'POST') ? $req->post($endpoint) : $req->get($endpoint);
+                    $lastStatus = $response->status();
+                    $lastBody = $response->body();
+
+                    if ($response->successful()) {
+                        $data = $response->json();
+                        
+                        // Busca QR Code em chaves conhecidas
+                        $qr = $data['base64'] 
+                           ?? $data['qrcode'] 
+                           ?? $data['qr'] 
+                           ?? $data['code'] 
+                           ?? $data['instance']['qrcode'] 
+                           ?? $data['data']['qrcode'] 
+                           ?? null;
+
+                        if ($qr) {
+                            if (!str_starts_with($qr, 'data:image')) {
+                                if (str_contains($qr, 'base64,')) {
+                                    $qr = 'data:image/png;' . substr($qr, strpos($qr, 'base64,'));
+                                } else {
+                                    $qr = 'data:image/png;base64,' . $qr;
+                                }
+                            }
+                            return response()->json([
+                                'success' => true,
+                                'message' => 'Escaneie o QR Code abaixo com seu WhatsApp:',
+                                'qr' => $qr
+                            ]);
                         }
+
+                        // Busca estado de conexão
+                        $state = $data['instance']['state'] ?? $data['status'] ?? $data['state'] ?? $data['connected'] ?? null;
+                        if ($state === 'open' || $state === 'connected' || $state === true || ($data['connected'] ?? false) === true) {
+                            return response()->json([
+                                'success' => true,
+                                'message' => '✅ WhatsApp pareado e conectado com sucesso!'
+                            ]);
+                        }
+
                         return response()->json([
                             'success' => true,
-                            'message' => 'Escaneie o QR Code abaixo com seu WhatsApp:',
-                            'qr' => $qr
+                            'message' => 'Conectado na API. Status: ' . (is_string($state) ? $state : 'Aguardando leitura do QR Code')
                         ]);
                     }
-
-                    // Se já estiver pareado
-                    $state = $data['instance']['state'] ?? $data['status'] ?? $data['state'] ?? null;
-                    if ($state === 'open' || $state === 'connected' || ($data['connected'] ?? false) === true) {
-                        return response()->json(['success' => true, 'message' => '✅ WhatsApp pareado e conectado com sucesso!']);
-                    }
-
-                    return response()->json(['success' => true, 'message' => 'Status da instância: ' . ($state ?? 'Aguardando QR Code')]);
-                } else {
-                    $errorData = $response->json();
-                    $errorMsg = $errorData['message'] ?? $errorData['error'] ?? 'Verifique se a URL e o Token da UaZapi estão corretos.';
-                    return response()->json(['success' => false, 'message' => "Erro {$response->status()}: {$errorMsg}"]);
                 }
-            }
 
-            // LÓGICA PARA EVOLUTION API
-            if ($provider === 'evolution') {
-                $response = Http::withHeaders([
-                    'apikey' => $token,
-                    'Authorization' => "Bearer {$token}"
-                ])->get("{$url}/instance/connect/{$instance}");
-
-                if ($response->successful()) {
-                    $data = $response->json();
-                    if (isset($data['base64'])) {
-                        return response()->json(['success' => true, 'message' => 'Escaneie o QR Code abaixo:', 'qr' => $data['base64']]);
-                    } elseif (isset($data['instance']['state']) && $data['instance']['state'] === 'open') {
-                        return response()->json(['success' => true, 'message' => '✅ WhatsApp conectado com sucesso!']);
-                    } else {
-                        return response()->json(['success' => true, 'message' => 'Status: ' . ($data['instance']['state'] ?? 'Desconhecido')]);
-                    }
-                } else {
-                    return response()->json(['success' => false, 'message' => "Erro {$response->status()} na Evolution API."]);
-                }
+                return response()->json([
+                    'success' => false,
+                    'message' => "Erro {$lastStatus} ao comunicar com a UaZapi. Resposta do servidor: " . substr(strip_tags($lastBody), 0, 150)
+                ]);
             }
 
             return response()->json(['success' => true, 'message' => "Teste dinâmico para {$provider} em desenvolvimento."]);
 
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Erro de rede ao conectar no servidor da UaZapi.']);
+            return response()->json(['success' => false, 'message' => 'Erro de rede: Servidor indisponível ou URL inacessível.']);
         }
     }
 }
