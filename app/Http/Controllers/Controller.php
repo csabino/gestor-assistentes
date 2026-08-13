@@ -2,7 +2,44 @@
 
 namespace App\Http\Controllers;
 
-abstract class Controller
+use App\Models\Assistant;
+use Illuminate\Http\Request;
+
+class AssistantController extends Controller
 {
-    //
+    public function index()
+    {
+        $assistants = Assistant::latest()->get();
+        return view('assistants.index', compact('assistants'));
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+        ]);
+
+        Assistant::create([
+            'name' => $request->name,
+            'is_active' => true,
+        ]);
+
+        return redirect('/')->with('success', 'Assistente criado com sucesso!');
+    }
+
+    public function toggleStatus(Assistant $assistant)
+    {
+        $assistant->update([
+            'is_active' => !$assistant->is_active,
+        ]);
+
+        return redirect('/')->with('success', 'Status do assistente atualizado!');
+    }
+
+    public function destroy(Assistant $assistant)
+    {
+        $assistant->delete();
+
+        return redirect('/')->with('success', 'Assistente removido!');
+    }
 }
