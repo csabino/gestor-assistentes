@@ -19,7 +19,6 @@ class AssistantController extends Controller
 
     public function store(Request $request)
     {
-        // Interceptador de testes em tempo real (IA e WhatsApp)
         if ($request->input('action') === 'test_ai') {
             return $this->testAiConnection($request);
         }
@@ -139,7 +138,6 @@ class AssistantController extends Controller
         }
     }
 
-    // NOVA FUNÇÃO: Testar WhatsApp e buscar QR Code
     private function testWaConnection(Request $request)
     {
         $provider = $request->input('provider');
@@ -152,42 +150,74 @@ class AssistantController extends Controller
         }
 
         try {
-            if ($provider === 'uazapi' || $provider === 'evolution') {
-                
-                // Endpoint padrao UaZapi / Evolution para conectar/pegar qr code
-                $response = Http::withHeaders(['apikey' => $token])
-                                ->get("{$url}/instance/connect/{$instance}");
-                
+            // LÓGICA ESPECÍFICA PARA A UAZAPI
+            if ($provider === 'uazapi') {
+                $response = Http::withHeaders([
+                    'token' => $token,
+                    'apikey' => $token,
+                    'Client-Token' => $token
+                ])->get("{$url}/instance/connect");
+
+                // Se a UaZapi retornar 404 na rota direta, tenta o fallback com o nome da instância no path
+                if ($response->status() === 404) {
+                    $response = Http::withHeaders(['token' => $token, 'apikey' => $token])->get("{$url}/instance/connect/{$instance}");
+                }
+
                 if ($response->successful()) {
                     $data = $response->json();
                     
-                    // Se a API retornar a imagem do QR Code
-                    if (isset($data['base64'])) {
+                    // Extrai o QR Code
+                    $qr = $data['base64'] ?? $data['qrcode'] ?? $data['instance']['qrcode'] ?? null;
+                    if ($qr) {
+                        if (!str_starts_with($qr, 'data:image')) {
+                            $qr = 'data:image/png;base64,' . $qr;
+                        }
                         return response()->json([
                             'success' => true,
                             'message' => 'Escaneie o QR Code abaixo com seu WhatsApp:',
-                            'qr' => $data['base64']
+                            'qr' => $qr
                         ]);
-                    } 
-                    // Se a API retornar que já está pareada
-                    elseif (isset($data['instance']['state']) && $data['instance']['state'] === 'open') {
+                    }
+
+                    // Se já estiver pareado
+                    $state = $data['instance']['state'] ?? $data['status'] ?? $data['state'] ?? null;
+                    if ($state === 'open' || $state === 'connected' || ($data['connected'] ?? false) === true) {
                         return response()->json(['success' => true, 'message' => '✅ WhatsApp pareado e conectado com sucesso!']);
                     }
-                    // Outros status (connecting, close, etc)
-                    else {
-                        $state = $data['instance']['state'] ?? 'Desconhecido';
-                        return response()->json(['success' => true, 'message' => "Status da instância: {$state}"]);
+
+                    return response()->json(['success' => true, 'message' => 'Status da instância: ' . ($state ?? 'Aguardando QR Code')]);
+                } else {
+                    $errorData = $response->json();
+                    $errorMsg = $errorData['message'] ?? $errorData['error'] ?? 'Verifique se a URL e o Token da UaZapi estão corretos.';
+                    return response()->json(['success' => false, 'message' => "Erro {$response->status()}: {$errorMsg}"]);
+                }
+            }
+
+            // LÓGICA PARA EVOLUTION API
+            if ($provider === 'evolution') {
+                $response = Http::withHeaders([
+                    'apikey' => $token,
+                    'Authorization' => "Bearer {$token}"
+                ])->get("{$url}/instance/connect/{$instance}");
+
+                if ($response->successful()) {
+                    $data = $response->json();
+                    if (isset($data['base64'])) {
+                        return response()->json(['success' => true, 'message' => 'Escaneie o QR Code abaixo:', 'qr' => $data['base64']]);
+                    } elseif (isset($data['instance']['state']) && $data['instance']['state'] === 'open') {
+                        return response()->json(['success' => true, 'message' => '✅ WhatsApp conectado com sucesso!']);
+                    } else {
+                        return response()->json(['success' => true, 'message' => 'Status: ' . ($data['instance']['state'] ?? 'Desconhecido')]);
                     }
                 } else {
-                    return response()->json(['success' => false, 'message' => "Erro ao conectar na API ({$response->status()}). Verifique a URL e o Token."]);
+                    return response()->json(['success' => false, 'message' => "Erro {$response->status()} na Evolution API."]);
                 }
-            } 
-            
-            // Retorno para Meta Oficial / ChatPro / Z-API (mock inicial)
+            }
+
             return response()->json(['success' => true, 'message' => "Teste dinâmico para {$provider} em desenvolvimento."]);
-            
+
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Erro de rede: Servidor não encontrado ou URL inválida.']);
+            return response()->json(['success' => false, 'message' => 'Erro de rede ao conectar no servidor da UaZapi.']);
         }
     }
 }
