@@ -75,6 +75,7 @@
                 </div>
                 
                 <div class="flex items-center gap-3 w-full md:w-auto">
+                    <!-- Form de Status (Fora do form principal) -->
                     <form action="/" method="POST" class="flex-1 md:flex-none">
                         @csrf @method('PATCH')
                         <input type="hidden" name="assistant_id" value="{{ $configuring->id }}">
@@ -95,6 +96,7 @@
                 </div>
             </div>
 
+            <!-- FORMULÁRIO PRINCIPAL (CÉREBRO, UPLOAD E CONEXÃO) -->
             <form id="configForm" action="/" method="POST" enctype="multipart/form-data" 
                 x-data="{ 
                     provider: '{{ $configuring->provider ?? 'openai' }}',
@@ -138,6 +140,7 @@
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     
                     <div class="lg:col-span-2 space-y-6">
+                        <!-- CÉREBRO DA IA -->
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                             <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" /></svg>
@@ -148,6 +151,7 @@
                             <textarea name="system_prompt" rows="12" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="Ex: Você é um vendedor especializado na loja X. Seja cordial e sempre consulte a base de conhecimento...">{{ $configuring->system_prompt }}</textarea>
                         </div>
 
+                        <!-- BASE DE CONHECIMENTO -->
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                             <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776" /></svg>
@@ -167,15 +171,10 @@
                                                     <span class="truncate font-medium">{{ $file['name'] }}</span>
                                                 </div>
                                                 
-                                                <form action="/" method="POST" onsubmit="return confirm('Deseja remover este arquivo da base de conhecimento?');">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <input type="hidden" name="assistant_id" value="{{ $configuring->id }}">
-                                                    <input type="hidden" name="file_index" value="{{ $index }}">
-                                                    <button type="submit" class="text-gray-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition" title="Remover este arquivo">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                                                    </button>
-                                                </form>
+                                                <!-- BOTÃO DE EXCLUIR VINCULADO AO FORM ESCONDIDO -->
+                                                <button type="submit" form="deleteFileForm_{{ $index }}" onclick="return confirm('Deseja remover este arquivo da base de conhecimento?');" class="text-gray-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition" title="Remover este arquivo">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                </button>
                                             </li>
                                         @endforeach
                                     </ul>
@@ -270,6 +269,7 @@
                             </div>
                         </div>
 
+                        <!-- CARD WHATSAPP -->
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 relative overflow-hidden group">
                             <div class="absolute inset-0 bg-gray-50/80 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center opacity-0 hover:opacity-100 transition duration-300 rounded-xl">
                                 <span class="bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-full mb-2">Próxima Etapa</span>
@@ -298,7 +298,23 @@
                 </div>
             </form>
 
+            <!-- FORMULÁRIOS DE EXCLUSÃO DE ARQUIVOS (ESCONDIDOS E FORA DO FORM PRINCIPAL) -->
+            @if($configuring->knowledge_files && count($configuring->knowledge_files) > 0)
+                @foreach($configuring->knowledge_files as $index => $file)
+                    <form id="deleteFileForm_{{ $index }}" action="/" method="POST" class="hidden">
+                        @csrf
+                        @method('DELETE')
+                        <input type="hidden" name="assistant_id" value="{{ $configuring->id }}">
+                        <input type="hidden" name="file_index" value="{{ $index }}">
+                    </form>
+                @endforeach
+            @endif
+
+        <!-- ==============================================
+             TELA DE LISTAGEM DOS ASSISTENTES
+             ============================================== -->
         @else
+            <!-- Banner Superior -->
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mt-6 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
                 <form action="/" method="POST" class="flex items-center gap-2 w-full md:w-auto flex-1 max-w-lg">
                     @csrf
@@ -313,7 +329,7 @@
 
                 <div class="flex items-center gap-1 bg-gray-100 p-1.5 rounded-lg border border-gray-200 self-end md:self-auto">
                     <button @click="view = 'card'" :class="view === 'card' ? 'bg-white shadow-sm text-indigo-600 font-bold' : 'text-gray-500 hover:text-gray-700'" class="px-3 py-1.5 text-xs rounded-md transition flex items-center gap-1.5">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25-2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg> Cards
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg> Cards
                     </button>
                     <button @click="view = 'list'" :class="view === 'list' ? 'bg-white shadow-sm text-indigo-600 font-bold' : 'text-gray-500 hover:text-gray-700'" class="px-3 py-1.5 text-xs rounded-md transition flex items-center gap-1.5">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg> Lista
