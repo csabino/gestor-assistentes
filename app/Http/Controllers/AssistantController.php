@@ -168,7 +168,7 @@ class AssistantController extends Controller
         }
     }
 
-    // NOVA LÓGICA BLINDADA DE LOGOUT (Desconexão Real)
+    // LÓGICA DE LOGOUT EXPANDIDA (Tentando GET, DELETE e caminhos de connection)
     private function disconnectWaConnection(Request $request)
     {
         $provider = $request->input('provider');
@@ -192,12 +192,15 @@ class AssistantController extends Controller
 
             if ($provider === 'uazapi' || $provider === 'evolution') {
                 
-                // Bateria de testes de rotas/métodos para garantir a desconexão
                 $candidates = [
-                    ['method' => 'DELETE', 'path' => "/instance/logout", 'body' => []],
-                    ['method' => 'DELETE', 'path' => "/instance/logout/{$instance}", 'body' => []],
-                    ['method' => 'POST',   'path' => "/instance/logout", 'body' => ['instanceName' => $instance]],
-                    ['method' => 'POST',   'path' => "/instance/logout/{$instance}", 'body' => []]
+                    ['method' => 'DELETE', 'path' => "/instance/logout"],
+                    ['method' => 'DELETE', 'path' => "/instance/logout/{$instance}"],
+                    ['method' => 'GET',    'path' => "/instance/logout"],
+                    ['method' => 'GET',    'path' => "/instance/logout/{$instance}"],
+                    ['method' => 'DELETE', 'path' => "/instance/connection"],
+                    ['method' => 'DELETE', 'path' => "/instance/connection/{$instance}"],
+                    ['method' => 'POST',   'path' => "/instance/logout", 'body' => (object)[]],
+                    ['method' => 'POST',   'path' => "/instance/logout/{$instance}", 'body' => (object)[]]
                 ];
 
                 $errors = [];
@@ -206,7 +209,9 @@ class AssistantController extends Controller
                     $req = Http::withHeaders($headers)->timeout(8);
                     
                     if ($cand['method'] === 'DELETE') {
-                        $res = empty($cand['body']) ? $req->delete($url . $cand['path']) : $req->delete($url . $cand['path'], $cand['body']);
+                        $res = $req->delete($url . $cand['path']);
+                    } elseif ($cand['method'] === 'GET') {
+                        $res = $req->get($url . $cand['path']);
                     } else {
                         $res = $req->post($url . $cand['path'], $cand['body']);
                     }
