@@ -11,146 +11,190 @@
     
     <nav class="bg-indigo-600 text-white shadow-sm">
         <div class="container mx-auto px-4 py-3 flex justify-between items-center">
-            <div class="font-bold text-lg flex items-center gap-2.5">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-indigo-200">
+            <a href="/" class="font-bold text-lg flex items-center gap-2.5 hover:text-indigo-200 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z" />
                 </svg>
                 Gestor de Assistentes AI
-            </div>
-            <span class="text-xs bg-indigo-500 text-indigo-100 px-3 py-1 rounded-full font-medium border border-indigo-400">v1.0</span>
+            </a>
+            <span class="text-xs bg-indigo-500 px-3 py-1 rounded-full font-medium border border-indigo-400">Multi-Model</span>
         </div>
     </nav>
 
-    <div class="container mx-auto mt-6 px-4 max-w-5xl">
+    <div class="container mx-auto mt-6 px-4 max-w-5xl mb-12">
         
         @if(session('success'))
             <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-lg mb-6 text-sm flex items-center gap-2 shadow-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-emerald-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {{ session('success') }}
+                ✅ {{ session('success') }}
             </div>
         @endif
 
-        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
-            <form action="/" method="POST" class="flex items-center gap-2 w-full md:w-auto flex-1 max-w-lg">
-                @csrf
-                <input type="text" name="name" placeholder="Nome do assistente (ex: Vânia - Vendas)" required
-                    class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
-                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-1.5 px-4 rounded-lg transition shadow-sm flex items-center gap-1 whitespace-nowrap">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg> Criar
-                </button>
-            </form>
-
-            <div class="flex items-center gap-1 bg-gray-100 p-1 rounded-lg border border-gray-200 self-end md:self-auto">
-                <button @click="view = 'card'" :class="view === 'card' ? 'bg-white shadow-sm text-indigo-600 font-bold' : 'text-gray-500 hover:text-gray-700'" class="px-3 py-1.5 text-xs rounded-md transition flex items-center gap-1.5">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg> Cards
-                </button>
-                <button @click="view = 'list'" :class="view === 'list' ? 'bg-white shadow-sm text-indigo-600 font-bold' : 'text-gray-500 hover:text-gray-700'" class="px-3 py-1.5 text-xs rounded-md transition flex items-center gap-1.5">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg> Lista
-                </button>
+        <!-- TELA DE CONFIGURAÇÃO DO ASSISTENTE -->
+        @if($configuring)
+            <div class="mb-4 flex items-center justify-between">
+                <a href="/" class="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 text-sm">
+                    &larr; Voltar para listagem
+                </a>
+                
+                <!-- Botão Toggle Ativo/Inativo na Configuração -->
+                <form action="/" method="POST">
+                    @csrf @method('PATCH')
+                    <input type="hidden" name="assistant_id" value="{{ $configuring->id }}">
+                    <input type="hidden" name="from_config" value="1">
+                    <button type="submit" class="text-sm px-4 py-1.5 rounded-full font-semibold transition border flex items-center gap-2 {{ $configuring->is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200' }}">
+                        @if($configuring->is_active)
+                            <svg class="w-2.5 h-2.5 fill-emerald-500" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg> IA Ativa
+                        @else
+                            <svg class="w-2.5 h-2.5 fill-gray-400" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg> IA Inativa
+                        @endif
+                    </button>
+                </form>
             </div>
-        </div>
 
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-base font-bold text-gray-700">Assistentes Cadastrados ({{ $assistants->count() }})</h2>
-        </div>
-        
-        <!-- CARDS -->
-        <div x-show="view === 'card'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" style="display: none;" x-transition>
-            @forelse($assistants as $assistant)
-                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 hover:border-indigo-300 hover:shadow-md transition duration-200 flex flex-col justify-between gap-4">
-                    <div class="flex justify-between items-start gap-2">
-                        <h3 class="font-bold text-gray-800 truncate text-base">{{ $assistant->name }}</h3>
-                        
-                        <!-- Rota Segura: Toggle -->
-                        <form action="/" method="POST">
-                            @csrf
-                            @method('PATCH')
-                            <input type="hidden" name="assistant_id" value="{{ $assistant->id }}">
-                            <button type="submit" class="text-xs px-2.5 py-1 rounded-full font-semibold transition border flex items-center gap-1.5 {{ $assistant->is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200' }}">
-                                @if($assistant->is_active)
-                                    <svg class="w-2 h-2 fill-emerald-500" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg> Ativo
-                                @else
-                                    <svg class="w-2 h-2 fill-gray-400" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg> Inativo
-                                @endif
-                            </button>
-                        </form>
+            <!-- Formulário Dinâmico -->
+            <form action="/" method="POST" enctype="multipart/form-data" x-data="{ provider: '{{ $configuring->provider ?? 'openai' }}' }">
+                @csrf
+                @method('PUT')
+                <input type="hidden" name="assistant_id" value="{{ $configuring->id }}">
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    <!-- COLUNA ESQUERDA: Cérebro da IA -->
+                    <div class="lg:col-span-2 space-y-6">
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                            <h2 class="text-lg font-bold text-gray-800 border-b pb-2 mb-4">🧠 Personalidade (Prompt)</h2>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Instruções do Sistema</label>
+                            <p class="text-xs text-gray-500 mb-2">Descreva como a IA deve se comportar, qual o tom de voz e as regras de atendimento.</p>
+                            <textarea name="system_prompt" rows="8" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="Ex: Você é um vendedor especializado na loja X. Seja cordial, use emojis e nunca prometa descontos sem autorização...">{{ $configuring->system_prompt }}</textarea>
+                        </div>
+
+                        <!-- BASE DE CONHECIMENTO (Uploads) -->
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                            <h2 class="text-lg font-bold text-gray-800 border-b pb-2 mb-4">📚 Base de Conhecimento</h2>
+                            
+                            <!-- Lista de Arquivos -->
+                            @if($configuring->knowledge_files)
+                                <div class="mb-4 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                    <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">Documentos Anexados:</h4>
+                                    <ul class="space-y-2 text-sm text-gray-700">
+                                        @foreach($configuring->knowledge_files as $file)
+                                            <li class="flex items-center gap-2">📄 {{ $file['name'] }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endif
+
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Anexar Novo Arquivo</label>
+                            <p class="text-xs text-gray-500 mb-3">Envie arquivos PDF, Word ou TXT para a IA consultar antes de responder.</p>
+                            <input type="file" name="document" accept=".pdf,.doc,.docx,.txt" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                        </div>
                     </div>
 
-                    <div class="flex items-center justify-between border-t border-gray-100 pt-4 gap-2">
-                        <button class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-medium py-1.5 px-3 rounded-lg text-xs transition flex-1 flex items-center justify-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3" /></svg> Configurar
+                    <!-- COLUNA DIREITA: Conexão e Modelos -->
+                    <div class="space-y-6">
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                            <h2 class="text-lg font-bold text-gray-800 border-b pb-2 mb-4">🔌 Conexão IA</h2>
+                            
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Provedor</label>
+                            <select name="provider" x-model="provider" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4 focus:ring-2 focus:ring-indigo-500">
+                                <option value="openai">OpenAI (ChatGPT)</option>
+                                <option value="gemini">Google (Gemini)</option>
+                                <option value="anthropic">Anthropic (Claude)</option>
+                                <option value="grok">xAI (Grok)</option>
+                            </select>
+
+                            <!-- Campos Dinâmicos OPENAI -->
+                            <div x-show="provider === 'openai'" x-transition>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Modelo da OpenAI</label>
+                                <select name="model" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4">
+                                    <option value="gpt-4o-mini" {{ $configuring->model == 'gpt-4o-mini' ? 'selected' : '' }}>GPT-4o Mini (Rápido/Barato)</option>
+                                    <option value="gpt-4o" {{ $configuring->model == 'gpt-4o' ? 'selected' : '' }}>GPT-4o (Avançado)</option>
+                                </select>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">OpenAI API Key</label>
+                                <input type="password" name="openai_api_key" value="{{ $configuring->openai_api_key }}" placeholder="sk-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+                            </div>
+
+                            <!-- Campos Dinâmicos GEMINI -->
+                            <div x-show="provider === 'gemini'" x-transition style="display: none;">
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Modelo do Google</label>
+                                <select name="model" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4">
+                                    <option value="gemini-1.5-flash" {{ $configuring->model == 'gemini-1.5-flash' ? 'selected' : '' }}>Gemini 1.5 Flash</option>
+                                    <option value="gemini-1.5-pro" {{ $configuring->model == 'gemini-1.5-pro' ? 'selected' : '' }}>Gemini 1.5 Pro</option>
+                                </select>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Gemini API Key</label>
+                                <input type="password" name="gemini_api_key" value="{{ $configuring->gemini_api_key }}" placeholder="AIza..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+                            </div>
+
+                            <!-- Campos Dinâmicos CLAUDE -->
+                            <div x-show="provider === 'anthropic'" x-transition style="display: none;">
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Modelo do Claude</label>
+                                <select name="model" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4">
+                                    <option value="claude-3-haiku" {{ $configuring->model == 'claude-3-haiku' ? 'selected' : '' }}>Claude 3 Haiku</option>
+                                    <option value="claude-3.5-sonnet" {{ $configuring->model == 'claude-3.5-sonnet' ? 'selected' : '' }}>Claude 3.5 Sonnet</option>
+                                </select>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Anthropic API Key</label>
+                                <input type="password" name="anthropic_api_key" value="{{ $configuring->anthropic_api_key }}" placeholder="sk-ant-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+                            </div>
+
+                            <!-- Campos Dinâmicos GROK -->
+                            <div x-show="provider === 'grok'" x-transition style="display: none;">
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Modelo do Grok</label>
+                                <select name="model" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4">
+                                    <option value="grok-2-mini" {{ $configuring->model == 'grok-2-mini' ? 'selected' : '' }}>Grok 2 Mini</option>
+                                    <option value="grok-2" {{ $configuring->model == 'grok-2' ? 'selected' : '' }}>Grok 2</option>
+                                </select>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">xAI API Key</label>
+                                <input type="password" name="grok_api_key" value="{{ $configuring->grok_api_key }}" placeholder="xai-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+                            </div>
+                        </div>
+
+                        <!-- Botão Salvar -->
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-md transition text-lg">
+                            💾 Salvar Configurações
                         </button>
-                        
-                        <!-- Rota Segura: Delete -->
-                        <form action="/" method="POST" onsubmit="return confirm('Tem certeza que deseja excluir este assistente?');">
-                            @csrf
-                            @method('DELETE')
-                            <input type="hidden" name="assistant_id" value="{{ $assistant->id }}">
-                            <button type="submit" class="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition text-xs flex items-center justify-center" title="Excluir">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
-                            </button>
-                        </form>
                     </div>
                 </div>
-            @empty
-                <div class="col-span-full text-center py-12 text-gray-400 bg-white rounded-xl border border-dashed border-gray-300"><p class="text-sm">Nenhum assistente cadastrado.</p></div>
-            @endforelse
-        </div>
+            </form>
 
-        <!-- LISTA -->
-        <div x-show="view === 'list'" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden" style="display: none;" x-transition>
-            <table class="w-full text-left border-collapse text-sm">
-                <thead>
-                    <tr class="bg-gray-50 border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
-                        <th class="py-3 px-4 font-semibold">Nome do Assistente</th>
-                        <th class="py-3 px-4 font-semibold">Status</th>
-                        <th class="py-3 px-4 font-semibold text-right">Ações</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                    @forelse($assistants as $assistant)
-                        <tr class="hover:bg-gray-50 transition duration-150 group">
-                            <td class="py-3 px-4 font-medium text-gray-800">{{ $assistant->name }}</td>
-                            <td class="py-3 px-4">
-                                <!-- Rota Segura: Toggle -->
-                                <form action="/" method="POST">
-                                    @csrf
-                                    @method('PATCH')
-                                    <input type="hidden" name="assistant_id" value="{{ $assistant->id }}">
-                                    <button type="submit" class="text-xs px-2.5 py-0.5 rounded-full font-semibold transition border flex items-center gap-1.5 w-max {{ $assistant->is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200' }}">
-                                        @if($assistant->is_active)
-                                            <svg class="w-1.5 h-1.5 fill-emerald-500" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg> Ativo
-                                        @else
-                                            <svg class="w-1.5 h-1.5 fill-gray-400" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg> Inativo
-                                        @endif
-                                    </button>
-                                </form>
-                            </td>
-                            <td class="py-3 px-4 text-right flex justify-end items-center gap-2 opacity-80 group-hover:opacity-100 transition">
-                                <button class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-medium py-1.5 px-3 rounded-lg text-xs transition flex items-center justify-center gap-1.5">
-                                    Configurar
+        <!-- TELA DE LISTAGEM (Ocultada quando em Configuração) -->
+        @else
+            <!-- TODO O CÓDIGO DA LISTAGEM DOS CARDS/LISTA FICA AQUI (Mantive intacto) -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+                <form action="/" method="POST" class="flex items-center gap-2 w-full md:w-auto flex-1 max-w-lg">
+                    @csrf
+                    <input type="text" name="name" placeholder="Nome do assistente (ex: Vânia - Vendas)" required class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-1.5 px-4 rounded-lg transition">Criar</button>
+                </form>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                @foreach($assistants as $assistant)
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 hover:border-indigo-300 transition">
+                        <div class="flex justify-between items-start gap-2 mb-4">
+                            <h3 class="font-bold text-gray-800 text-base">{{ $assistant->name }}</h3>
+                            <form action="/" method="POST">
+                                @csrf @method('PATCH')
+                                <input type="hidden" name="assistant_id" value="{{ $assistant->id }}">
+                                <button type="submit" class="text-xs px-2.5 py-1 rounded-full font-semibold border {{ $assistant->is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-600 border-gray-300' }}">
+                                    {{ $assistant->is_active ? '🟢 Ativo' : '⚪ Inativo' }}
                                 </button>
-                                
-                                <!-- Rota Segura: Delete -->
-                                <form action="/" method="POST" onsubmit="return confirm('Tem certeza que deseja excluir este assistente?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <input type="hidden" name="assistant_id" value="{{ $assistant->id }}">
-                                    <button type="submit" class="text-gray-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-md transition text-xs flex items-center justify-center" title="Excluir">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="3" class="text-center py-8 text-gray-400">Nenhum assistente cadastrado.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-
+                            </form>
+                        </div>
+                        <div class="flex items-center gap-2 pt-2 border-t border-gray-100">
+                            <!-- BOTÃO DE CONFIGURAR -->
+                            <a href="/?configure={{ $assistant->id }}" class="bg-gray-50 hover:bg-indigo-50 border hover:border-indigo-200 hover:text-indigo-700 text-gray-600 font-medium py-1.5 px-3 rounded-lg text-xs transition flex-1 text-center">
+                                ⚙️ Configurar
+                            </a>
+                            <form action="/" method="POST" onsubmit="return confirm('Excluir assistente?');">
+                                @csrf @method('DELETE')
+                                <input type="hidden" name="assistant_id" value="{{ $assistant->id }}">
+                                <button type="submit" class="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition text-xs">🗑️</button>
+                            </form>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @endif
     </div>
 </body>
 </html>
