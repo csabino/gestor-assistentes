@@ -7,6 +7,7 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234F46E5' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z'/></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>[x-cloak] { display: none !important; }</style>
 </head>
 <body class="bg-gray-50 font-sans text-gray-900" 
     x-data="{ 
@@ -54,6 +55,7 @@
 
         @if($configuring)
             
+            <!-- STICKY HEADER -->
             <div class="sticky top-0 z-40 bg-gray-50/90 backdrop-blur-md py-4 mb-6 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4 -mx-4 px-4 sm:mx-0 sm:px-0 shadow-sm mt-4">
                 <div class="flex items-center gap-4">
                     <a href="/" class="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1.5 text-sm transition bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-100">
@@ -89,7 +91,8 @@
                     wa_provider: '{{ $configuring->whatsapp_provider ?? '' }}',
                     testing: false,
                     testResult: null,
-                    testingWa: false,
+                    showWaModal: false,
+                    waLoading: false,
                     waResult: null,
                     
                     getApiKey() {
@@ -127,7 +130,8 @@
                     },
 
                     async testWhatsApp() {
-                        this.testingWa = true;
+                        this.showWaModal = true;
+                        this.waLoading = true;
                         this.waResult = null;
                         try {
                             const params = this.getWaParams();
@@ -138,18 +142,16 @@
                             });
                             this.waResult = await response.json();
                         } catch (e) {
-                            this.waResult = { success: false, message: 'Falha na requisição de rede.' };
+                            this.waResult = { success: false, message: 'Falha na requisição com o servidor.' };
                         } finally {
-                            this.testingWa = false;
+                            this.waLoading = false;
                         }
                     }
                 }">
                 @csrf @method('PUT')
                 <input type="hidden" name="assistant_id" value="{{ $configuring->id }}">
 
-                <!-- ==========================================
-                     LINHA 1: PROMPT (Esq) + CONEXÃO IA (Dir)
-                     ========================================== -->
+                <!-- LINHA 1: PROMPT + CONEXÃO IA -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                     
                     <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-full">
@@ -158,7 +160,6 @@
                             Personalidade e Prompt
                         </h2>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Instruções do Sistema</label>
-                        <p class="text-xs text-gray-500 mb-3">Descreva como a IA deve se comportar, qual o tom de voz e as regras de atendimento.</p>
                         <textarea name="system_prompt" rows="12" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="Ex: Você é um vendedor especializado na loja X...">{{ $configuring->system_prompt }}</textarea>
                     </div>
 
@@ -194,12 +195,9 @@
 
                 </div>
 
-                <!-- ==========================================
-                     LINHA 2: BASE (Esq) + WHATSAPP (Dir)
-                     ========================================== -->
+                <!-- LINHA 2: BASE DE CONHECIMENTO + WHATSAPP -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                     
-                    <!-- BASE DE CONHECIMENTO (2/3) -->
                     <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-full flex flex-col">
                         <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776" /></svg>
@@ -238,7 +236,6 @@
                         </div>
                     </div>
 
-                    <!-- CONEXÃO WHATSAPP (1/3) -->
                     <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-full flex flex-col">
                         <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-green-500"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>
@@ -256,7 +253,6 @@
                         </select>
 
                         <div x-show="wa_provider !== ''" x-transition class="space-y-4 flex-1">
-                            <!-- UAZAPI -->
                             <template x-if="wa_provider === 'uazapi'">
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">URL (UaZapi)</label>
@@ -267,7 +263,6 @@
                                     <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="Ex: T0K3N...">
                                 </div>
                             </template>
-                            <!-- EVOLUTION -->
                             <template x-if="wa_provider === 'evolution'">
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">URL (Evolution)</label>
@@ -278,7 +273,6 @@
                                     <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
                                 </div>
                             </template>
-                            <!-- META -->
                             <template x-if="wa_provider === 'meta'">
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">Phone Number ID</label>
@@ -289,7 +283,6 @@
                                     <input type="text" name="whatsapp_verify_token" value="{{ $configuring->whatsapp_verify_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
                                 </div>
                             </template>
-                            <!-- Z-API -->
                             <template x-if="wa_provider === 'zapi'">
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">ID da Instância</label>
@@ -300,7 +293,6 @@
                                     <input type="text" name="whatsapp_verify_token" value="{{ $configuring->whatsapp_verify_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
                                 </div>
                             </template>
-                            <!-- CHATPRO -->
                             <template x-if="wa_provider === 'chatpro'">
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">Endpoint URL</label>
@@ -311,39 +303,91 @@
                             </template>
                         </div>
 
-                        <!-- RESULTADO DO TESTE DO WHATSAPP (MENSAGEM OU QR CODE) -->
-                        <div x-show="waResult !== null" x-transition class="mt-4 p-3 rounded-lg text-xs border text-center" :class="waResult?.success ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'">
-                            <p class="font-bold mb-1" x-text="waResult?.success ? '✅ Status da Conexão' : '❌ Falha'"></p>
-                            <p x-text="waResult?.message"></p>
-                            
-                            <!-- Exibição do QR Code Base64 caso a UaZapi envie -->
-                            <template x-if="waResult?.qr">
-                                <div class="mt-3 bg-white p-2 rounded-lg inline-block border border-gray-200 shadow-sm">
-                                    <img :src="waResult.qr" alt="QR Code WhatsApp" class="w-40 h-40 object-contain mx-auto">
-                                    <p class="text-[10px] text-gray-500 mt-1 font-semibold uppercase">Escaneie pelo WhatsApp</p>
-                                </div>
-                            </template>
-                        </div>
-
-                        <!-- WEBHOOK & Botão QR Code -->
+                        <!-- WEBHOOK & BOTÃO QR CODE -->
                         <div x-show="wa_provider !== ''" x-transition class="mt-auto border-t border-gray-100 pt-4 mt-5">
                             <label class="block text-xs font-semibold text-gray-700 mb-1">Seu Webhook (Copie e cole no provedor)</label>
                             <div class="flex items-center gap-2 mb-3">
                                 <input type="text" readonly id="webhookUrl" value="https://gestor-assistentes-painel-web.nn8oij.easypanel.host/webhook/whatsapp/{{ $configuring->id }}" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-2 text-xs text-gray-500 font-mono outline-none">
                                 <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('webhookUrl').value); alert('Webhook copiado!');" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg transition text-xs font-bold flex items-center shrink-0">Copiar</button>
                             </div>
-                            <button type="button" @click="testWhatsApp()" :disabled="testingWa" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2 shadow-sm">
-                                <template x-if="!testingWa">
-                                    <span class="flex items-center gap-2">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" /></svg>
-                                        Verificar Status / QR Code
-                                    </span>
-                                </template>
-                                <template x-if="testingWa">
-                                    <span class="flex items-center gap-2">⌛ Conectando na API...</span>
-                                </template>
+                            
+                            <!-- BOTAO DE ABRIR O MODAL -->
+                            <button type="button" @click="testWhatsApp()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2 shadow-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c0 .621-.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" /></svg>
+                                Conectar / Exibir QR Code
                             </button>
                         </div>
+                    </div>
+                </div>
+
+                <!-- ==========================================
+                     MODAL POPUP DO WHATSAPP (QR CODE)
+                     ========================================== -->
+                <div x-show="showWaModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4" x-transition>
+                    <div @click.away="showWaModal = false" class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center relative border border-gray-100">
+                        
+                        <button type="button" @click="showWaModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition p-1 rounded-lg">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+
+                        <h3 class="text-lg font-bold text-gray-800 mb-1 flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>
+                            Conexão WhatsApp
+                        </h3>
+                        <p class="text-xs text-gray-500 mb-6">{{ $configuring->name }}</p>
+
+                        <!-- ESTADO 1: CARREGANDO -->
+                        <div x-show="waLoading" class="py-8 space-y-3">
+                            <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-emerald-500 border-t-transparent"></div>
+                            <p class="text-sm font-semibold text-gray-600">Buscando QR Code na API...</p>
+                        </div>
+
+                        <!-- ESTADO 2: RESPOSTA COM QR CODE OU STATUS -->
+                        <div x-show="!waLoading && waResult !== null">
+                            
+                            <!-- SE JÁ ESTIVER CONECTADO -->
+                            <template x-if="waResult?.connected">
+                                <div class="py-6 space-y-3">
+                                    <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                                        <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                                    </div>
+                                    <h4 class="text-base font-bold text-gray-800">WhatsApp Conectado!</h4>
+                                    <p class="text-xs text-gray-500" x-text="waResult?.message"></p>
+                                </div>
+                            </template>
+
+                            <!-- SE PRECISAR LER O QR CODE -->
+                            <template x-if="waResult?.qr">
+                                <div class="space-y-4">
+                                    <p class="text-xs text-gray-600 font-medium" x-text="waResult?.message"></p>
+                                    <div class="bg-gray-50 p-4 rounded-xl inline-block border border-gray-200 shadow-inner">
+                                        <img :src="waResult.qr" alt="QR Code" class="w-56 h-56 object-contain mx-auto rounded-lg">
+                                    </div>
+                                    <p class="text-[11px] text-gray-400">1. Abra o WhatsApp no celular<br>2. Toque em <b>Aparelhos Conectados</b> > <b>Conectar um Aparelho</b></p>
+                                </div>
+                            </template>
+
+                            <!-- SE HOUVER ERRO DE COMUNICAÇÃO -->
+                            <template x-if="!waResult?.qr && !waResult?.connected">
+                                <div class="py-4 space-y-2">
+                                    <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
+                                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+                                    </div>
+                                    <p class="text-xs font-semibold text-red-600" x-text="waResult?.message"></p>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- RODAPÉ DO MODAL -->
+                        <div class="mt-6 pt-4 border-t border-gray-100 flex gap-2">
+                            <button type="button" @click="testWhatsApp()" :disabled="waLoading" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 rounded-lg text-xs transition">
+                                Atualizar / Tentar Novamente
+                            </button>
+                            <button type="button" @click="showWaModal = false" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2 rounded-lg text-xs transition">
+                                Fechar
+                            </button>
+                        </div>
+
                     </div>
                 </div>
 
@@ -408,7 +452,7 @@
                                 Agenda
                             </a>
 
-                            <form action="/" method="POST" onsubmit="return confirm('Tem certeza que deseja excluir?');">
+                            <form action="/" method="POST" onsubmit="return confirm('Tem certeza?');">
                                 @csrf @method('DELETE')
                                 <input type="hidden" name="assistant_id" value="{{ $assistant->id }}">
                                 <button type="submit" class="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition text-xs flex items-center justify-center" title="Excluir">
@@ -454,7 +498,7 @@
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008z" /></svg> Agenda
                                     </a>
                                     
-                                    <form action="/" method="POST" onsubmit="return confirm('Tem certeza que deseja excluir?');">
+                                    <form action="/" method="POST" onsubmit="return confirm('Tem certeza?');">
                                         @csrf @method('DELETE')
                                         <input type="hidden" name="assistant_id" value="{{ $assistant->id }}">
                                         <button type="submit" class="text-gray-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-md transition text-xs flex items-center justify-center" title="Excluir">
