@@ -116,9 +116,10 @@
                 @csrf @method('PUT')
                 <input type="hidden" name="assistant_id" value="{{ $configuring->id }}">
 
-                <!-- PRIMEIRA LINHA: Prompt & Base de Conhecimento x Conexão IA -->
+                <!-- LAYOUT 2 COLUNAS: Esquerda (Prompt e Base) | Direita (IA e WhatsApp) -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                     
+                    <!-- COLUNA ESQUERDA (2/3 da largura) -->
                     <div class="lg:col-span-2 space-y-6">
                         <!-- CÉREBRO DA IA -->
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -165,10 +166,11 @@
                         </div>
                     </div>
 
+                    <!-- COLUNA DIREITA (1/3 da largura) -->
                     <div class="space-y-6">
+                        
                         <!-- CONEXÃO DE IA -->
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                            
                             <div class="border-b border-gray-100 pb-3 mb-4 flex items-center justify-between gap-2">
                                 <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z" /></svg>
@@ -197,103 +199,81 @@
                             <div x-show="provider === 'anthropic'" x-transition style="display: none;"><label class="block text-sm font-semibold text-gray-700 mb-1">Modelo do Claude</label><select name="model" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4"><option value="claude-3-haiku" {{ $configuring->model == 'claude-3-haiku' ? 'selected' : '' }}>Claude 3 Haiku</option><option value="claude-3.5-sonnet" {{ $configuring->model == 'claude-3.5-sonnet' ? 'selected' : '' }}>Claude 3.5 Sonnet</option></select><label class="block text-sm font-semibold text-gray-700 mb-1">Anthropic API Key</label><input type="password" name="anthropic_api_key" value="{{ $configuring->anthropic_api_key }}" placeholder="sk-ant-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm"></div>
                             <div x-show="provider === 'grok'" x-transition style="display: none;"><label class="block text-sm font-semibold text-gray-700 mb-1">Modelo do Grok</label><select name="model" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4"><option value="grok-2-mini" {{ $configuring->model == 'grok-2-mini' ? 'selected' : '' }}>Grok 2 Mini</option><option value="grok-2" {{ $configuring->model == 'grok-2' ? 'selected' : '' }}>Grok 2</option></select><label class="block text-sm font-semibold text-gray-700 mb-1">xAI API Key</label><input type="password" name="grok_api_key" value="{{ $configuring->grok_api_key }}" placeholder="xai-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm"></div>
                         </div>
-                    </div>
-                </div>
 
-                <!-- SEGUNDA LINHA: WHATSAPP FULL WIDTH -->
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                    <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-5 flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-green-500"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>
-                        Canal de Atendimento: WhatsApp
-                    </h2>
+                        <!-- CONEXÃO WHATSAPP (Na Coluna da Direita) -->
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                            <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-green-500"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>
+                                Canal: WhatsApp
+                            </h2>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        
-                        <!-- Seleção do Provedor -->
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Plataforma / Provedor</label>
-                            <select name="whatsapp_provider" x-model="wa_provider" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500">
-                                <option value="">Desativado (Nenhum Provedor)</option>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Plataforma</label>
+                            <select name="whatsapp_provider" x-model="wa_provider" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-5 focus:ring-2 focus:ring-indigo-500">
+                                <option value="">Desativado</option>
                                 <option value="uazapi">UaZapi</option>
                                 <option value="evolution">Evolution API</option>
-                                <option value="meta">API Oficial (Meta Cloud API)</option>
+                                <option value="meta">API Oficial (Meta)</option>
                                 <option value="zapi">Z-API</option>
                                 <option value="chatpro">ChatPro</option>
                             </select>
-                            <p class="text-xs text-gray-400 mt-2" x-show="wa_provider === ''">Selecione uma plataforma acima para configurar o robô no WhatsApp.</p>
+
+                            <div x-show="wa_provider !== ''" x-transition class="space-y-4">
+                                <!-- UAZAPI -->
+                                <template x-if="wa_provider === 'uazapi'">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">URL (UaZapi)</label>
+                                        <input type="url" name="whatsapp_url" value="{{ $configuring->whatsapp_url }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="https://api.uazapi.dev">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Nome da Instância</label>
+                                        <input type="text" name="whatsapp_instance" value="{{ $configuring->whatsapp_instance }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="Ex: suporte">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Instance Token</label>
+                                        <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="Ex: T0K3N...">
+                                    </div>
+                                </template>
+                                <!-- EVOLUTION -->
+                                <template x-if="wa_provider === 'evolution'">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">URL (Evolution)</label>
+                                        <input type="url" name="whatsapp_url" value="{{ $configuring->whatsapp_url }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="https://api...">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Nome da Instância</label>
+                                        <input type="text" name="whatsapp_instance" value="{{ $configuring->whatsapp_instance }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Global API Key</label>
+                                        <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                                    </div>
+                                </template>
+                                <!-- META -->
+                                <template x-if="wa_provider === 'meta'">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Phone Number ID</label>
+                                        <input type="text" name="whatsapp_instance" value="{{ $configuring->whatsapp_instance }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Access Token</label>
+                                        <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Verify Token</label>
+                                        <input type="text" name="whatsapp_verify_token" value="{{ $configuring->whatsapp_verify_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                                    </div>
+                                </template>
+                                <!-- Z-API -->
+                                <template x-if="wa_provider === 'zapi'">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">ID da Instância</label>
+                                        <input type="text" name="whatsapp_instance" value="{{ $configuring->whatsapp_instance }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Token da Instância</label>
+                                        <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Client-Token</label>
+                                        <input type="text" name="whatsapp_verify_token" value="{{ $configuring->whatsapp_verify_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                                    </div>
+                                </template>
+                                <!-- CHATPRO -->
+                                <template x-if="wa_provider === 'chatpro'">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Endpoint URL</label>
+                                        <input type="url" name="whatsapp_url" value="{{ $configuring->whatsapp_url }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Token</label>
+                                        <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                                    </div>
+                                </template>
+                            </div>
                         </div>
 
-                        <!-- Campos Dinâmicos -->
-                        <div x-show="wa_provider !== ''" x-transition class="space-y-4">
-                            
-                            <!-- UAZAPI (Sua Escolha Principal) -->
-                            <template x-if="wa_provider === 'uazapi'">
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-700 mb-1">URL do Servidor (UaZapi)</label>
-                                    <input type="url" name="whatsapp_url" value="{{ $configuring->whatsapp_url }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="https://api.uazapi.dev">
-                                    
-                                    <label class="block text-xs font-semibold text-gray-700 mb-1">Nome da Instância</label>
-                                    <input type="text" name="whatsapp_instance" value="{{ $configuring->whatsapp_instance }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="Ex: suporte-vendas">
-                                    
-                                    <label class="block text-xs font-semibold text-gray-700 mb-1">Instance Token (Chave de Segurança)</label>
-                                    <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="Ex: T0K3N_S3CR3T0...">
-                                </div>
-                            </template>
-
-                            <!-- EVOLUTION API -->
-                            <template x-if="wa_provider === 'evolution'">
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-700 mb-1">URL do Servidor Evolution</label>
-                                    <input type="url" name="whatsapp_url" value="{{ $configuring->whatsapp_url }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="https://api.sua-evolution.com">
-                                    
-                                    <label class="block text-xs font-semibold text-gray-700 mb-1">Nome da Instância</label>
-                                    <input type="text" name="whatsapp_instance" value="{{ $configuring->whatsapp_instance }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="Ex: suporte-vendas">
-                                    
-                                    <label class="block text-xs font-semibold text-gray-700 mb-1">Global API Key</label>
-                                    <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="B2244F...">
-                                </div>
-                            </template>
-
-                            <!-- META OFICIAL -->
-                            <template x-if="wa_provider === 'meta'">
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-700 mb-1">Phone Number ID</label>
-                                    <input type="text" name="whatsapp_instance" value="{{ $configuring->whatsapp_instance }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="Ex: 1059384759382">
-                                    
-                                    <label class="block text-xs font-semibold text-gray-700 mb-1">Access Token (Permanente)</label>
-                                    <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="EAAB...">
-                                    
-                                    <label class="block text-xs font-semibold text-gray-700 mb-1">Webhook Verify Token (Crie um)</label>
-                                    <input type="text" name="whatsapp_verify_token" value="{{ $configuring->whatsapp_verify_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="Ex: meu_token_secreto_123">
-                                </div>
-                            </template>
-
-                            <!-- Z-API -->
-                            <template x-if="wa_provider === 'zapi'">
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-700 mb-1">ID da Instância</label>
-                                    <input type="text" name="whatsapp_instance" value="{{ $configuring->whatsapp_instance }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="Ex: 3B2...9F1">
-                                    
-                                    <label class="block text-xs font-semibold text-gray-700 mb-1">Token da Instância</label>
-                                    <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="Ex: 88A...2BC">
-                                    
-                                    <label class="block text-xs font-semibold text-gray-700 mb-1">Client-Token (Segurança Webhook)</label>
-                                    <input type="text" name="whatsapp_verify_token" value="{{ $configuring->whatsapp_verify_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="Ex: F1B...301">
-                                </div>
-                            </template>
-
-                            <!-- CHATPRO -->
-                            <template x-if="wa_provider === 'chatpro'">
-                                <div>
-                                    <label class="block text-xs font-semibold text-gray-700 mb-1">Endpoint URL</label>
-                                    <input type="url" name="whatsapp_url" value="{{ $configuring->whatsapp_url }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="https://v5.chatpro.com.br/chatpro-...">
-                                    
-                                    <label class="block text-xs font-semibold text-gray-700 mb-1">Token</label>
-                                    <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="Ex: 8a4...c8b">
-                                </div>
-                            </template>
-                            
-                        </div>
                     </div>
                 </div>
 
@@ -311,7 +291,7 @@
             @endif
 
         @else
-            <!-- TELA DE LISTAGEM (Omitida aqui para economizar espaço, mantida igual a anterior) -->
+            <!-- TELA DE LISTAGEM -->
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mt-6 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
                 <form action="/" method="POST" class="flex items-center gap-2 w-full md:w-auto flex-1 max-w-lg">
                     @csrf
@@ -346,12 +326,25 @@
                                 </button>
                             </form>
                         </div>
-                        <div class="flex items-center justify-between border-t border-gray-100 pt-5 gap-3 mt-2">
-                            <a href="/?configure={{ $assistant->id }}" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-2 px-4 rounded-lg text-sm transition flex-1 flex items-center justify-center gap-2">Configurar</a>
+                        
+                        <!-- BOTÕES CARD: Configurar + Agenda + Lixeira -->
+                        <div class="flex items-center justify-between border-t border-gray-100 pt-5 gap-2 mt-2">
+                            <a href="/?configure={{ $assistant->id }}" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-2 px-2 rounded-lg text-xs transition flex-1 flex items-center justify-center gap-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg>
+                                Configurar
+                            </a>
+                            
+                            <a href="#" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-2 px-2 rounded-lg text-xs transition flex-1 flex items-center justify-center gap-1 opacity-70">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008z" /></svg>
+                                Agenda
+                            </a>
+
                             <form action="/" method="POST" onsubmit="return confirm('Tem certeza?');">
                                 @csrf @method('DELETE')
                                 <input type="hidden" name="assistant_id" value="{{ $assistant->id }}">
-                                <button type="submit" class="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2.5 rounded-lg transition text-xs">🗑️</button>
+                                <button type="submit" class="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition text-xs flex items-center justify-center" title="Excluir">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+                                </button>
                             </form>
                         </div>
                     </div>
