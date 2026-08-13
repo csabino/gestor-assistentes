@@ -7,14 +7,12 @@ use Illuminate\Http\Request;
 
 class AssistantController extends Controller
 {
-    // Mostra a tela principal com a lista de assistentes
     public function index()
     {
-        $assistants = Assistant::all();
+        $assistants = Assistant::latest()->get();
         return view('assistants.index', compact('assistants'));
     }
 
-    // Salva um novo assistente no banco de dados
     public function store(Request $request)
     {
         $request->validate([
@@ -23,9 +21,25 @@ class AssistantController extends Controller
 
         Assistant::create([
             'name' => $request->name,
-            'status' => 'active'
+            'is_active' => true,
         ]);
 
-        return back()->with('success', 'Assistente criado com sucesso!');
+        return redirect('/')->with('success', 'Assistente criado com sucesso!');
+    }
+
+    public function toggleStatus(Assistant $assistant)
+    {
+        $assistant->update([
+            'is_active' => !$assistant->is_active,
+        ]);
+
+        return redirect('/')->with('success', 'Status do assistente atualizado!');
+    }
+
+    public function destroy(Assistant $assistant)
+    {
+        $assistant->delete();
+
+        return redirect('/')->with('success', 'Assistente removido!');
     }
 }
