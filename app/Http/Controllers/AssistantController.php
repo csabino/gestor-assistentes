@@ -150,85 +150,104 @@ class AssistantController extends Controller
         }
 
         try {
-            if ($provider === 'uazapi' || $provider === 'evolution') {
+            // LÓGICA EXCLUSIVA E DEFINITIVA PARA A UAZAPI
+            if ($provider === 'uazapi') {
                 
                 $headers = [
                     'token' => $token,
                     'apikey' => $token,
                     'Client-Token' => $token,
-                    'Authorization' => "Bearer {$token}"
+                    'Authorization' => "Bearer {$token}",
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json'
                 ];
 
-                // Motor de Busca Restaurado: Tenta as rotas até achar uma que responda 200 OK
-                $candidates = [
-                    ['method' => 'GET',  'path' => "/instance/connect/{$instance}"],
-                    ['method' => 'POST', 'path' => "/instance/connect/{$instance}"],
-                    ['method' => 'GET',  'path' => "/instance/status/{$instance}"],
-                    ['method' => 'GET',  'path' => "/instance/connect"],
-                    ['method' => 'POST', 'path' => "/instance/connect"],
-                    ['method' => 'GET',  'path' => "/instance/connect?token={$token}"],
+                // Enviamos o payload como OBJETO JSON com chaves que a UaZapi reconhece
+                $payloads = [
+                    ['instanceName' => $instance, 'instance' => $instance],
+                    (object)[], // Objeto JSON vazio {}
                 ];
 
-                $lastSuccessfulData = null;
-                $lastSuccessfulRoute = '';
-                $allErrors = [];
+                foreach ($payloads as $body) {
+                    $response = Http::withHeaders($headers)->timeout(10)->post("{$url}/instance/connect", $body);
 
-                foreach ($candidates as $cand) {
-                    $endpoint = $url . $cand['path'];
-                    $req = Http::withHeaders($headers)->timeout(6);
-                    $res = ($cand['method'] === 'POST') ? $req->post($endpoint) : $req->get($endpoint);
+                    if ($response->successful()) {
+                        $data = $response->json();
+                        $inst = $data['instance'] ?? $data;
+                        $status = strtolower($inst['status'] ?? $inst['state'] ?? $data['status'] ?? $data['state'] ?? '');
 
-                    if ($res->successful()) {
-                        $data = $res->json();
-                        $lastSuccessfulData = $data;
-                        $lastSuccessfulRoute = "{$cand['method']} {$cand['path']}";
-
-                        $state = strtolower($data['instance']['state'] ?? $data['instance']['status'] ?? $data['status'] ?? $data['state'] ?? '');
-                        
-                        if ($state === 'open' || $state === 'connected' || ($data['connected'] ?? false) === true) {
+                        // Se já estiver conectado
+                        if ($status === 'open' || $status === 'connected' || ($data['connected'] ?? false) === true) {
                             return response()->json([
                                 'success' => true,
                                 'connected' => true,
-                                'message' => "✅ WhatsApp pareado com sucesso! (Via {$lastSuccessfulRoute})"
+                                'message' => '✅ WhatsApp pareado e conectado com sucesso!'
                             ]);
                         }
 
+                        // Busca e extrai a string do QR Code
                         $qr = $this->extractQrCode($data);
                         if ($qr) {
                             return response()->json([
                                 'success' => true,
                                 'connected' => false,
                                 'qr' => $qr,
-                                'message' => "QR Code recebido via {$lastSuccessfulRoute}"
+                                'message' => 'Abra seu WhatsApp > Aparelhos Conectados e escaneie a imagem abaixo:'
                             ]);
                         }
-                    } else {
-                        $err = $res->json();
-                        $allErrors[] = "{$cand['method']} {$cand['path']} -> " . ($err['message'] ?? $err['error'] ?? $res->status());
+
+                        return response()->json([
+                            'success' => true,
+                            'connected' => false,
+                            'qr' => null,
+                            'message' => "Instância ligada (Status: " . ($status ?: 'desconectado') . "). Gerando imagem do QR Code..."
+                        ]);
                     }
                 }
 
-                // Se alguma rota funcionou (Status 200) mas NÃO tinha QR Code, mostra TUDO na tela:
-                if ($lastSuccessfulData !== null) {
-                    return response()->json([
-                        'success' => true,
-                        'connected' => false,
-                        'qr' => null,
-                        'message' => "ROTA OK: {$lastSuccessfulRoute} | JSON RETORNADO: " . json_encode($lastSuccessfulData)
-                    ]);
-                }
-
-                // Se todas as tentativas falharam com 404/erro
+                $errorData = $response->json();
+                $errorMsg = $errorData['message'] ?? $errorData['error'] ?? 'Erro no payload da requisição.';
                 return response()->json([
                     'success' => false,
-                    'message' => "Todas as rotas falharam. Log: " . implode(" | ", $allErrors)
+                    'message' => "Erro {$response->status()} na UaZapi: {$errorMsg}"
                 ]);
+            }
+
+            // LÓGICA PARA EVOLUTION API
+            if ($provider === 'evolution') {
+                $response = Http::withHeaders([
+                    'apikey' => $token,
+                    'Authorization' => "Bearer {$token}"
+                ])->timeout(10)->get("{$url}/instance/connect/{$instance}");
+
+                if ($response->successful()) {
+                    $data = $response->json();
+                    $status = strtolower($data['instance']['state'] ?? $data['state'] ?? '');
+                    
+                    if ($status === 'open' || $status === 'connected') {
+                        return response()->json([
+                            'success' => true,
+                            'connected' => true,
+                            'message' => '✅ WhatsApp pareado e conectado com sucesso!'
+                        ]);
+                    }
+
+                    $qr = $this->extractQrCode($data);
+                    if ($qr) {
+                        return response()->json([
+                            'success' => true,
+                            'connected' => false,
+                            'qr' => $qr,
+                            'message' => 'Abra seu WhatsApp > Aparelhos Conectados e escaneie a imagem abaixo:'
+                        ]);
+                    }
+                }
             }
 
             return response()->json(['success' => true, 'message' => "Integração em desenvolvimento."]);
 
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Erro de comunicação de rede: ' . $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Erro de comunicação com o servidor: ' . $e->getMessage()]);
         }
     }
 
