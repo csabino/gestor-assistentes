@@ -159,64 +159,87 @@ class AssistantController extends Controller
                     'Authorization' => "Bearer {$token}"
                 ];
 
-                // 1º Passo: Ligar a instância via POST/GET
-                $connectUrl = $url . "/instance/connect";
-                $response = Http::withHeaders($headers)->timeout(10)->post($connectUrl);
+                $candidates = [
+                    ['method' => 'GET',  'path' => "/instance/connect"],
+                    ['method' => 'POST', 'path' => "/instance/connect"],
+                    ['method' => 'GET',  'path' => "/instance/connect/{$instance}"],
+                    ['method' => 'POST', 'path' => "/instance/connect/{$instance}"],
+                    ['method' => 'GET',  'path' => "/instance/status"],
+                    ['method' => 'GET',  'path' => "/instance/status/{$instance}"],
+                    ['method' => 'GET',  'path' => "/instance/qrcode"],
+                    ['method' => 'GET',  'path' => "/instance/fetchInstances"],
+                ];
 
-                if (!$response->successful()) {
-                    $response = Http::withHeaders($headers)->timeout(10)->get($connectUrl);
+                $lastSuccessfulData = null;
+                $lastErrorStatus = null;
+                $lastErrorBody = null;
+
+                foreach ($candidates as $cand) {
+                    $endpoint = $url . $cand['path'];
+                    $req = Http::withHeaders($headers)->timeout(8);
+                    $res = ($cand['method'] === 'POST') ? $req->post($endpoint) : $req->get($endpoint);
+
+                    if ($res->successful()) {
+                        $data = $res->json();
+                        $lastSuccessfulData = $data;
+
+                        // Verifica se veio imagem de QR Code
+                        $qr = $this->extractQrCode($data);
+                        if ($qr) {
+                            return response()->json([
+                                'success' => true,
+                                'connected' => false,
+                                'qr' => $qr,
+                                'message' => 'Abra seu WhatsApp > Aparelhos Conectados e escaneie a imagem abaixo:'
+                            ]);
+                        }
+
+                        // Verifica se a instância já está pareada
+                        $state = $data['instance']['state'] 
+                              ?? $data['instance']['status'] 
+                              ?? $data['status'] 
+                              ?? $data['state'] 
+                              ?? null;
+
+                        if ($state === 'open' || $state === 'connected' || ($data['connected'] ?? false) === true) {
+                            return response()->json([
+                                'success' => true,
+                                'connected' => true,
+                                'message' => '✅ WhatsApp pareado e conectado com sucesso!'
+                            ]);
+                        }
+                    } else {
+                        $lastErrorStatus = $res->status();
+                        $lastErrorBody = $res->body();
+                    }
                 }
 
-                if ($response->successful()) {
-                    $data = $response->json();
+                // Se ao menos uma das chamadas respondeu com 200 OK (mesmo sem a imagem do QR Code pronta)
+                if ($lastSuccessfulData !== null) {
+                    $state = $lastSuccessfulData['instance']['status'] 
+                          ?? $lastSuccessfulData['instance']['state'] 
+                          ?? $lastSuccessfulData['status'] 
+                          ?? 'desconectado';
+                          
+                    $paircode = $lastSuccessfulData['instance']['paircode'] ?? null;
 
-                    // Verifica se já está conectado
-                    $state = $data['instance']['state'] ?? $data['instance']['status'] ?? $data['status'] ?? $data['state'] ?? null;
-                    if ($state === 'open' || $state === 'connected' || ($data['connected'] ?? false) === true) {
-                        return response()->json([
-                            'success' => true,
-                            'connected' => true,
-                            'message' => '✅ WhatsApp pareado e conectado com sucesso!'
-                        ]);
+                    $msg = "Comunicação com a UaZapi estabelecida com sucesso (Status: {$state}). ";
+                    if (!empty($paircode)) {
+                        $msg .= "Código de Pareamento: {$paircode}. ";
                     }
-
-                    // Tenta extrair QR Code da 1ª resposta
-                    $qr = $this->extractQrCode($data);
-
-                    // Se a UaZapi acabou de ligar e enviou qrcode VAZIO, aguarda 2 segundos para o socket gerar a imagem
-                    if (empty($qr)) {
-                        sleep(2);
-                        
-                        $qrEndpoints = [$url . "/instance/connect", $url . "/instance/qrcode"];
-                        foreach ($qrEndpoints as $endpoint) {
-                            $res2 = Http::withHeaders($headers)->timeout(10)->get($endpoint);
-                            if ($res2->successful()) {
-                                $data2 = $res2->json();
-                                $qr = $this->extractQrCode($data2);
-                                if ($qr) break;
-                            }
-                        }
-                    }
-
-                    // Se capturou o QR Code
-                    if ($qr) {
-                        return response()->json([
-                            'success' => true,
-                            'connected' => false,
-                            'qr' => $qr,
-                            'message' => 'Abra seu WhatsApp > Aparelhos Conectados e escaneie a imagem abaixo:'
-                        ]);
-                    }
+                    $msg .= "Se a imagem do QR Code não aparecer em 5 segundos, clique em 'Conectar' no painel da UaZapi para forçar a geração e clique aqui novamente.";
 
                     return response()->json([
-                        'success' => false,
-                        'message' => 'A instância foi ligada mas o QR Code ainda está sendo gerado. Clique em "Atualizar / Tentar Novamente" em alguns segundos.'
+                        'success' => true,
+                        'connected' => false,
+                        'message' => $msg
                     ]);
                 }
 
+                // Se todas as tentativas falharam
                 return response()->json([
                     'success' => false,
-                    'message' => "Erro {$response->status()}: " . substr(strip_tags($response->body()), 0, 150)
+                    'message' => "Erro {$lastErrorStatus}: " . substr(strip_tags($lastErrorBody), 0, 150)
                 ]);
             }
 
