@@ -65,7 +65,7 @@ class AssistantController extends Controller
                 $assistant->update(['knowledge_files' => $files]);
                 return redirect('/?configure=' . $assistant->id)->with('success', "{$uploadedCount} arquivo(s) anexado(s) com sucesso!");
             } else {
-                return redirect('/?configure=' . $assistant->id)->with('error', 'Falha ao subir o arquivo.');
+                return redirect('/?configure=' . $assistant->id)->with('error', 'Falha ao subir o arquivo. Verifique o limite de tamanho.');
             }
         }
 
@@ -149,7 +149,7 @@ class AssistantController extends Controller
                     if ($res->successful()) {
                         $data = $res->json();
                         $status = strtolower($data['instance']['state'] ?? $data['instance']['status'] ?? $data['status'] ?? $data['state'] ?? '');
-                        if (in_array($status, ['open', 'connected', 'connecting_connected'])) {
+                        if (in_array($status, ['open', 'connected', 'connecting_connected']) || ($data['connected'] ?? false) === true) {
                             return response()->json(['connected' => true]);
                         }
                         return response()->json(['connected' => false]);
@@ -168,7 +168,6 @@ class AssistantController extends Controller
         }
     }
 
-    // LÓGICA CORRIGIDA COM AS ROTAS OFICIAIS DE DISCONNECT
     private function disconnectWaConnection(Request $request)
     {
         $provider = $request->input('provider');
@@ -182,17 +181,11 @@ class AssistantController extends Controller
 
         try {
             $headers = [
-                'token' => $token, 
-                'apikey' => $token, 
-                'Client-Token' => $token, 
-                'Authorization' => "Bearer {$token}", 
-                'Content-Type' => 'application/json', 
-                'Accept' => 'application/json'
+                'token' => $token, 'apikey' => $token, 'Client-Token' => $token, 
+                'Authorization' => "Bearer {$token}", 'Content-Type' => 'application/json', 'Accept' => 'application/json'
             ];
 
             if ($provider === 'uazapi' || $provider === 'evolution') {
-                
-                // Rotas reais com /instance/disconnect e variações de métodos HTTP
                 $candidates = [
                     ['method' => 'POST',   'path' => "/instance/disconnect", 'body' => ['instanceName' => $instance]],
                     ['method' => 'POST',   'path' => "/instance/disconnect", 'body' => (object)[]],
@@ -203,11 +196,8 @@ class AssistantController extends Controller
                     ['method' => 'DELETE', 'path' => "/instance/delete"],
                 ];
 
-                $errors = [];
-
                 foreach ($candidates as $cand) {
                     $req = Http::withHeaders($headers)->timeout(8);
-                    
                     if ($cand['method'] === 'DELETE') {
                         $res = $req->delete($url . $cand['path']);
                     } else {
@@ -217,11 +207,8 @@ class AssistantController extends Controller
                     if ($res->successful()) {
                         return response()->json(['success' => true]);
                     }
-                    
-                    $errors[] = "{$cand['method']} {$cand['path']}: {$res->status()}";
                 }
-                
-                return response()->json(['success' => false, 'message' => "Log de tentativas: " . implode(' | ', $errors)]);
+                return response()->json(['success' => false, 'message' => "Servidor recusou a desconexão."]);
             }
 
             return response()->json(['success' => false, 'message' => 'Provedor não suportado.']);
@@ -238,7 +225,7 @@ class AssistantController extends Controller
         $token = trim($request->input('token'));
 
         if (empty($provider) || empty($instance) || empty($token)) {
-            return response()->json(['success' => false, 'message' => 'Preencha URL, Instância e Token para testar a conexão.']);
+            return response()->json(['success' => false, 'message' => 'Preencha URL, Instância e Token.']);
         }
 
         try {
@@ -249,7 +236,6 @@ class AssistantController extends Controller
                 if (!$res->successful() || $res->status() === 400) {
                     $res = Http::withHeaders($headers)->timeout(10)->post("{$url}/instance/connect", (object)[]);
                 }
-                
                 if (!$res->successful()) {
                     $res = Http::withHeaders($headers)->timeout(10)->get("{$url}/instance/connect/{$instance}");
                 }
@@ -272,8 +258,7 @@ class AssistantController extends Controller
                     return response()->json(['success' => true, 'connected' => false, 'qr' => null, 'message' => "Instância UaZapi ligada (Status: {$status}). Gerando QR Code..."]);
                 }
 
-                $err = $res->json();
-                return response()->json(['success' => false, 'message' => "Erro {$res->status()}: " . ($err['message'] ?? $err['error'] ?? 'Verifique credenciais.')]);
+                return response()->json(['success' => false, 'message' => "Erro {$res->status()}: Verifique credenciais."]);
             }
 
             if ($provider === 'evolution') {

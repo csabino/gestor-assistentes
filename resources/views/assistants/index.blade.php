@@ -9,10 +9,10 @@
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>[x-cloak] { display: none !important; }</style>
 
-    <!-- SCRIPT DE MEMÓRIA DE ROLAGEM (SCROLL RETENTION) -->
+    <!-- MEMÓRIA DE ROLAGEM: Guarda onde você estava antes do refresh -->
     <script>
         document.addEventListener("DOMContentLoaded", function() {
-            const key = 'scrollpos_' + window.location.search;
+            const key = 'scrollpos_' + window.location.pathname;
             const scrollpos = sessionStorage.getItem(key);
             if (scrollpos) {
                 window.scrollTo(0, parseInt(scrollpos));
@@ -20,7 +20,7 @@
             }
         });
         window.addEventListener("beforeunload", function() {
-            const key = 'scrollpos_' + window.location.search;
+            const key = 'scrollpos_' + window.location.pathname;
             sessionStorage.setItem(key, window.scrollY);
         });
     </script>
@@ -104,13 +104,19 @@
                 x-data="{ 
                     provider: '{{ $configuring->provider ?? 'openai' }}',
                     wa_provider: '{{ $configuring->whatsapp_provider ?? '' }}',
+                    
+                    // SOLUÇÃO: Carregamos as configs direto do banco pra memória do Alpine, assim ele sabe a URL logo no milisegundo 1!
+                    wa_url: '{{ $configuring->whatsapp_url ?? '' }}',
+                    wa_instance: '{{ $configuring->whatsapp_instance ?? '' }}',
+                    wa_token: '{{ $configuring->whatsapp_token ?? '' }}',
+                    
                     testing: false,
                     testResult: null,
                     showWaModal: false,
                     waLoading: false,
                     waResult: null,
                     pollAttempts: 0,
-                    waStatus: 'unknown',
+                    waStatus: 'checking', 
                     
                     getApiKey() {
                         if (this.provider === 'openai') return document.querySelector('input[name=\'openai_api_key\']').value;
@@ -123,9 +129,9 @@
                     getWaParams() {
                         return {
                             provider: this.wa_provider,
-                            url: document.querySelector('input[name=\'whatsapp_url\']')?.value || '',
-                            instance: document.querySelector('input[name=\'whatsapp_instance\']')?.value || '',
-                            token: document.querySelector('input[name=\'whatsapp_token\']')?.value || ''
+                            url: this.wa_url,
+                            instance: this.wa_instance,
+                            token: this.wa_token
                         };
                     },
 
@@ -147,17 +153,16 @@
                     },
 
                     async checkWaStatusSilent() {
-                        if(!this.wa_provider || !document.querySelector('input[name=\'whatsapp_url\']')?.value || !document.querySelector('input[name=\'whatsapp_token\']')?.value) {
+                        if(!this.wa_provider || !this.wa_url || !this.wa_token) {
                             this.waStatus = 'disconnected';
                             return;
                         }
                         this.waStatus = 'checking';
                         try {
-                            const params = this.getWaParams();
                             const response = await fetch('/', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-                                body: JSON.stringify({ action: 'status_whatsapp', ...params })
+                                body: JSON.stringify({ action: 'status_whatsapp', ...this.getWaParams() })
                             });
                             const data = await response.json();
                             this.waStatus = data.connected ? 'connected' : 'disconnected';
@@ -170,18 +175,16 @@
                         if(!confirm('Tem certeza que deseja desconectar o WhatsApp deste celular?')) return;
                         this.waStatus = 'checking';
                         try {
-                            const params = this.getWaParams();
                             const response = await fetch('/', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-                                body: JSON.stringify({ action: 'disconnect_whatsapp', ...params })
+                                body: JSON.stringify({ action: 'disconnect_whatsapp', ...this.getWaParams() })
                             });
                             const data = await response.json();
                             
                             if (data.success) {
                                 this.waStatus = 'disconnected';
-                                alert('WhatsApp desconectado com sucesso da UaZapi!');
-                                window.location.reload(); // Recarrega a página após desconectar para garantir
+                                window.location.reload(); 
                             } else {
                                 alert('A API não conseguiu desconectar: \n' + (data.message || 'Erro desconhecido.'));
                                 this.checkWaStatusSilent(); 
@@ -201,33 +204,37 @@
 
                     async runWaPoll() {
                         if (!this.showWaModal) return;
-                        this.waLoading = true;
+                        
+                        // Exibe loader apenas se ainda não renderizou o QR Code
+                        if (!this.waResult || (!this.waResult.qr && !this.waResult.connected)) {
+                            this.waLoading = true;
+                        }
                         
                         try {
-                            const params = this.getWaParams();
                             const response = await fetch('/', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-                                body: JSON.stringify({ action: 'test_whatsapp', ...params })
+                                body: JSON.stringify({ action: 'test_whatsapp', ...this.getWaParams() })
                             });
                             const data = await response.json();
                             this.waResult = data;
                             
                             if (data.connected) {
                                 this.waStatus = 'connected';
-                                // MÁGICA 1: Fecha e atualiza a página sozinho 2 segundos após parear
+                                // SOLUÇÃO 2: Assim que conectar, fecha a tela e salva a configuração!
                                 setTimeout(() => {
                                     this.showWaModal = false;
                                     window.location.reload();
                                 }, 2000);
-                            } else if (data.success && !data.qr && this.pollAttempts < 10 && this.showWaModal) {
+                            } else if (data.success && this.pollAttempts < 20 && this.showWaModal) {
+                                // SOLUÇÃO 3: Continua perguntando MESMO depois do QR Code aparecer
                                 this.pollAttempts++;
                                 setTimeout(() => {
                                     if (this.showWaModal) this.runWaPoll();
                                 }, 3000);
                             }
                         } catch (e) {
-                            this.waResult = { success: false, message: 'Falha de comunicação com o servidor.' };
+                            // Ignora erros de rede pra não quebrar o loop
                         } finally {
                             this.waLoading = false;
                         }
@@ -357,32 +364,33 @@
                         </select>
 
                         <div x-show="wa_provider !== ''" x-transition class="space-y-4 flex-1">
+                            <!-- MÁGICA 1: Vinculando as variáveis com o Alpine usando x-model direto -->
                             <template x-if="wa_provider === 'uazapi'">
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">URL (UaZapi)</label>
-                                    <input type="url" name="whatsapp_url" value="{{ $configuring->whatsapp_url }}" x-on:change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="https://api.uazapi.dev">
+                                    <input type="url" name="whatsapp_url" x-model="wa_url" x-on:change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="https://api.uazapi.dev">
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">Nome da Instância</label>
-                                    <input type="text" name="whatsapp_instance" value="{{ $configuring->whatsapp_instance }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="Ex: suporte">
+                                    <input type="text" name="whatsapp_instance" x-model="wa_instance" x-on:change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="Ex: suporte">
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">Instance Token</label>
-                                    <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" x-on:change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="Ex: T0K3N...">
+                                    <input type="password" name="whatsapp_token" x-model="wa_token" x-on:change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="Ex: T0K3N...">
                                 </div>
                             </template>
                             <template x-if="wa_provider === 'evolution'">
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">URL (Evolution)</label>
-                                    <input type="url" name="whatsapp_url" value="{{ $configuring->whatsapp_url }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="https://api...">
+                                    <input type="url" name="whatsapp_url" x-model="wa_url" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3" placeholder="https://api...">
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">Nome da Instância</label>
-                                    <input type="text" name="whatsapp_instance" value="{{ $configuring->whatsapp_instance }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
+                                    <input type="text" name="whatsapp_instance" x-model="wa_instance" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">Global API Key</label>
-                                    <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                                    <input type="password" name="whatsapp_token" x-model="wa_token" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
                                 </div>
                             </template>
                             <template x-if="wa_provider === 'meta'">
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">Phone Number ID</label>
-                                    <input type="text" name="whatsapp_instance" value="{{ $configuring->whatsapp_instance }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
+                                    <input type="text" name="whatsapp_instance" x-model="wa_instance" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">Access Token</label>
-                                    <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
+                                    <input type="password" name="whatsapp_token" x-model="wa_token" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">Verify Token</label>
                                     <input type="text" name="whatsapp_verify_token" value="{{ $configuring->whatsapp_verify_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
                                 </div>
@@ -390,9 +398,9 @@
                             <template x-if="wa_provider === 'zapi'">
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">ID da Instância</label>
-                                    <input type="text" name="whatsapp_instance" value="{{ $configuring->whatsapp_instance }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
+                                    <input type="text" name="whatsapp_instance" x-model="wa_instance" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">Token da Instância</label>
-                                    <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
+                                    <input type="password" name="whatsapp_token" x-model="wa_token" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">Client-Token</label>
                                     <input type="text" name="whatsapp_verify_token" value="{{ $configuring->whatsapp_verify_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
                                 </div>
@@ -400,9 +408,9 @@
                             <template x-if="wa_provider === 'chatpro'">
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">Endpoint URL</label>
-                                    <input type="url" name="whatsapp_url" value="{{ $configuring->whatsapp_url }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
+                                    <input type="url" name="whatsapp_url" x-model="wa_url" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
                                     <label class="block text-xs font-semibold text-gray-700 mb-1">Token</label>
-                                    <input type="password" name="whatsapp_token" value="{{ $configuring->whatsapp_token }}" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                                    <input type="password" name="whatsapp_token" x-model="wa_token" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
                                 </div>
                             </template>
                         </div>
@@ -457,14 +465,19 @@
                                 </div>
                             </template>
 
-                            <!-- QR CODE PRONTO -->
-                            <template x-if="waResult?.qr">
+                            <!-- QR CODE PRONTO (COM O LAÇO DE ESPERA E MENSAGEM) -->
+                            <template x-if="waResult?.qr && !waResult?.connected">
                                 <div class="space-y-4">
                                     <p class="text-xs text-gray-600 font-medium" x-text="waResult?.message"></p>
                                     <div class="bg-gray-50 p-4 rounded-xl inline-block border border-gray-200 shadow-inner">
                                         <img :src="waResult.qr" alt="QR Code" class="w-56 h-56 object-contain mx-auto rounded-lg">
                                     </div>
                                     <p class="text-[11px] text-gray-400">1. Abra o WhatsApp no celular<br>2. Toque em <b>Aparelhos Conectados</b> > <b>Conectar um Aparelho</b></p>
+                                    
+                                    <div class="text-[10px] text-gray-400 mt-2 flex items-center justify-center gap-1.5 bg-gray-50 py-1.5 rounded border border-gray-100">
+                                        <span class="inline-block animate-spin rounded-full h-3 w-3 border-2 border-emerald-500 border-t-transparent"></span>
+                                        Aguardando leitura do celular... (Tentativa <span x-text="pollAttempts"></span>/20)
+                                    </div>
                                 </div>
                             </template>
 
@@ -473,7 +486,7 @@
                                 <div class="py-6 space-y-3">
                                     <div class="inline-block animate-spin rounded-full h-8 w-8 border-3 border-emerald-500 border-t-transparent"></div>
                                     <p class="text-xs text-gray-600 font-semibold">Instância acordou! Obtendo imagem do QR Code...</p>
-                                    <p class="text-[11px] text-gray-400" x-text="`Tentativa ${pollAttempts} de 10 (Aguarde 3s...)`"></p>
+                                    <p class="text-[11px] text-gray-400" x-text="`Tentativa ${pollAttempts} de 20 (Aguarde 3s...)`"></p>
                                 </div>
                             </template>
 
@@ -491,7 +504,7 @@
                         <!-- RODAPÉ DO MODAL -->
                         <div class="mt-6 pt-4 border-t border-gray-100 flex gap-2">
                             <button type="button" x-on:click="runWaPoll()" :disabled="waLoading" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 rounded-lg text-xs transition">
-                                Tentar Novamente
+                                Atualizar / Tentar Novamente
                             </button>
                             <button type="button" x-on:click="showWaModal = false" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2 rounded-lg text-xs transition">
                                 Fechar
