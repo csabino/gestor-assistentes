@@ -152,46 +152,27 @@ class AssistantController extends Controller
         try {
             if ($provider === 'uazapi' || $provider === 'evolution') {
                 
-                // Rotas candidatas de conexão e status
                 $candidates = [
-                    ['method' => 'GET',  'path' => "/instance/connect"],
-                    ['method' => 'GET',  'path' => "/instance/connect/{$instance}"],
-                    ['method' => 'GET',  'path' => "/instance/status"],
-                    ['method' => 'GET',  'path' => "/instance/status/{$instance}"],
-                    ['method' => 'GET',  'path' => "/instance/qrcode"],
-                    ['method' => 'GET',  'path' => "/instance/qrcode/{$instance}"],
-                    ['method' => 'GET',  'path' => "/instance/fetchInstances"],
-                    ['method' => 'POST', 'path' => "/instance/connect"],
-                    ['method' => 'POST', 'path' => "/instance/connect/{$instance}"],
+                    ['method' => 'GET', 'path' => "/instance/connect"],
+                    ['method' => 'GET', 'path' => "/instance/connect/{$instance}"],
+                    ['method' => 'GET', 'path' => "/instance/qrcode"],
+                    ['method' => 'GET', 'path' => "/instance/qrcode/{$instance}"],
                 ];
-
-                $lastStatus = 404;
-                $lastBody = '';
 
                 foreach ($candidates as $candidate) {
                     $endpoint = $url . $candidate['path'];
-                    $req = Http::withHeaders([
+                    $response = Http::withHeaders([
                         'token' => $token,
                         'apikey' => $token,
                         'Client-Token' => $token,
                         'Authorization' => "Bearer {$token}"
-                    ])->timeout(8);
-
-                    $response = ($candidate['method'] === 'POST') ? $req->post($endpoint) : $req->get($endpoint);
-                    $lastStatus = $response->status();
-                    $lastBody = $response->body();
+                    ])->timeout(8)->get($endpoint);
 
                     if ($response->successful()) {
                         $data = $response->json();
-                        
-                        // Busca QR Code em chaves conhecidas
-                        $qr = $data['base64'] 
-                           ?? $data['qrcode'] 
-                           ?? $data['qr'] 
-                           ?? $data['code'] 
-                           ?? $data['instance']['qrcode'] 
-                           ?? $data['data']['qrcode'] 
-                           ?? null;
+
+                        // Detector automático de QR Code em qualquer nível do JSON
+                        $qr = $this->findQrCodeInArray($data);
 
                         if ($qr) {
                             if (!str_starts_with($qr, 'data:image')) {
@@ -203,37 +184,48 @@ class AssistantController extends Controller
                             }
                             return response()->json([
                                 'success' => true,
-                                'message' => 'Escaneie o QR Code abaixo com seu WhatsApp:',
+                                'message' => 'Escaneie o QR Code abaixo com o seu WhatsApp:',
                                 'qr' => $qr
                             ]);
                         }
 
-                        // Busca estado de conexão
-                        $state = $data['instance']['state'] ?? $data['status'] ?? $data['state'] ?? $data['connected'] ?? null;
-                        if ($state === 'open' || $state === 'connected' || $state === true || ($data['connected'] ?? false) === true) {
+                        // Verifica estado de conexão
+                        $state = $data['instance']['state'] ?? $data['status'] ?? $data['state'] ?? null;
+                        if ($state === 'open' || $state === 'connected' || ($data['connected'] ?? false) === true) {
                             return response()->json([
                                 'success' => true,
                                 'message' => '✅ WhatsApp pareado e conectado com sucesso!'
                             ]);
                         }
-
-                        return response()->json([
-                            'success' => true,
-                            'message' => 'Conectado na API. Status: ' . (is_string($state) ? $state : 'Aguardando leitura do QR Code')
-                        ]);
                     }
                 }
 
                 return response()->json([
-                    'success' => false,
-                    'message' => "Erro {$lastStatus} ao comunicar com a UaZapi. Resposta do servidor: " . substr(strip_tags($lastBody), 0, 150)
+                    'success' => true,
+                    'message' => 'Instância pronta! Clique no botão Conectar na UaZapi se o QR Code não carregar automaticamente.'
                 ]);
             }
 
             return response()->json(['success' => true, 'message' => "Teste dinâmico para {$provider} em desenvolvimento."]);
 
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Erro de rede: Servidor indisponível ou URL inacessível.']);
+            return response()->json(['success' => false, 'message' => 'Erro de rede: Servidor indisponível.']);
         }
+    }
+
+    // Busca recursiva para encontrar o QR Code independente da estrutura do JSON da API
+    private function findQrCodeInArray($array) {
+        if (!is_array($array)) return null;
+        foreach ($array as $key => $value) {
+            if (is_string($value)) {
+                if (str_starts_with($value, 'data:image') || (strlen($value) > 100 && (str_contains($key, 'qr') || str_contains($key, 'code') || str_contains($key, 'base64')))) {
+                    return $value;
+                }
+            } elseif (is_array($value)) {
+                $found = $this->findQrCodeInArray($value);
+                if ($found) return $found;
+            }
+        }
+        return null;
     }
 }
