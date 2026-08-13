@@ -9,7 +9,6 @@
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>[x-cloak] { display: none !important; }</style>
 
-    <!-- MEMÓRIA DE ROLAGEM PARA QUANDO SALVAR/ATUALIZAR -->
     <script>
         document.addEventListener("DOMContentLoaded", function() {
             const key = 'scrollpos_' + window.location.search;
@@ -165,7 +164,7 @@
                     },
 
                     async disconnectWa() {
-                        if(!confirm('Tem certeza que deseja desconectar o celular deste painel?')) return;
+                        if(!confirm('Tem certeza que deseja forçar a desvinculação deste celular?')) return;
                         this.waStatus = 'checking';
                         try {
                             const response = await fetch('/', {
@@ -179,11 +178,11 @@
                                 this.waStatus = 'disconnected';
                                 window.location.reload(); 
                             } else {
-                                alert('A API não conseguiu desconectar: \n' + (data.message || 'Erro desconhecido.'));
+                                alert('A API não conseguiu desconectar:\n\n' + (data.message || 'Erro desconhecido.'));
                                 this.checkWaStatusSilent(); 
                             }
                         } catch(e) {
-                            alert('Erro na requisição. Verifique o log ou o servidor.');
+                            alert('Erro na requisição.');
                             this.checkWaStatusSilent();
                         }
                     },
@@ -213,7 +212,7 @@
                                 setTimeout(() => {
                                     this.showWaModal = false;
                                     window.location.reload();
-                                }, 2000);
+                                }, 1500);
                             } else if (data.success && this.pollAttempts < 20 && this.showWaModal) {
                                 this.pollAttempts++;
                                 setTimeout(() => {
@@ -221,7 +220,6 @@
                                 }, 3000);
                             }
                         } catch (e) {
-                            // Silencioso para não quebrar loop
                         } finally {
                             this.waLoading = false;
                         }
@@ -232,7 +230,6 @@
                 @csrf @method('PUT')
                 <input type="hidden" name="assistant_id" value="{{ $configuring->id }}">
 
-                <!-- LINHA 1: PROMPT + CONEXÃO IA -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                     
                     <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-full">
@@ -276,7 +273,6 @@
 
                 </div>
 
-                <!-- LINHA 2: BASE DE CONHECIMENTO + WHATSAPP -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                     
                     <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-full flex flex-col">
@@ -317,7 +313,7 @@
                         </div>
                     </div>
 
-                    <!-- CAIXA DO WHATSAPP MAIS FINA/COMPACTA -->
+                    <!-- CAIXA DO WHATSAPP MENOR, ELEGANTE E COMPACTA (p-4) -->
                     <div class="lg:col-span-1 bg-white p-4 rounded-xl shadow-sm border border-gray-200 h-full flex flex-col">
                         
                         <h2 class="text-base font-bold text-gray-800 border-b border-gray-100 pb-2 mb-3 flex items-center justify-between">
@@ -335,7 +331,6 @@
                                     <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>Desconectado
                                 </span>
                                 
-                                <!-- BOTÃO REDONDO (BOLINHA) DE DESCONECTAR COM TOOLTIP -->
                                 <button type="button" title="Desconectar" x-show="waStatus === 'connected'" x-on:click="disconnectWa()" class="w-6 h-6 rounded-full bg-red-50 hover:bg-red-100 text-red-600 transition border border-red-200 flex items-center justify-center cursor-pointer shadow-sm shrink-0">
                                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.636 5.636a9 9 0 1012.728 0M12 3v9" /></svg>
                                 </button>
@@ -356,64 +351,63 @@
                             <template x-if="wa_provider === 'uazapi'">
                                 <div>
                                     <label class="block text-[11px] font-semibold text-gray-700 mb-0.5">URL (UaZapi)</label>
-                                    <input type="url" name="whatsapp_url" x-model="wa_url" x-on:change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-md p-1.5 text-xs mb-2" placeholder="https://api.uazapi.dev">
+                                    <input type="url" name="whatsapp_url" x-model="wa_url" x-on:change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-md p-1.5 text-[11px] mb-2" placeholder="https://api.uazapi.dev">
                                     <label class="block text-[11px] font-semibold text-gray-700 mb-0.5">Nome da Instância</label>
-                                    <input type="text" name="whatsapp_instance" x-model="wa_instance" x-on:change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-md p-1.5 text-xs mb-2" placeholder="Ex: suporte">
+                                    <input type="text" name="whatsapp_instance" x-model="wa_instance" x-on:change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-md p-1.5 text-[11px] mb-2" placeholder="Ex: suporte">
                                     <label class="block text-[11px] font-semibold text-gray-700 mb-0.5">Instance Token</label>
-                                    <input type="password" name="whatsapp_token" x-model="wa_token" x-on:change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-md p-1.5 text-xs" placeholder="Ex: T0K3N...">
+                                    <input type="password" name="whatsapp_token" x-model="wa_token" x-on:change="checkWaStatusSilent()" class="w-full border border-gray-300 rounded-md p-1.5 text-[11px]" placeholder="Ex: T0K3N...">
                                 </div>
                             </template>
                             <template x-if="wa_provider === 'evolution'">
                                 <div>
                                     <label class="block text-[11px] font-semibold text-gray-700 mb-0.5">URL (Evolution)</label>
-                                    <input type="url" name="whatsapp_url" x-model="wa_url" class="w-full border border-gray-300 rounded-md p-1.5 text-xs mb-2" placeholder="https://api...">
+                                    <input type="url" name="whatsapp_url" x-model="wa_url" class="w-full border border-gray-300 rounded-md p-1.5 text-[11px] mb-2" placeholder="https://api...">
                                     <label class="block text-[11px] font-semibold text-gray-700 mb-0.5">Nome da Instância</label>
-                                    <input type="text" name="whatsapp_instance" x-model="wa_instance" class="w-full border border-gray-300 rounded-md p-1.5 text-xs mb-2">
+                                    <input type="text" name="whatsapp_instance" x-model="wa_instance" class="w-full border border-gray-300 rounded-md p-1.5 text-[11px] mb-2">
                                     <label class="block text-[11px] font-semibold text-gray-700 mb-0.5">Global API Key</label>
-                                    <input type="password" name="whatsapp_token" x-model="wa_token" class="w-full border border-gray-300 rounded-md p-1.5 text-xs">
+                                    <input type="password" name="whatsapp_token" x-model="wa_token" class="w-full border border-gray-300 rounded-md p-1.5 text-[11px]">
                                 </div>
                             </template>
                             <template x-if="wa_provider === 'meta'">
                                 <div>
                                     <label class="block text-[11px] font-semibold text-gray-700 mb-0.5">Phone Number ID</label>
-                                    <input type="text" name="whatsapp_instance" x-model="wa_instance" class="w-full border border-gray-300 rounded-md p-1.5 text-xs mb-2">
+                                    <input type="text" name="whatsapp_instance" x-model="wa_instance" class="w-full border border-gray-300 rounded-md p-1.5 text-[11px] mb-2">
                                     <label class="block text-[11px] font-semibold text-gray-700 mb-0.5">Access Token</label>
-                                    <input type="password" name="whatsapp_token" x-model="wa_token" class="w-full border border-gray-300 rounded-md p-1.5 text-xs mb-2">
+                                    <input type="password" name="whatsapp_token" x-model="wa_token" class="w-full border border-gray-300 rounded-md p-1.5 text-[11px] mb-2">
                                     <label class="block text-[11px] font-semibold text-gray-700 mb-0.5">Verify Token</label>
-                                    <input type="text" name="whatsapp_verify_token" value="{{ $configuring->whatsapp_verify_token }}" class="w-full border border-gray-300 rounded-md p-1.5 text-xs">
+                                    <input type="text" name="whatsapp_verify_token" value="{{ $configuring->whatsapp_verify_token }}" class="w-full border border-gray-300 rounded-md p-1.5 text-[11px]">
                                 </div>
                             </template>
                             <template x-if="wa_provider === 'zapi'">
                                 <div>
                                     <label class="block text-[11px] font-semibold text-gray-700 mb-0.5">ID da Instância</label>
-                                    <input type="text" name="whatsapp_instance" x-model="wa_instance" class="w-full border border-gray-300 rounded-md p-1.5 text-xs mb-2">
+                                    <input type="text" name="whatsapp_instance" x-model="wa_instance" class="w-full border border-gray-300 rounded-md p-1.5 text-[11px] mb-2">
                                     <label class="block text-[11px] font-semibold text-gray-700 mb-0.5">Token da Instância</label>
-                                    <input type="password" name="whatsapp_token" x-model="wa_token" class="w-full border border-gray-300 rounded-md p-1.5 text-xs mb-2">
+                                    <input type="password" name="whatsapp_token" x-model="wa_token" class="w-full border border-gray-300 rounded-md p-1.5 text-[11px] mb-2">
                                     <label class="block text-[11px] font-semibold text-gray-700 mb-0.5">Client-Token</label>
-                                    <input type="text" name="whatsapp_verify_token" value="{{ $configuring->whatsapp_verify_token }}" class="w-full border border-gray-300 rounded-md p-1.5 text-xs">
+                                    <input type="text" name="whatsapp_verify_token" value="{{ $configuring->whatsapp_verify_token }}" class="w-full border border-gray-300 rounded-md p-1.5 text-[11px]">
                                 </div>
                             </template>
                             <template x-if="wa_provider === 'chatpro'">
                                 <div>
                                     <label class="block text-[11px] font-semibold text-gray-700 mb-0.5">Endpoint URL</label>
-                                    <input type="url" name="whatsapp_url" x-model="wa_url" class="w-full border border-gray-300 rounded-md p-1.5 text-xs mb-2">
+                                    <input type="url" name="whatsapp_url" x-model="wa_url" class="w-full border border-gray-300 rounded-md p-1.5 text-[11px] mb-2">
                                     <label class="block text-[11px] font-semibold text-gray-700 mb-0.5">Token</label>
-                                    <input type="password" name="whatsapp_token" x-model="wa_token" class="w-full border border-gray-300 rounded-md p-1.5 text-xs">
+                                    <input type="password" name="whatsapp_token" x-model="wa_token" class="w-full border border-gray-300 rounded-md p-1.5 text-[11px]">
                                 </div>
                             </template>
                         </div>
 
-                        <!-- WEBHOOK & BOTÃO QR CODE -->
                         <div x-show="wa_provider !== ''" x-transition class="mt-auto border-t border-gray-100 pt-3 mt-4">
-                            <label class="block text-[10px] font-semibold text-gray-700 mb-0.5">Seu Webhook (Copie e cole no provedor)</label>
+                            <label class="block text-[9px] uppercase font-bold tracking-wider text-gray-500 mb-1">Webhook de Retorno</label>
                             <div class="flex items-center gap-1.5 mb-3">
-                                <input type="text" readonly id="webhookUrl" value="https://gestor-assistentes-painel-web.nn8oij.easypanel.host/webhook/whatsapp/{{ $configuring->id }}" class="w-full bg-gray-50 border border-gray-300 rounded-md p-1.5 text-[10px] text-gray-500 font-mono outline-none">
-                                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('webhookUrl').value); alert('Webhook copiado!');" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1.5 rounded-md transition text-[10px] font-bold shrink-0">Copiar</button>
+                                <input type="text" readonly id="webhookUrl" value="https://gestor-assistentes-painel-web.nn8oij.easypanel.host/webhook/whatsapp/{{ $configuring->id }}" class="w-full bg-gray-50 border border-gray-200 rounded-md p-1.5 text-[10px] text-gray-500 font-mono outline-none shadow-inner">
+                                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('webhookUrl').value); alert('Webhook copiado!');" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1.5 rounded-md transition text-[10px] font-bold shrink-0 shadow-sm">Copiar</button>
                             </div>
                             
                             <button type="button" x-on:click="startWaConnection()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow-sm">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" /></svg>
-                                Conectar / Exibir QR Code
+                                Conectar
                             </button>
                         </div>
                     </div>
@@ -436,7 +430,7 @@
                         <!-- CARREGANDO INICIAL -->
                         <div x-show="waLoading && !waResult" class="py-8 space-y-3">
                             <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-emerald-500 border-t-transparent"></div>
-                            <p class="text-sm font-semibold text-gray-600">Conectando na UaZapi...</p>
+                            <p class="text-sm font-semibold text-gray-600">Acessando API...</p>
                         </div>
 
                         <!-- RESPOSTAS -->
