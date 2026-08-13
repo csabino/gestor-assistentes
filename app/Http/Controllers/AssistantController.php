@@ -143,7 +143,7 @@ class AssistantController extends Controller
             $headers = ['token' => $token, 'apikey' => $token, 'Client-Token' => $token, 'Authorization' => "Bearer {$token}"];
 
             if ($provider === 'uazapi') {
-                $paths = ["/instance/status", "/instance/status/{$instance}", "/instance/connect/{$instance}"];
+                $paths = ["/instance/connect", "/instance/status", "/instance/status/{$instance}", "/instance/connect/{$instance}"];
                 foreach($paths as $path) {
                     $res = Http::withHeaders($headers)->timeout(4)->get($url . $path);
                     if ($res->successful()) {
@@ -168,7 +168,7 @@ class AssistantController extends Controller
         }
     }
 
-    // A LÓGICA DE LOGOUT BLINDADA AQUI!
+    // NOVA LÓGICA BLINDADA DE LOGOUT (Desconexão Real)
     private function disconnectWaConnection(Request $request)
     {
         $provider = $request->input('provider');
@@ -177,39 +177,51 @@ class AssistantController extends Controller
         $token = trim($request->input('token'));
 
         if (empty($provider) || empty($url) || empty($token)) {
-            return response()->json(['success' => false, 'message' => 'Parâmetros de configuração incompletos.']);
+            return response()->json(['success' => false, 'message' => 'Parâmetros incompletos.']);
         }
 
         try {
-            $headers = ['token' => $token, 'apikey' => $token, 'Client-Token' => $token, 'Authorization' => "Bearer {$token}"];
+            $headers = [
+                'token' => $token, 
+                'apikey' => $token, 
+                'Client-Token' => $token, 
+                'Authorization' => "Bearer {$token}", 
+                'Content-Type' => 'application/json', 
+                'Accept' => 'application/json'
+            ];
 
-            if ($provider === 'uazapi') {
-                // Tenta as duas rotas padrões de logout da UaZapi / CodeChat
-                $candidates = ['/instance/logout', "/instance/logout/{$instance}"];
-                $lastError = '';
+            if ($provider === 'uazapi' || $provider === 'evolution') {
+                
+                // Bateria de testes de rotas/métodos para garantir a desconexão
+                $candidates = [
+                    ['method' => 'DELETE', 'path' => "/instance/logout", 'body' => []],
+                    ['method' => 'DELETE', 'path' => "/instance/logout/{$instance}", 'body' => []],
+                    ['method' => 'POST',   'path' => "/instance/logout", 'body' => ['instanceName' => $instance]],
+                    ['method' => 'POST',   'path' => "/instance/logout/{$instance}", 'body' => []]
+                ];
 
-                foreach ($candidates as $path) {
-                    $res = Http::withHeaders($headers)->timeout(8)->delete($url . $path);
+                $errors = [];
+
+                foreach ($candidates as $cand) {
+                    $req = Http::withHeaders($headers)->timeout(8);
+                    
+                    if ($cand['method'] === 'DELETE') {
+                        $res = empty($cand['body']) ? $req->delete($url . $cand['path']) : $req->delete($url . $cand['path'], $cand['body']);
+                    } else {
+                        $res = $req->post($url . $cand['path'], $cand['body']);
+                    }
 
                     if ($res->successful()) {
                         return response()->json(['success' => true]);
                     }
-                    $err = $res->json();
-                    $lastError = $res->status() . ' - ' . ($err['message'] ?? $err['error'] ?? 'Ação negada');
+                    
+                    $errors[] = "{$cand['method']} {$cand['path']}: {$res->status()}";
                 }
                 
-                return response()->json(['success' => false, 'message' => $lastError]);
-            } 
-            
-            if ($provider === 'evolution') {
-                $res = Http::withHeaders($headers)->timeout(8)->delete("{$url}/instance/logout/{$instance}");
-                if ($res->successful()) {
-                    return response()->json(['success' => true]);
-                }
-                return response()->json(['success' => false, 'message' => "Evolution API Error: " . $res->status()]);
+                return response()->json(['success' => false, 'message' => "Log de tentativas: " . implode(' | ', $errors)]);
             }
 
-            return response()->json(['success' => false, 'message' => 'Ação não suportada para este provedor.']);
+            return response()->json(['success' => false, 'message' => 'Provedor não suportado.']);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Erro de conexão com a API.']);
         }
