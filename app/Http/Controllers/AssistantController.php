@@ -11,6 +11,12 @@ class AssistantController extends Controller
 {
     public function index(Request $request)
     {
+        // Se a requisição for para abrir a janela do Chat Pop-up
+        if ($request->has('chat_id')) {
+            $assistant = Assistant::findOrFail($request->chat_id);
+            return view('assistants.chat', compact('assistant'));
+        }
+
         $assistants = Assistant::orderBy('name', 'asc')->get();
         $configuring = $request->has('configure') ? Assistant::find($request->configure) : null;
         
@@ -24,6 +30,7 @@ class AssistantController extends Controller
         if ($action === 'test_whatsapp') return $this->testWaConnection($request);
         if ($action === 'status_whatsapp') return $this->statusWaConnection($request);
         if ($action === 'disconnect_whatsapp') return $this->disconnectWaConnection($request);
+        if ($action === 'chat_message') return $this->handleChatMessage($request);
 
         $request->validate(['name' => 'required|string|max:255']);
         
@@ -104,11 +111,135 @@ class AssistantController extends Controller
         return redirect('/')->with('success', 'Assistente removido!');
     }
 
-    public function chat($id)
+    // ============================================================================
+    // NOVO MOTOR DE CONVERSAÇÃO (REUTILIZÁVEL PARA CHAT E WHATSAPP)
+    // ============================================================================
+    
+    private function handleChatMessage(Request $request)
     {
-        $assistant = Assistant::findOrFail($id);
-        return view('assistants.chat', compact('assistant'));
+        $assistantId = $request->input('assistant_id');
+        $userMessage = $request->input('message');
+
+        if (empty($assistantId) || empty($userMessage)) {
+            return response()->json(['success' => false, 'reply' => 'Mensagem ou assistente inválido.']);
+        }
+
+        $assistant = Assistant::find($assistantId);
+        if (!$assistant) {
+            return response()->json(['success' => false, 'reply' => 'Assistente não encontrado.']);
+        }
+
+        $reply = $this->processAiConversation($assistant, $userMessage);
+        return response()->json(['success' => true, 'reply' => $reply]);
     }
+
+    private function processAiConversation($assistant, $userMessage)
+    {
+        $provider = $assistant->provider ?? 'openai';
+        $model = $assistant->model ?? 'gpt-4o-mini';
+        
+        // 1. Monta o Prompt de Sistema
+        $systemInstruction = $assistant->system_prompt ?? "Você é um assistente virtual prestativo.";
+
+        // 2. Anexa o conteúdo dos arquivos da Base de Conhecimento se existirem
+        if (!empty($assistant->knowledge_files) && is_array($assistant->knowledge_files)) {
+            $knowledgeText = "";
+            foreach ($assistant->knowledge_files as $file) {
+                if (isset($file['path']) && Storage::exists($file['path'])) {
+                    $content = @Storage::get($file['path']);
+                    if ($content) {
+                        // Limpa caracteres nulos ou binários se for texto
+                        $cleanContent = mb_convert_encoding($content, 'UTF-8', 'UTF-8');
+                        $knowledgeText .= "\n--- Documento: " . ($file['name'] ?? 'Arquivo') . " ---\n" . substr($cleanContent, 0, 4000) . "\n";
+                    }
+                }
+            }
+            if (!empty($knowledgeText)) {
+                $systemInstruction .= "\n\n[BASE DE CONHECIMENTO DISPONÍVEL DO USUÁRIO]:\n" . $knowledgeText;
+            }
+        }
+
+        // 3. Seleção de API Keys
+        $apiKey = match($provider) {
+            'openai' => $assistant->openai_api_key,
+            'gemini' => $assistant->gemini_api_key,
+            'anthropic' => $assistant->anthropic_api_key,
+            'grok' => $assistant->grok_api_key,
+            default => null
+        };
+
+        if (empty($apiKey)) {
+            return "⚠️ A chave de API (API Key) para o provedor '" . strtoupper($provider) . "' não foi configurada neste assistente.";
+        }
+
+        try {
+            // Execução OpenAI / Grok
+            if ($provider === 'openai' || $provider === 'grok') {
+                $endpoint = ($provider === 'openai') ? 'https://api.openai.com/v1/chat/completions' : 'https://api.x.ai/v1/chat/completions';
+                
+                $res = Http::withToken($apiKey)->timeout(30)->post($endpoint, [
+                    'model' => $model,
+                    'messages' => [
+                        ['role' => 'system', 'content' => $systemInstruction],
+                        ['role' => 'user', 'content' => $userMessage]
+                    ],
+                    'temperature' => 0.7
+                ]);
+
+                if ($res->successful()) {
+                    return $res->json()['choices'][0]['message']['content'] ?? "Sem resposta da IA.";
+                }
+                return "Erro na resposta da IA ({$res->status()}): " . ($res->json()['error']['message'] ?? 'Falha de comunicação.');
+            }
+
+            // Execução Gemini
+            if ($provider === 'gemini') {
+                $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
+                
+                $res = Http::timeout(30)->post($endpoint, [
+                    'system_instruction' => [
+                        'parts' => [['text' => $systemInstruction]]
+                    ],
+                    'contents' => [
+                        ['role' => 'user', 'parts' => [['text' => $userMessage]]]
+                    ]
+                ]);
+
+                if ($res->successful()) {
+                    return $res->json()['candidates'][0]['content']['parts'][0]['text'] ?? "Sem resposta da IA.";
+                }
+                return "Erro no Gemini ({$res->status()}): Verifique se a API Key é válida.";
+            }
+
+            // Execução Anthropic Claude
+            if ($provider === 'anthropic') {
+                $res = Http::withHeaders([
+                    'x-api-key' => $apiKey,
+                    'anthropic-version' => '2023-06-01'
+                ])->timeout(30)->post('https://api.anthropic.com/v1/messages', [
+                    'model' => $model,
+                    'max_tokens' => 1024,
+                    'system' => $systemInstruction,
+                    'messages' => [
+                        ['role' => 'user', 'content' => $userMessage]
+                    ]
+                ]);
+
+                if ($res->successful()) {
+                    return $res->json()['content'][0]['text'] ?? "Sem resposta da IA.";
+                }
+                return "Erro no Claude ({$res->status()}): " . ($res->json()['error']['message'] ?? 'Falha.');
+            }
+
+            return "Provedor não suportado.";
+        } catch (\Exception $e) {
+            return "Erro ao processar conversa: " . $e->getMessage();
+        }
+    }
+
+    // ============================================================================
+    // MÓDULOS DE CONEXÃO E WHATSAPP (MANTIDOS 100% CONGELADOS E INTOCADOS)
+    // ============================================================================
 
     private function testAiConnection(Request $request)
     {
