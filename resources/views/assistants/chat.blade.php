@@ -15,7 +15,6 @@
 </head>
 <body class="bg-gray-100 flex flex-col h-screen font-sans" x-data="chatComponent()">
 
-    <!-- CABEÇALHO -->
     <header class="bg-white shadow-sm px-6 py-3 flex items-center justify-between shrink-0 z-10 border-b border-gray-200">
         <div class="flex items-center gap-3">
             <div class="relative">
@@ -34,7 +33,6 @@
         </span>
     </header>
 
-    <!-- ÁREA DE MENSAGENS (COM TRAVA DE QUEBRA DE LINHA ANTIESTOURO) -->
     <main class="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-gray-50/50" x-ref="chatBox">
         <template x-for="msg in messages" :key="msg.id">
             <div class="flex flex-col" :class="msg.role === 'user' ? 'items-end' : 'items-start'">
@@ -55,7 +53,6 @@
         </div>
     </main>
 
-    <!-- RODAPÉ -->
     <footer class="bg-white px-6 py-3 border-t border-gray-200 shrink-0">
         <form @submit.prevent="sendMessage()" class="flex items-center gap-3">
             <input type="text" x-model="newMessage" :disabled="isTyping" placeholder="Digite sua mensagem..." 
@@ -68,7 +65,6 @@
         </form>
     </footer>
 
-    <!-- SCRIPT DE FORMATADOR COM SUPORTE A PALAVRAS EM LINKS -->
     <script>
         function chatComponent() {
             return {
@@ -84,20 +80,12 @@
                     if (!content) return '';
                     
                     let esc = content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                    
                     const linkColor = role === 'user' ? 'text-indigo-100 underline font-semibold' : 'text-indigo-600 font-bold underline hover:text-indigo-800';
                     
-                    // 1. Converte Markdown [Texto](URL) para hiperlink de palavra
                     esc = esc.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, `<a href="$2" target="_blank" rel="noopener noreferrer" class="${linkColor}">$1</a>`);
-                    
-                    // 2. Converte URLs soltas remanescentes
                     esc = esc.replace(/(^|[^"'])(https?:\/\/[^\s<]+)/g, `$1<a href="$2" target="_blank" rel="noopener noreferrer" class="${linkColor}">$2</a>`);
-                    
-                    // 3. Negrito (**texto** ou *texto*)
                     esc = esc.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
                     esc = esc.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
-                    
-                    // 4. Quebras de linha
                     esc = esc.replace(/\n/g, '<br>');
                     
                     return esc;
@@ -112,6 +100,12 @@
                     
                     this.isTyping = true;
                     
+                    // Monta o histórico completo para a IA ter memória da conversa
+                    const history = this.messages.map(m => ({
+                        role: m.role,
+                        content: m.content
+                    }));
+                    
                     try {
                         const response = await fetch('/', {
                             method: 'POST',
@@ -122,7 +116,8 @@
                             body: JSON.stringify({ 
                                 action: 'chat_message', 
                                 assistant_id: this.assistantId, 
-                                message: text 
+                                message: text,
+                                history: history
                             })
                         });
 

@@ -123,27 +123,18 @@ class AssistantController extends Controller
         return redirect('/')->with('success', 'Assistente removido!');
     }
 
-    // ============================================================================
-    // FASE 5: RECEPTOR DE WEBHOOK DO WHATSAPP
-    // ============================================================================
-
     public function webhook(Request $request, $id)
     {
-        // Se for validação GET
         if ($request->isMethod('get')) {
             return response('OK', 200);
         }
 
         $assistant = Assistant::find($id);
 
-        // Se o assistente não existir ou estiver INATIVO no painel, ignora
         if (!$assistant || !$assistant->is_active) {
             return response()->json(['status' => 'ignored_inactive'], 200);
         }
 
-        $payload = $request->all();
-
-        // 1. Verifica se a mensagem foi enviada pelo próprio robô (Evitar Loop)
         $fromMe = $request->input('data.key.fromMe')
                ?? $request->input('key.fromMe')
                ?? $request->input('fromMe')
@@ -153,7 +144,6 @@ class AssistantController extends Controller
             return response()->json(['status' => 'ignored_from_me'], 200);
         }
 
-        // 2. Extrai o texto enviado pelo cliente no WhatsApp
         $userMessage = $request->input('data.message.conversation')
                     ?? $request->input('data.message.extendedTextMessage.text')
                     ?? $request->input('message.conversation')
@@ -166,7 +156,6 @@ class AssistantController extends Controller
             return response()->json(['status' => 'ignored_empty_message'], 200);
         }
 
-        // 3. Extrai o identificador/número do cliente
         $remoteJid = $request->input('data.key.remoteJid')
                   ?? $request->input('key.remoteJid')
                   ?? $request->input('remoteJid')
@@ -175,22 +164,17 @@ class AssistantController extends Controller
                   ?? $request->input('phone')
                   ?? $request->input('sender');
 
-        // Ignora grupos de WhatsApp
         if (is_string($remoteJid) && str_contains($remoteJid, '@g.us')) {
             return response()->json(['status' => 'ignored_group_message'], 200);
         }
 
-        // Limpa o número (apenas dígitos)
         $cleanNumber = preg_replace('/[^0-9]/', '', strtok($remoteJid, '@'));
 
         if (empty($cleanNumber)) {
             return response()->json(['status' => 'ignored_no_number'], 200);
         }
 
-        // 4. Processa a resposta usando o Cérebro da IA
         $aiReply = $this->processAiConversation($assistant, $userMessage);
-
-        // 5. Envia a resposta de volta ao WhatsApp do cliente
         $sent = $this->sendWaMessage($assistant, $cleanNumber, $aiReply);
 
         return response()->json([
@@ -200,7 +184,6 @@ class AssistantController extends Controller
         ], 200);
     }
 
-    // Helper para envio de mensagem no WhatsApp via API
     private function sendWaMessage($assistant, $number, $text)
     {
         $url = rtrim($assistant->whatsapp_url, '/');
@@ -250,6 +233,7 @@ class AssistantController extends Controller
     {
         $assistantId = $request->input('assistant_id');
         $userMessage = $request->input('message');
+        $history = $request->input('history', []);
 
         if (empty($assistantId) || empty($userMessage)) {
             return response()->json(['success' => false, 'reply' => 'Mensagem ou assistente não informado.']);
@@ -260,11 +244,11 @@ class AssistantController extends Controller
             return response()->json(['success' => false, 'reply' => 'Assistente não encontrado.']);
         }
 
-        $reply = $this->processAiConversation($assistant, $userMessage);
+        $reply = $this->processAiConversation($assistant, $userMessage, $history);
         return response()->json(['success' => true, 'reply' => $reply]);
     }
 
-    private function processAiConversation($assistant, $userMessage)
+    private function processAiConversation($assistant, $userMessage, $history = [])
     {
         $provider = $assistant->provider ?? 'openai';
         $model = $assistant->model ?? 'gpt-4o-mini';
@@ -313,12 +297,26 @@ class AssistantController extends Controller
             if ($provider === 'openai' || $provider === 'grok') {
                 $endpoint = ($provider === 'openai') ? 'https://api.openai.com/v1/chat/completions' : 'https://api.x.ai/v1/chat/completions';
                 
+                $formattedMessages = [
+                    ['role' => 'system', 'content' => $systemInstruction]
+                ];
+
+                if (is_array($history) && count($history) > 0) {
+                    foreach ($history as $h) {
+                        if (isset($h['role'], $h['content']) && in_array($h['role'], ['user', 'assistant'])) {
+                            $formattedMessages[] = [
+                                'role' => $h['role'],
+                                'content' => (string) $h['content']
+                            ];
+                        }
+                    }
+                } else {
+                    $formattedMessages[] = ['role' => 'user', 'content' => $userMessage];
+                }
+
                 $res = Http::withToken($apiKey)->timeout(30)->post($endpoint, [
                     'model' => $model,
-                    'messages' => [
-                        ['role' => 'system', 'content' => $systemInstruction],
-                        ['role' => 'user', 'content' => $userMessage]
-                    ],
+                    'messages' => $formattedMessages,
                     'temperature' => 0.7
                 ]);
 
@@ -331,13 +329,29 @@ class AssistantController extends Controller
             if ($provider === 'gemini') {
                 $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
                 
+                $contents = [];
+                if (is_array($history) && count($history) > 0) {
+                    foreach ($history as $h) {
+                        if (isset($h['role'], $h['content'])) {
+                            $role = ($h['role'] === 'assistant') ? 'model' : 'user';
+                            $contents[] = [
+                                'role' => $role,
+                                'parts' => [['text' => (string) $h['content']]]
+                            ];
+                        }
+                    }
+                } else {
+                    $contents[] = [
+                        'role' => 'user',
+                        'parts' => [['text' => $userMessage]]
+                    ];
+                }
+
                 $res = Http::timeout(30)->post($endpoint, [
                     'system_instruction' => [
                         'parts' => [['text' => $systemInstruction]]
                     ],
-                    'contents' => [
-                        ['role' => 'user', 'parts' => [['text' => $userMessage]]]
-                    ]
+                    'contents' => $contents
                 ]);
 
                 if ($res->successful()) {
@@ -347,6 +361,20 @@ class AssistantController extends Controller
             }
 
             if ($provider === 'anthropic') {
+                $formattedMessages = [];
+                if (is_array($history) && count($history) > 0) {
+                    foreach ($history as $h) {
+                        if (isset($h['role'], $h['content']) && in_array($h['role'], ['user', 'assistant'])) {
+                            $formattedMessages[] = [
+                                'role' => $h['role'],
+                                'content' => (string) $h['content']
+                            ];
+                        }
+                    }
+                } else {
+                    $formattedMessages[] = ['role' => 'user', 'content' => $userMessage];
+                }
+
                 $res = Http::withHeaders([
                     'x-api-key' => $apiKey,
                     'anthropic-version' => '2023-06-01'
@@ -354,9 +382,7 @@ class AssistantController extends Controller
                     'model' => $model,
                     'max_tokens' => 1024,
                     'system' => $systemInstruction,
-                    'messages' => [
-                        ['role' => 'user', 'content' => $userMessage]
-                    ]
+                    'messages' => $formattedMessages
                 ]);
 
                 if ($res->successful()) {
