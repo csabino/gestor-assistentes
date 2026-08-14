@@ -11,7 +11,6 @@ class AssistantController extends Controller
 {
     public function index(Request $request)
     {
-        // DESPACHANTE DE MÉTODOS HTTP INTERNOS
         if ($request->isMethod('put')) {
             return $this->updateConfig($request);
         }
@@ -25,7 +24,6 @@ class AssistantController extends Controller
             return $this->store($request);
         }
 
-        // Exibe o Pop-up de Chat se solicitado
         if ($request->has('chat_id')) {
             $assistant = Assistant::findOrFail($request->chat_id);
             return view('assistants.chat', compact('assistant'));
@@ -108,7 +106,6 @@ class AssistantController extends Controller
     {
         $assistant = Assistant::findOrFail($request->assistant_id);
 
-        // Caso 1: Deletar arquivo individual da Base de Conhecimento
         if ($request->has('file_index')) {
             $files = $assistant->knowledge_files ?? [];
             $index = $request->file_index;
@@ -122,9 +119,131 @@ class AssistantController extends Controller
             return redirect('/?configure=' . $assistant->id)->with('success', 'Arquivo removido da base de conhecimento!');
         }
 
-        // Caso 2: Deletar o Assistente do nosso banco de dados
         $assistant->delete();
         return redirect('/')->with('success', 'Assistente removido!');
+    }
+
+    // ============================================================================
+    // FASE 5: RECEPTOR DE WEBHOOK DO WHATSAPP
+    // ============================================================================
+
+    public function webhook(Request $request, $id)
+    {
+        // Se for validação GET
+        if ($request->isMethod('get')) {
+            return response('OK', 200);
+        }
+
+        $assistant = Assistant::find($id);
+
+        // Se o assistente não existir ou estiver INATIVO no painel, ignora
+        if (!$assistant || !$assistant->is_active) {
+            return response()->json(['status' => 'ignored_inactive'], 200);
+        }
+
+        $payload = $request->all();
+
+        // 1. Verifica se a mensagem foi enviada pelo próprio robô (Evitar Loop)
+        $fromMe = $request->input('data.key.fromMe')
+               ?? $request->input('key.fromMe')
+               ?? $request->input('fromMe')
+               ?? false;
+
+        if ($fromMe) {
+            return response()->json(['status' => 'ignored_from_me'], 200);
+        }
+
+        // 2. Extrai o texto enviado pelo cliente no WhatsApp
+        $userMessage = $request->input('data.message.conversation')
+                    ?? $request->input('data.message.extendedTextMessage.text')
+                    ?? $request->input('message.conversation')
+                    ?? $request->input('message.text')
+                    ?? $request->input('text')
+                    ?? $request->input('body')
+                    ?? $request->input('message');
+
+        if (empty($userMessage) || !is_string($userMessage)) {
+            return response()->json(['status' => 'ignored_empty_message'], 200);
+        }
+
+        // 3. Extrai o identificador/número do cliente
+        $remoteJid = $request->input('data.key.remoteJid')
+                  ?? $request->input('key.remoteJid')
+                  ?? $request->input('remoteJid')
+                  ?? $request->input('chatJid')
+                  ?? $request->input('from')
+                  ?? $request->input('phone')
+                  ?? $request->input('sender');
+
+        // Ignora grupos de WhatsApp
+        if (is_string($remoteJid) && str_contains($remoteJid, '@g.us')) {
+            return response()->json(['status' => 'ignored_group_message'], 200);
+        }
+
+        // Limpa o número (apenas dígitos)
+        $cleanNumber = preg_replace('/[^0-9]/', '', strtok($remoteJid, '@'));
+
+        if (empty($cleanNumber)) {
+            return response()->json(['status' => 'ignored_no_number'], 200);
+        }
+
+        // 4. Processa a resposta usando o Cérebro da IA
+        $aiReply = $this->processAiConversation($assistant, $userMessage);
+
+        // 5. Envia a resposta de volta ao WhatsApp do cliente
+        $sent = $this->sendWaMessage($assistant, $cleanNumber, $aiReply);
+
+        return response()->json([
+            'status' => $sent ? 'success' : 'failed_to_send',
+            'recipient' => $cleanNumber,
+            'reply' => $aiReply
+        ], 200);
+    }
+
+    // Helper para envio de mensagem no WhatsApp via API
+    private function sendWaMessage($assistant, $number, $text)
+    {
+        $url = rtrim($assistant->whatsapp_url, '/');
+        $instance = trim($assistant->whatsapp_instance);
+        $token = trim($assistant->whatsapp_token);
+        $provider = $assistant->whatsapp_provider;
+
+        if (empty($url) || empty($token)) return false;
+
+        $headers = [
+            'token' => $token,
+            'apikey' => $token,
+            'Client-Token' => $token,
+            'Authorization' => "Bearer {$token}",
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json'
+        ];
+
+        try {
+            if ($provider === 'uazapi') {
+                $candidates = [
+                    ['path' => "/send/text", 'body' => ['number' => $number, 'text' => $text]],
+                    ['path' => "/send/text", 'body' => ['chatId' => "{$number}@s.whatsapp.net", 'text' => $text]],
+                    ['path' => "/message/sendText/{$instance}", 'body' => ['number' => $number, 'text' => $text]],
+                    ['path' => "/message/send-text", 'body' => ['number' => $number, 'text' => $text]]
+                ];
+
+                foreach ($candidates as $cand) {
+                    $res = Http::withHeaders($headers)->timeout(12)->post($url . $cand['path'], $cand['body']);
+                    if ($res->successful()) return true;
+                }
+            } elseif ($provider === 'evolution') {
+                $res = Http::withHeaders($headers)->timeout(12)->post("{$url}/message/sendText/{$instance}", [
+                    'number' => $number,
+                    'text' => $text
+                ]);
+                return $res->successful();
+            }
+        } catch (\Exception $e) {
+            return false;
+        }
+
+        return false;
     }
 
     private function handleChatMessage(Request $request)
@@ -150,7 +269,6 @@ class AssistantController extends Controller
         $provider = $assistant->provider ?? 'openai';
         $model = $assistant->model ?? 'gpt-4o-mini';
         
-        // Auto-correção de modelos inconsistentes no banco
         if ($provider === 'openai' && !str_starts_with($model, 'gpt-')) {
             $model = 'gpt-4o-mini';
         } elseif ($provider === 'gemini' && !str_starts_with($model, 'gemini-')) {
