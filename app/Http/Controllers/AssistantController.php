@@ -11,12 +11,21 @@ class AssistantController extends Controller
 {
     public function index(Request $request)
     {
-        // Se for requisição POST ou tiver uma ação (Testes, WhatsApp ou Mensagem de Chat)
+        // DESPACHANTE DE MÉTODOS HTTP INTERNOS
+        if ($request->isMethod('put')) {
+            return $this->updateConfig($request);
+        }
+        if ($request->isMethod('patch')) {
+            return $this->toggleStatus($request);
+        }
+        if ($request->isMethod('delete')) {
+            return $this->destroy($request);
+        }
         if ($request->isMethod('post') || $request->has('action')) {
             return $this->store($request);
         }
 
-        // Se a requisição for para abrir a janela do Chat Pop-up
+        // Exibe o Pop-up de Chat se solicitado
         if ($request->has('chat_id')) {
             $assistant = Assistant::findOrFail($request->chat_id);
             return view('assistants.chat', compact('assistant'));
@@ -99,6 +108,7 @@ class AssistantController extends Controller
     {
         $assistant = Assistant::findOrFail($request->assistant_id);
 
+        // Caso 1: Deletar arquivo individual da Base de Conhecimento
         if ($request->has('file_index')) {
             $files = $assistant->knowledge_files ?? [];
             $index = $request->file_index;
@@ -112,14 +122,11 @@ class AssistantController extends Controller
             return redirect('/?configure=' . $assistant->id)->with('success', 'Arquivo removido da base de conhecimento!');
         }
 
+        // Caso 2: Deletar o Assistente do nosso banco de dados
         $assistant->delete();
         return redirect('/')->with('success', 'Assistente removido!');
     }
 
-    // ============================================================================
-    // MOTOR DE CONVERSAÇÃO (CHAT E WHATSAPP)
-    // ============================================================================
-    
     private function handleChatMessage(Request $request)
     {
         $assistantId = $request->input('assistant_id');
@@ -143,10 +150,19 @@ class AssistantController extends Controller
         $provider = $assistant->provider ?? 'openai';
         $model = $assistant->model ?? 'gpt-4o-mini';
         
-        // 1. Prompt de Sistema
+        // Auto-correção de modelos inconsistentes no banco
+        if ($provider === 'openai' && !str_starts_with($model, 'gpt-')) {
+            $model = 'gpt-4o-mini';
+        } elseif ($provider === 'gemini' && !str_starts_with($model, 'gemini-')) {
+            $model = 'gemini-1.5-flash';
+        } elseif ($provider === 'anthropic' && !str_starts_with($model, 'claude-')) {
+            $model = 'claude-3-haiku';
+        } elseif ($provider === 'grok' && !str_starts_with($model, 'grok-')) {
+            $model = 'grok-2-mini';
+        }
+
         $systemInstruction = $assistant->system_prompt ?? "Você é um assistente virtual prestativo.";
 
-        // 2. Anexa conteúdo da Base de Conhecimento (PDFs/Textos) se houver
         if (!empty($assistant->knowledge_files) && is_array($assistant->knowledge_files)) {
             $knowledgeText = "";
             foreach ($assistant->knowledge_files as $file) {
@@ -163,7 +179,6 @@ class AssistantController extends Controller
             }
         }
 
-        // 3. API Keys
         $apiKey = match($provider) {
             'openai' => $assistant->openai_api_key,
             'gemini' => $assistant->gemini_api_key,
@@ -177,7 +192,6 @@ class AssistantController extends Controller
         }
 
         try {
-            // Execução OpenAI / Grok
             if ($provider === 'openai' || $provider === 'grok') {
                 $endpoint = ($provider === 'openai') ? 'https://api.openai.com/v1/chat/completions' : 'https://api.x.ai/v1/chat/completions';
                 
@@ -196,7 +210,6 @@ class AssistantController extends Controller
                 return "Erro na IA ({$res->status()}): " . ($res->json()['error']['message'] ?? 'Falha na resposta.');
             }
 
-            // Execução Gemini
             if ($provider === 'gemini') {
                 $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
                 
@@ -215,7 +228,6 @@ class AssistantController extends Controller
                 return "Erro no Gemini ({$res->status()}): Verifique sua API Key.";
             }
 
-            // Execução Anthropic Claude
             if ($provider === 'anthropic') {
                 $res = Http::withHeaders([
                     'x-api-key' => $apiKey,
@@ -240,10 +252,6 @@ class AssistantController extends Controller
             return "Erro ao processar conversa: " . $e->getMessage();
         }
     }
-
-    // ============================================================================
-    // MÓDULOS DE CONEXÃO E WHATSAPP (MANTIDOS CONGELADOS)
-    // ============================================================================
 
     private function testAiConnection(Request $request)
     {
