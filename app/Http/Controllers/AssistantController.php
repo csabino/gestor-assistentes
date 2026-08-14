@@ -137,7 +137,7 @@ class AssistantController extends Controller
     }
 
     // ============================================================================
-    // RECEPTOR DE WEBHOOK DO WHATSAPP (VARREDURA BULLETPROOF)
+    // RECEPTOR DE WEBHOOK DO WHATSAPP (SUPER VARREDURA RECURSIVA)
     // ============================================================================
 
     public function webhook(Request $request, $id = null)
@@ -155,71 +155,55 @@ class AssistantController extends Controller
             'status' => 'received',
             'sender' => 'Desconhecido',
             'user_message' => 'Nenhuma',
-            'raw_snippet' => substr(json_encode($payload, JSON_UNESCAPED_UNICODE), 0, 300),
+            'raw_snippet' => substr(json_encode($payload, JSON_UNESCAPED_UNICODE), 0, 1000), // Aumentado para ver mais do JSON
             'ai_reply' => null,
             'wa_send_result' => null,
             'error' => null
         ];
 
-        if (!$assistant) {
+        if (!$assistant || !$assistant->is_active) {
             $logData['status'] = 'error';
-            $logData['error'] = 'Assistente não encontrado no banco.';
-            $this->saveWebhookLog($assistantId, $logData);
-            return response()->json(['status' => 'not_found'], 200);
-        }
-
-        if (!$assistant->is_active) {
-            $logData['status'] = 'ignored';
-            $logData['error'] = 'Assistente está INATIVO no painel.';
+            $logData['error'] = 'Assistente não encontrado ou está inativo.';
             $this->saveWebhookLog($assistantId, $logData);
             return response()->json(['status' => 'ignored_inactive'], 200);
         }
 
-        // Verifica se a mensagem foi enviada pelo próprio número
-        $fromMeRaw = $request->input('data.key.fromMe')
-                  ?? $request->input('key.fromMe')
-                  ?? $request->input('message.fromMe')
-                  ?? $request->input('fromMe')
-                  ?? false;
-
-        $isFromMe = filter_var($fromMeRaw, FILTER_VALIDATE_BOOLEAN);
-
+        // 1. Scanner de Mensagem do Próprio Robô (Evita Loop)
+        $isFromMe = $this->findBooleanInArrayByKeys($payload, ['fromMe', 'isFromMe', 'sentByApi', 'wasSentByApi']);
         if ($isFromMe) {
             $logData['status'] = 'ignored';
-            $logData['error'] = 'Mensagem enviada pelo próprio número (fromMe=true).';
+            $logData['error'] = 'Mensagem ignorada pois foi enviada pela própria IA/Sistema (fromMe=true).';
             $this->saveWebhookLog($assistantId, $logData);
             return response()->json(['status' => 'ignored_from_me'], 200);
         }
 
-        // Extrator dinâmico de texto de mensagem
+        // 2. Scanner do Texto da Mensagem do Cliente
         $userMessage = $this->extractMessageFromPayload($payload);
-        if ($userMessage) {
-            $logData['user_message'] = $userMessage;
-        } else {
+        if (!$userMessage) {
             $logData['status'] = 'ignored';
-            $logData['error'] = 'Mensagem recebida sem texto legível.';
+            $logData['error'] = 'Mensagem recebida, mas não possui texto legível (imagem, aúdio vazio, etc).';
             $this->saveWebhookLog($assistantId, $logData);
             return response()->json(['status' => 'ignored_empty_message'], 200);
         }
+        $logData['user_message'] = $userMessage;
 
-        // Extrator dinâmico de número do remetente
+        // 3. Scanner do Número do Remetente
         $cleanNumber = $this->extractNumberFromPayload($payload);
-        if ($cleanNumber) {
-            $logData['sender'] = $cleanNumber;
-        } else {
+        if (!$cleanNumber) {
             $logData['status'] = 'ignored';
             $logData['error'] = "Número do remetente não identificado no payload.";
             $this->saveWebhookLog($assistantId, $logData);
             return response()->json(['status' => 'ignored_invalid_number'], 200);
         }
+        $logData['sender'] = $cleanNumber;
 
         Log::info("Processando mensagem do cliente {$cleanNumber}: '{$userMessage}'");
 
-        // Processa resposta na IA
+        // 4. Processa a IA
         $aiReply = $this->processAiConversation($assistant, $userMessage);
         $logData['ai_reply'] = $aiReply;
 
-        // Dispara mensagem no WhatsApp
+        // 5. Envio de Volta
         $sendResult = $this->sendWaMessageDetailed($assistant, $cleanNumber, $aiReply);
         $logData['wa_send_result'] = $sendResult;
         $logData['status'] = $sendResult['success'] ? 'success' : 'failed_to_send';
@@ -234,74 +218,116 @@ class AssistantController extends Controller
         ], 200);
     }
 
+    // ============================================================================
+    // FUNÇÕES DE "SUPER VARREDURA" (DEEP SCAN NO JSON)
+    // ============================================================================
+
     private function extractMessageFromPayload($payload)
     {
         if (!is_array($payload)) return null;
-
+        
+        // Atalhos conhecidos (rápidos)
         $paths = [
             $payload['data']['message']['conversation'] ?? null,
             $payload['data']['message']['extendedTextMessage']['text'] ?? null,
-            $payload['data']['messages'][0]['message']['conversation'] ?? null,
-            $payload['data']['messages'][0]['message']['extendedTextMessage']['text'] ?? null,
-            $payload['data']['body'] ?? null,
-            $payload['data']['text'] ?? null,
             $payload['message']['conversation'] ?? null,
             $payload['message']['extendedTextMessage']['text'] ?? null,
-            $payload['message']['text'] ?? null,
-            $payload['message']['body'] ?? null,
+            $payload['data']['text'] ?? null,
+            $payload['data']['body'] ?? null,
             $payload['text'] ?? null,
             $payload['body'] ?? null,
-            $payload['conversation'] ?? null
         ];
-
         foreach ($paths as $p) {
             if (is_string($p) && strlen(trim($p)) > 0) return trim($p);
         }
 
-        return $this->findStringInArrayByKeys($payload, ['conversation', 'text', 'body', 'caption']);
+        // Se não achou nos atalhos, vira do avesso procurando as chaves
+        return $this->findStringInArrayByKeys($payload, ['conversation', 'text', 'body', 'caption', 'message']);
     }
 
     private function extractNumberFromPayload($payload)
     {
         if (!is_array($payload)) return null;
 
+        // Atalhos rápidos
         $paths = [
+            $payload['contact']['number'] ?? null,
+            $payload['chat']['contact']['number'] ?? null,
             $payload['data']['key']['remoteJid'] ?? null,
-            $payload['data']['messages'][0]['key']['remoteJid'] ?? null,
+            $payload['messages'][0]['key']['remoteJid'] ?? null,
             $payload['data']['remoteJid'] ?? null,
-            $payload['data']['from'] ?? null,
-            $payload['data']['phone'] ?? null,
-            $payload['data']['chatId'] ?? null,
-            $payload['key']['remoteJid'] ?? null,
             $payload['remoteJid'] ?? null,
-            $payload['chatId'] ?? null,
+            $payload['data']['from'] ?? null,
             $payload['from'] ?? null,
             $payload['phone'] ?? null,
             $payload['number'] ?? null,
-            $payload['sender'] ?? null
         ];
 
         foreach ($paths as $rawJid) {
-            if (is_string($rawJid) && !empty($rawJid)) {
-                if (str_contains($rawJid, '@g.us')) return null; // Ignora grupos
+            if (is_string($rawJid) && !str_contains($rawJid, '@g.us')) {
                 $digits = preg_replace('/[^0-9]/', '', strtok($rawJid, '@'));
-                if (strlen($digits) >= 10) {
-                    if (strlen($digits) <= 11 && !str_starts_with($digits, '55')) {
-                        $digits = '55' . $digits;
-                    }
-                    return $digits;
-                }
+                if (strlen($digits) >= 10) return $this->formatDDI($digits);
             }
+        }
+
+        // Se não achou: Caçada Recursiva por JIDs do WhatsApp (@s.whatsapp.net)
+        $jid = $this->findJidInArray($payload);
+        if ($jid) {
+            $digits = preg_replace('/[^0-9]/', '', strtok($jid, '@'));
+            if (strlen($digits) >= 10) return $this->formatDDI($digits);
+        }
+
+        // Última chance: Caçada Recursiva por chaves que lembrem "telefone"
+        $number = $this->findPhoneKeyInArray($payload, ['remoteJid', 'phone', 'number', 'from', 'sender']);
+        if ($number) {
+            $digits = preg_replace('/[^0-9]/', '', strtok($number, '@'));
+            if (strlen($digits) >= 10) return $this->formatDDI($digits);
         }
 
         return null;
     }
 
-    private function findStringInArrayByKeys($array, $targetKeys)
-    {
+    private function formatDDI($digits) {
+        // Se for um número de celular do Brasil sem DDI 55 (10 ou 11 digitos), injeta o 55
+        if (strlen($digits) >= 10 && strlen($digits) <= 11 && !str_starts_with($digits, '55')) {
+            return '55' . $digits;
+        }
+        return $digits;
+    }
+
+    private function findJidInArray($array) {
+        if (!is_array($array)) return null;
+        foreach ($array as $value) {
+            if (is_string($value) && !str_contains($value, '@g.us') && (str_contains($value, '@s.whatsapp.net') || str_contains($value, '@c.us'))) {
+                return $value;
+            }
+            if (is_array($value)) {
+                $found = $this->findJidInArray($value);
+                if ($found) return $found;
+            }
+        }
+        return null;
+    }
+
+    private function findPhoneKeyInArray($array, $targetKeys) {
         if (!is_array($array)) return null;
         foreach ($array as $key => $value) {
-            if (in_array($key, $targetKeys) && is_string($value) && strlen(trim($value)) > 0) {
+            if (in_array($key, $targetKeys) && is_string($value) && !str_contains($value, '@g.us')) {
+                $digits = preg_replace('/[^0-9]/', '', $value);
+                if (strlen($digits) >= 10) return $value;
+            }
+            if (is_array($value)) {
+                $found = $this->findPhoneKeyInArray($value, $targetKeys);
+                if ($found) return $found;
+            }
+        }
+        return null;
+    }
+
+    private function findStringInArrayByKeys($array, $targetKeys) {
+        if (!is_array($array)) return null;
+        foreach ($array as $key => $value) {
+            if (in_array($key, $targetKeys) && is_string($value) && strlen(trim($value)) > 0 && strlen($value) < 1500) {
                 return trim($value);
             }
             if (is_array($value)) {
@@ -311,6 +337,24 @@ class AssistantController extends Controller
         }
         return null;
     }
+
+    private function findBooleanInArrayByKeys($array, $targetKeys) {
+        if (!is_array($array)) return null;
+        foreach ($array as $key => $value) {
+            if (in_array($key, $targetKeys)) {
+                return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+            }
+            if (is_array($value)) {
+                $found = $this->findBooleanInArrayByKeys($value, $targetKeys);
+                if ($found !== null) return $found;
+            }
+        }
+        return null;
+    }
+
+    // ============================================================================
+    // RESTANTE DO CÓDIGO (ENVIO E PROCESSAMENTO IA)
+    // ============================================================================
 
     private function saveWebhookLog($assistantId, $data)
     {
@@ -327,7 +371,7 @@ class AssistantController extends Controller
         $provider = $assistant->whatsapp_provider;
 
         if (empty($url) || empty($token)) {
-            return ['success' => false, 'error' => 'URL ou Token do WhatsApp não preenchidos nas configurações.'];
+            return ['success' => false, 'error' => 'URL ou Token não configurados.'];
         }
 
         $headers = [
@@ -357,20 +401,19 @@ class AssistantController extends Controller
                     }
                     $attempts[] = "{$cand['path']} (Status {$res->status()}): " . substr($res->body(), 0, 150);
                 }
-
-                return ['success' => false, 'error' => 'UaZapi recusou todas as rotas de envio.', 'attempts' => $attempts];
+                return ['success' => false, 'error' => 'UaZapi recusou rotas.', 'attempts' => $attempts];
             } elseif ($provider === 'evolution') {
                 $res = Http::withHeaders($headers)->timeout(12)->post("{$url}/message/sendText/{$instance}", [
                     'number' => $number,
                     'text' => $text
                 ]);
                 if ($res->successful()) return ['success' => true, 'response' => $res->json()];
-                return ['success' => false, 'error' => "Evolution API Status {$res->status()}: " . $res->body()];
+                return ['success' => false, 'error' => "Evolution API Status {$res->status()}"];
             }
 
             return ['success' => false, 'error' => 'Provedor não suportado.'];
         } catch (\Exception $e) {
-            return ['success' => false, 'error' => 'Exceção de rede: ' . $e->getMessage()];
+            return ['success' => false, 'error' => 'Exceção: ' . $e->getMessage()];
         }
     }
 
@@ -435,7 +478,7 @@ class AssistantController extends Controller
         };
 
         if (empty($apiKey)) {
-            return "⚠️ A chave de API para o provedor '" . strtoupper($provider) . "' não foi configurada neste assistente.";
+            return "⚠️ A chave de API não foi configurada neste assistente.";
         }
 
         try {
@@ -449,10 +492,7 @@ class AssistantController extends Controller
                 if (is_array($history) && count($history) > 0) {
                     foreach ($history as $h) {
                         if (isset($h['role'], $h['content']) && in_array($h['role'], ['user', 'assistant'])) {
-                            $formattedMessages[] = [
-                                'role' => $h['role'],
-                                'content' => (string) $h['content']
-                            ];
+                            $formattedMessages[] = ['role' => $h['role'], 'content' => (string) $h['content']];
                         }
                     }
                 } else {
@@ -466,9 +506,9 @@ class AssistantController extends Controller
                 ]);
 
                 if ($res->successful()) {
-                    return $res->json()['choices'][0]['message']['content'] ?? "Sem resposta da IA.";
+                    return $res->json()['choices'][0]['message']['content'] ?? "Sem resposta.";
                 }
-                return "Erro na IA ({$res->status()}): " . ($res->json()['error']['message'] ?? 'Falha na resposta.');
+                return "Erro IA: " . ($res->json()['error']['message'] ?? 'Falha.');
             }
 
             if ($provider === 'gemini') {
@@ -479,30 +519,20 @@ class AssistantController extends Controller
                     foreach ($history as $h) {
                         if (isset($h['role'], $h['content'])) {
                             $role = ($h['role'] === 'assistant') ? 'model' : 'user';
-                            $contents[] = [
-                                'role' => $role,
-                                'parts' => [['text' => (string) $h['content']]]
-                            ];
+                            $contents[] = ['role' => $role, 'parts' => [['text' => (string) $h['content']]]];
                         }
                     }
                 } else {
-                    $contents[] = [
-                        'role' => 'user',
-                        'parts' => [['text' => $userMessage]]
-                    ];
+                    $contents[] = ['role' => 'user', 'parts' => [['text' => $userMessage]]];
                 }
 
                 $res = Http::timeout(30)->post($endpoint, [
-                    'system_instruction' => [
-                        'parts' => [['text' => $systemInstruction]]
-                    ],
+                    'system_instruction' => ['parts' => [['text' => $systemInstruction]]],
                     'contents' => $contents
                 ]);
 
-                if ($res->successful()) {
-                    return $res->json()['candidates'][0]['content']['parts'][0]['text'] ?? "Sem resposta da IA.";
-                }
-                return "Erro no Gemini ({$res->status()}): Verifique sua API Key.";
+                if ($res->successful()) return $res->json()['candidates'][0]['content']['parts'][0]['text'] ?? "Sem resposta.";
+                return "Erro Gemini.";
             }
 
             if ($provider === 'anthropic') {
@@ -510,10 +540,7 @@ class AssistantController extends Controller
                 if (is_array($history) && count($history) > 0) {
                     foreach ($history as $h) {
                         if (isset($h['role'], $h['content']) && in_array($h['role'], ['user', 'assistant'])) {
-                            $formattedMessages[] = [
-                                'role' => $h['role'],
-                                'content' => (string) $h['content']
-                            ];
+                            $formattedMessages[] = ['role' => $h['role'], 'content' => (string) $h['content']];
                         }
                     }
                 } else {
@@ -530,15 +557,13 @@ class AssistantController extends Controller
                     'messages' => $formattedMessages
                 ]);
 
-                if ($res->successful()) {
-                    return $res->json()['content'][0]['text'] ?? "Sem resposta da IA.";
-                }
-                return "Erro no Claude ({$res->status()}): " . ($res->json()['error']['message'] ?? 'Falha.');
+                if ($res->successful()) return $res->json()['content'][0]['text'] ?? "Sem resposta.";
+                return "Erro Claude.";
             }
 
             return "Provedor não suportado.";
         } catch (\Exception $e) {
-            return "Erro ao processar conversa: " . $e->getMessage();
+            return "Erro IA: " . $e->getMessage();
         }
     }
 
