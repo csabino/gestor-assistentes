@@ -38,9 +38,10 @@
     <main class="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-gray-50/50" x-ref="chatBox">
         <template x-for="msg in messages" :key="msg.id">
             <div class="flex flex-col" :class="msg.role === 'user' ? 'items-end' : 'items-start'">
-                <div class="max-w-[75%] px-4 py-2.5 rounded-2xl text-sm shadow-sm whitespace-pre-wrap"
-                     :class="msg.role === 'user' ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white text-gray-800 border border-gray-200 rounded-bl-none'">
-                    <span x-text="msg.content"></span>
+                <!-- FORMATADOR x-html PARA RENDERIZAR LINKS E QUEBRAS DE LINHA -->
+                <div class="max-w-[80%] px-4 py-2.5 rounded-2xl text-sm shadow-sm leading-relaxed"
+                     :class="msg.role === 'user' ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white text-gray-800 border border-gray-200 rounded-bl-none'"
+                     x-html="formatMessage(msg.content, msg.role)">
                 </div>
                 <span class="text-[10px] text-gray-400 mt-1 px-1" x-text="msg.role === 'user' ? 'Você' : assistantName"></span>
             </div>
@@ -56,7 +57,7 @@
         </div>
     </main>
 
-    <!-- RODAPÉ DE ENVIO DE MENSAGEM -->
+    <!-- RODAPÉ DE ENVIO -->
     <footer class="bg-white px-6 py-3 border-t border-gray-200 shrink-0">
         <form @submit.prevent="sendMessage()" class="flex items-center gap-3">
             <input type="text" x-model="newMessage" :disabled="isTyping" placeholder="Digite sua mensagem..." 
@@ -69,7 +70,7 @@
         </form>
     </footer>
 
-    <!-- SCRIPT DE LÓGICA REATIVO (ISOLADO PARA EVITAR VAZAMENTO NO HTML) -->
+    <!-- SCRIPT DE REATIVIDADE E FORMATADOR DE LINKS -->
     <script>
         function chatComponent() {
             return {
@@ -81,6 +82,27 @@
                 messages: [
                     { id: 1, role: 'assistant', content: 'Olá! Sou ' + {!! json_encode($assistant->name) !!} + '. Como posso te ajudar hoje?' }
                 ],
+                formatMessage(content, role) {
+                    if (!content) return '';
+                    
+                    // 1. Escapa tags HTML perigosas
+                    let esc = content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    
+                    // 2. Converte Markdown links [Texto](URL) para tags <a>
+                    const linkColor = role === 'user' ? 'text-indigo-100 underline hover:text-white' : 'text-indigo-600 font-bold underline hover:text-indigo-800';
+                    esc = esc.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, `<a href="$2" target="_blank" rel="noopener noreferrer" class="${linkColor}">$1</a>`);
+                    
+                    // 3. Converte URLs soltas que não estavam em markdown
+                    esc = esc.replace(/(^|[^"'])(https?:\/\/[^\s<]+)/g, `$1<a href="$2" target="_blank" rel="noopener noreferrer" class="${linkColor}">$2</a>`);
+                    
+                    // 4. Converte negrito do WhatsApp (*texto*)
+                    esc = esc.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
+                    
+                    // 5. Quebras de linha
+                    esc = esc.replace(/\n/g, '<br>');
+                    
+                    return esc;
+                },
                 async sendMessage() {
                     if(this.newMessage.trim() === '' || this.isTyping) return;
                     
