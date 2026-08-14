@@ -136,10 +136,6 @@ class AssistantController extends Controller
         return redirect('/')->with('success', 'Assistente removido!');
     }
 
-    // ============================================================================
-    // RECEPTOR DE WEBHOOK DO WHATSAPP COM REGISTRO DE DIAGNÓSTICO
-    // ============================================================================
-
     public function webhook(Request $request, $id = null)
     {
         if ($request->isMethod('get')) {
@@ -245,7 +241,7 @@ class AssistantController extends Controller
         $aiReply = $this->processAiConversation($assistant, $userMessage);
         $logData['ai_reply'] = $aiReply;
 
-        // Dispara mensagem no WhatsApp via UaZapi/Evolution
+        // Dispara mensagem no WhatsApp
         $sendResult = $this->sendWaMessageDetailed($assistant, $cleanNumber, $aiReply);
         $logData['wa_send_result'] = $sendResult;
         $logData['status'] = $sendResult['success'] ? 'success' : 'failed_to_send';
@@ -287,30 +283,28 @@ class AssistantController extends Controller
             'Accept' => 'application/json'
         ];
 
-        $payload = [
-            'number' => $number,
-            'text' => $text,
-            'message' => $text,
-            'chatId' => "{$number}@s.whatsapp.net"
-        ];
-
         try {
             if ($provider === 'uazapi') {
                 $candidates = [
-                    "/send/text",
-                    "/send/text?token={$token}",
-                    "/message/sendText/{$instance}",
-                    "/message/send-text",
-                    "/instance/message/send-text"
+                    ['path' => "/send/text", 'body' => ['number' => $number, 'text' => $text]],
+                    ['path' => "/send/text?token={$token}", 'body' => ['number' => $number, 'text' => $text]],
+                    ['path' => "/send/text?apikey={$token}", 'body' => ['number' => $number, 'text' => $text]],
+                    ['path' => "/send/text", 'body' => ['phone' => $number, 'message' => $text]],
+                    ['path' => "/send/text", 'body' => ['chatId' => "{$number}@s.whatsapp.net", 'text' => $text]],
+                    ['path' => "/send-text", 'body' => ['number' => $number, 'text' => $text]],
+                    ['path' => "/send-message", 'body' => ['number' => $number, 'text' => $text]],
+                    ['path' => "/message/sendText/{$instance}", 'body' => ['number' => $number, 'text' => $text]],
+                    ['path' => "/message/send-text", 'body' => ['number' => $number, 'text' => $text]],
+                    ['path' => "/instance/message/send-text", 'body' => ['number' => $number, 'text' => $text]]
                 ];
 
                 $attempts = [];
-                foreach ($candidates as $path) {
-                    $res = Http::withHeaders($headers)->timeout(12)->post($url . $path, $payload);
+                foreach ($candidates as $cand) {
+                    $res = Http::withHeaders($headers)->timeout(12)->post($url . $cand['path'], $cand['body']);
                     if ($res->successful()) {
-                        return ['success' => true, 'path_used' => $path, 'response' => $res->json()];
+                        return ['success' => true, 'path_used' => $cand['path'], 'response' => $res->json()];
                     }
-                    $attempts[] = "{$path} (Status {$res->status()}): " . substr($res->body(), 0, 150);
+                    $attempts[] = "{$cand['path']} (Status {$res->status()}): " . substr($res->body(), 0, 150);
                 }
 
                 return ['success' => false, 'error' => 'UaZapi recusou todas as rotas de envio.', 'attempts' => $attempts];
