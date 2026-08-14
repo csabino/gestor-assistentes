@@ -11,6 +11,11 @@ class AssistantController extends Controller
 {
     public function index(Request $request)
     {
+        // Se for requisição POST ou tiver uma ação (Testes, WhatsApp ou Mensagem de Chat)
+        if ($request->isMethod('post') || $request->has('action')) {
+            return $this->store($request);
+        }
+
         // Se a requisição for para abrir a janela do Chat Pop-up
         if ($request->has('chat_id')) {
             $assistant = Assistant::findOrFail($request->chat_id);
@@ -112,7 +117,7 @@ class AssistantController extends Controller
     }
 
     // ============================================================================
-    // NOVO MOTOR DE CONVERSAÇÃO (REUTILIZÁVEL PARA CHAT E WHATSAPP)
+    // MOTOR DE CONVERSAÇÃO (CHAT E WHATSAPP)
     // ============================================================================
     
     private function handleChatMessage(Request $request)
@@ -121,7 +126,7 @@ class AssistantController extends Controller
         $userMessage = $request->input('message');
 
         if (empty($assistantId) || empty($userMessage)) {
-            return response()->json(['success' => false, 'reply' => 'Mensagem ou assistente inválido.']);
+            return response()->json(['success' => false, 'reply' => 'Mensagem ou assistente não informado.']);
         }
 
         $assistant = Assistant::find($assistantId);
@@ -138,17 +143,16 @@ class AssistantController extends Controller
         $provider = $assistant->provider ?? 'openai';
         $model = $assistant->model ?? 'gpt-4o-mini';
         
-        // 1. Monta o Prompt de Sistema
+        // 1. Prompt de Sistema
         $systemInstruction = $assistant->system_prompt ?? "Você é um assistente virtual prestativo.";
 
-        // 2. Anexa o conteúdo dos arquivos da Base de Conhecimento se existirem
+        // 2. Anexa conteúdo da Base de Conhecimento (PDFs/Textos) se houver
         if (!empty($assistant->knowledge_files) && is_array($assistant->knowledge_files)) {
             $knowledgeText = "";
             foreach ($assistant->knowledge_files as $file) {
                 if (isset($file['path']) && Storage::exists($file['path'])) {
                     $content = @Storage::get($file['path']);
                     if ($content) {
-                        // Limpa caracteres nulos ou binários se for texto
                         $cleanContent = mb_convert_encoding($content, 'UTF-8', 'UTF-8');
                         $knowledgeText .= "\n--- Documento: " . ($file['name'] ?? 'Arquivo') . " ---\n" . substr($cleanContent, 0, 4000) . "\n";
                     }
@@ -159,7 +163,7 @@ class AssistantController extends Controller
             }
         }
 
-        // 3. Seleção de API Keys
+        // 3. API Keys
         $apiKey = match($provider) {
             'openai' => $assistant->openai_api_key,
             'gemini' => $assistant->gemini_api_key,
@@ -169,7 +173,7 @@ class AssistantController extends Controller
         };
 
         if (empty($apiKey)) {
-            return "⚠️ A chave de API (API Key) para o provedor '" . strtoupper($provider) . "' não foi configurada neste assistente.";
+            return "⚠️ A chave de API para o provedor '" . strtoupper($provider) . "' não foi configurada neste assistente.";
         }
 
         try {
@@ -189,7 +193,7 @@ class AssistantController extends Controller
                 if ($res->successful()) {
                     return $res->json()['choices'][0]['message']['content'] ?? "Sem resposta da IA.";
                 }
-                return "Erro na resposta da IA ({$res->status()}): " . ($res->json()['error']['message'] ?? 'Falha de comunicação.');
+                return "Erro na IA ({$res->status()}): " . ($res->json()['error']['message'] ?? 'Falha na resposta.');
             }
 
             // Execução Gemini
@@ -208,7 +212,7 @@ class AssistantController extends Controller
                 if ($res->successful()) {
                     return $res->json()['candidates'][0]['content']['parts'][0]['text'] ?? "Sem resposta da IA.";
                 }
-                return "Erro no Gemini ({$res->status()}): Verifique se a API Key é válida.";
+                return "Erro no Gemini ({$res->status()}): Verifique sua API Key.";
             }
 
             // Execução Anthropic Claude
@@ -238,7 +242,7 @@ class AssistantController extends Controller
     }
 
     // ============================================================================
-    // MÓDULOS DE CONEXÃO E WHATSAPP (MANTIDOS 100% CONGELADOS E INTOCADOS)
+    // MÓDULOS DE CONEXÃO E WHATSAPP (MANTIDOS CONGELADOS)
     // ============================================================================
 
     private function testAiConnection(Request $request)
