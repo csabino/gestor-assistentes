@@ -284,10 +284,46 @@
                             <option value="grok">xAI (Grok)</option>
                         </select>
 
-                        <div x-show="provider === 'openai'" x-transition><label class="block text-sm font-semibold text-gray-700 mb-1">Modelo da OpenAI</label><select name="model" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4"><option value="gpt-4o-mini" {{ $configuring->model == 'gpt-4o-mini' ? 'selected' : '' }}>GPT-4o Mini (Rápido/Barato)</option><option value="gpt-4o" {{ $configuring->model == 'gpt-4o' ? 'selected' : '' }}>GPT-4o (Avançado)</option></select><label class="block text-sm font-semibold text-gray-700 mb-1">OpenAI API Key</label><input type="password" name="openai_api_key" value="{{ $configuring->openai_api_key }}" placeholder="sk-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm"></div>
-                        <div x-show="provider === 'gemini'" x-transition style="display: none;"><label class="block text-sm font-semibold text-gray-700 mb-1">Modelo do Google</label><select name="model" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4"><option value="gemini-1.5-flash" {{ $configuring->model == 'gemini-1.5-flash' ? 'selected' : '' }}>Gemini 1.5 Flash</option><option value="gemini-1.5-pro" {{ $configuring->model == 'gemini-1.5-pro' ? 'selected' : '' }}>Gemini 1.5 Pro</option></select><label class="block text-sm font-semibold text-gray-700 mb-1">Gemini API Key</label><input type="password" name="gemini_api_key" value="{{ $configuring->gemini_api_key }}" placeholder="AIza..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm"></div>
-                        <div x-show="provider === 'anthropic'" x-transition style="display: none;"><label class="block text-sm font-semibold text-gray-700 mb-1">Modelo do Claude</label><select name="model" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4"><option value="claude-3-haiku" {{ $configuring->model == 'claude-3-haiku' ? 'selected' : '' }}>Claude 3 Haiku</option><option value="claude-3.5-sonnet" {{ $configuring->model == 'claude-3.5-sonnet' ? 'selected' : '' }}>Claude 3.5 Sonnet</option></select><label class="block text-sm font-semibold text-gray-700 mb-1">Anthropic API Key</label><input type="password" name="anthropic_api_key" value="{{ $configuring->anthropic_api_key }}" placeholder="sk-ant-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm"></div>
-                        <div x-show="provider === 'grok'" x-transition style="display: none;"><label class="block text-sm font-semibold text-gray-700 mb-1">Modelo do Grok</label><select name="model" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4"><option value="grok-2-mini" {{ $configuring->model == 'grok-2-mini' ? 'selected' : '' }}>Grok 2 Mini</option><option value="grok-2" {{ $configuring->model == 'grok-2' ? 'selected' : '' }}>Grok 2</option></select><label class="block text-sm font-semibold text-gray-700 mb-1">xAI API Key</label><input type="password" name="grok_api_key" value="{{ $configuring->grok_api_key }}" placeholder="xai-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm"></div>
+                        <!-- CORREÇÃO DA SOBREPOSIÇÃO: :disabled Garante que apenas o modelo do provedor ativo seja enviado -->
+                        <div x-show="provider === 'openai'" x-transition>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Modelo da OpenAI</label>
+                            <select name="model" :disabled="provider !== 'openai'" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4">
+                                <option value="gpt-4o-mini" {{ $configuring->model == 'gpt-4o-mini' ? 'selected' : '' }}>GPT-4o Mini (Rápido/Barato)</option>
+                                <option value="gpt-4o" {{ $configuring->model == 'gpt-4o' ? 'selected' : '' }}>GPT-4o (Avançado)</option>
+                            </select>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">OpenAI API Key</label>
+                            <input type="password" name="openai_api_key" value="{{ $configuring->openai_api_key }}" placeholder="sk-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+                        </div>
+
+                        <div x-show="provider === 'gemini'" x-transition style="display: none;">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Modelo do Google</label>
+                            <select name="model" :disabled="provider !== 'gemini'" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4">
+                                <option value="gemini-1.5-flash" {{ $configuring->model == 'gemini-1.5-flash' ? 'selected' : '' }}>Gemini 1.5 Flash</option>
+                                <option value="gemini-1.5-pro" {{ $configuring->model == 'gemini-1.5-pro' ? 'selected' : '' }}>Gemini 1.5 Pro</option>
+                            </select>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Gemini API Key</label>
+                            <input type="password" name="gemini_api_key" value="{{ $configuring->gemini_api_key }}" placeholder="AIza..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+                        </div>
+
+                        <div x-show="provider === 'anthropic'" x-transition style="display: none;">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Modelo do Claude</label>
+                            <select name="model" :disabled="provider !== 'anthropic'" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4">
+                                <option value="claude-3-haiku" {{ $configuring->model == 'claude-3-haiku' ? 'selected' : '' }}>Claude 3 Haiku</option>
+                                <option value="claude-3.5-sonnet" {{ $configuring->model == 'claude-3.5-sonnet' ? 'selected' : '' }}>Claude 3.5 Sonnet</option>
+                            </select>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Anthropic API Key</label>
+                            <input type="password" name="anthropic_api_key" value="{{ $configuring->anthropic_api_key }}" placeholder="sk-ant-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+                        </div>
+
+                        <div x-show="provider === 'grok'" x-transition style="display: none;">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Modelo do Grok</label>
+                            <select name="model" :disabled="provider !== 'grok'" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4">
+                                <option value="grok-2-mini" {{ $configuring->model == 'grok-2-mini' ? 'selected' : '' }}>Grok 2 Mini</option>
+                                <option value="grok-2" {{ $configuring->model == 'grok-2' ? 'selected' : '' }}>Grok 2</option>
+                            </select>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">xAI API Key</label>
+                            <input type="password" name="grok_api_key" value="{{ $configuring->grok_api_key }}" placeholder="xai-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+                        </div>
                     </div>
 
                 </div>
@@ -564,7 +600,6 @@
                         <div class="flex justify-between items-start gap-2">
                             <div class="flex items-center gap-2 truncate">
                                 <h3 class="font-bold text-gray-800 truncate text-lg">{{ $assistant->name }}</h3>
-                                <!-- BOTÃO ROXO DO CHAT POP-UP -->
                                 <button type="button" title="Testar Chat Público" onclick="openChatPopup({{ $assistant->id }})" class="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-full transition shadow-sm border border-indigo-100 flex items-center justify-center shrink-0">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.522 1.522 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>
                                 </button>
