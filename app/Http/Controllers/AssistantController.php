@@ -137,7 +137,7 @@ class AssistantController extends Controller
     }
 
     // ============================================================================
-    // RECEPTOR DE WEBHOOK DO WHATSAPP
+    // RECEPTOR DE WEBHOOK DO WHATSAPP (VARREDURA BULLETPROOF)
     // ============================================================================
 
     public function webhook(Request $request, $id = null)
@@ -148,12 +148,14 @@ class AssistantController extends Controller
 
         $assistantId = $id ?? $request->input('webhook_id');
         $assistant = Assistant::find($assistantId);
+        $payload = $request->all();
 
         $logData = [
             'timestamp' => now()->format('d/m/Y H:i:s'),
             'status' => 'received',
             'sender' => 'Desconhecido',
             'user_message' => 'Nenhuma',
+            'raw_snippet' => substr(json_encode($payload, JSON_UNESCAPED_UNICODE), 0, 300),
             'ai_reply' => null,
             'wa_send_result' => null,
             'error' => null
@@ -173,6 +175,7 @@ class AssistantController extends Controller
             return response()->json(['status' => 'ignored_inactive'], 200);
         }
 
+        // Verifica se a mensagem foi enviada pelo próprio número
         $fromMeRaw = $request->input('data.key.fromMe')
                   ?? $request->input('key.fromMe')
                   ?? $request->input('message.fromMe')
@@ -188,56 +191,29 @@ class AssistantController extends Controller
             return response()->json(['status' => 'ignored_from_me'], 200);
         }
 
-        $userMessage = $request->input('data.message.conversation')
-                    ?? $request->input('data.message.extendedTextMessage.text')
-                    ?? $request->input('data.body')
-                    ?? $request->input('data.text')
-                    ?? $request->input('message.text')
-                    ?? $request->input('message.conversation')
-                    ?? $request->input('message.body')
-                    ?? $request->input('text')
-                    ?? $request->input('body')
-                    ?? $request->input('msg')
-                    ?? $request->input('message');
-
-        if (empty($userMessage) || !is_string($userMessage)) {
+        // Extrator dinâmico de texto de mensagem
+        $userMessage = $this->extractMessageFromPayload($payload);
+        if ($userMessage) {
+            $logData['user_message'] = $userMessage;
+        } else {
             $logData['status'] = 'ignored';
             $logData['error'] = 'Mensagem recebida sem texto legível.';
             $this->saveWebhookLog($assistantId, $logData);
             return response()->json(['status' => 'ignored_empty_message'], 200);
         }
 
-        // PRIORIDADE ABSOLUTA AO REMOTEJID REAL DO WHATSAPP
-        $remoteJid = $request->input('data.key.remoteJid')
-                  ?? $request->input('key.remoteJid')
-                  ?? $request->input('data.remoteJid')
-                  ?? $request->input('remoteJid')
-                  ?? $request->input('chatId')
-                  ?? $request->input('data.from');
-
-        if (is_string($remoteJid) && str_contains($remoteJid, '@g.us')) {
+        // Extrator dinâmico de número do remetente
+        $cleanNumber = $this->extractNumberFromPayload($payload);
+        if ($cleanNumber) {
+            $logData['sender'] = $cleanNumber;
+        } else {
             $logData['status'] = 'ignored';
-            $logData['error'] = 'Mensagem de grupo de WhatsApp.';
-            $this->saveWebhookLog($assistantId, $logData);
-            return response()->json(['status' => 'ignored_group_message'], 200);
-        }
-
-        $cleanNumber = preg_replace('/[^0-9]/', '', strtok($remoteJid, '@'));
-
-        // Se for número do Brasil sem DDI (10 ou 11 dígitos), insere DDI 55 automaticamente
-        if (strlen($cleanNumber) >= 10 && strlen($cleanNumber) <= 11 && !str_starts_with($cleanNumber, '55')) {
-            $cleanNumber = '55' . $cleanNumber;
-        }
-
-        if (empty($cleanNumber) || strlen($cleanNumber) < 10) {
-            $logData['status'] = 'ignored';
-            $logData['error'] = "Número do remetente inválido capturado: '{$cleanNumber}'";
+            $logData['error'] = "Número do remetente não identificado no payload.";
             $this->saveWebhookLog($assistantId, $logData);
             return response()->json(['status' => 'ignored_invalid_number'], 200);
         }
 
-        $logData['sender'] = $cleanNumber;
-        $logData['user_message'] = $userMessage;
+        Log::info("Processando mensagem do cliente {$cleanNumber}: '{$userMessage}'");
 
         // Processa resposta na IA
         $aiReply = $this->processAiConversation($assistant, $userMessage);
@@ -256,6 +232,84 @@ class AssistantController extends Controller
             'reply' => $aiReply,
             'send_details' => $sendResult
         ], 200);
+    }
+
+    private function extractMessageFromPayload($payload)
+    {
+        if (!is_array($payload)) return null;
+
+        $paths = [
+            $payload['data']['message']['conversation'] ?? null,
+            $payload['data']['message']['extendedTextMessage']['text'] ?? null,
+            $payload['data']['messages'][0]['message']['conversation'] ?? null,
+            $payload['data']['messages'][0]['message']['extendedTextMessage']['text'] ?? null,
+            $payload['data']['body'] ?? null,
+            $payload['data']['text'] ?? null,
+            $payload['message']['conversation'] ?? null,
+            $payload['message']['extendedTextMessage']['text'] ?? null,
+            $payload['message']['text'] ?? null,
+            $payload['message']['body'] ?? null,
+            $payload['text'] ?? null,
+            $payload['body'] ?? null,
+            $payload['conversation'] ?? null
+        ];
+
+        foreach ($paths as $p) {
+            if (is_string($p) && strlen(trim($p)) > 0) return trim($p);
+        }
+
+        return $this->findStringInArrayByKeys($payload, ['conversation', 'text', 'body', 'caption']);
+    }
+
+    private function extractNumberFromPayload($payload)
+    {
+        if (!is_array($payload)) return null;
+
+        $paths = [
+            $payload['data']['key']['remoteJid'] ?? null,
+            $payload['data']['messages'][0]['key']['remoteJid'] ?? null,
+            $payload['data']['remoteJid'] ?? null,
+            $payload['data']['from'] ?? null,
+            $payload['data']['phone'] ?? null,
+            $payload['data']['chatId'] ?? null,
+            $payload['key']['remoteJid'] ?? null,
+            $payload['remoteJid'] ?? null,
+            $payload['chatId'] ?? null,
+            $payload['from'] ?? null,
+            $payload['phone'] ?? null,
+            $payload['number'] ?? null,
+            $payload['sender'] ?? null
+        ];
+
+        foreach ($paths as $rawJid) {
+            if (is_string($rawJid) && !empty($rawJid)) {
+                if (str_contains($rawJid, '@g.us')) return null; // Ignora grupos
+                $digits = preg_replace('/[^0-9]/', '', strtok($rawJid, '@'));
+                if (strlen($digits) >= 10) {
+                    if (strlen($digits) <= 11 && !str_starts_with($digits, '55')) {
+                        $digits = '55' . $digits;
+                    }
+                    return $digits;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function findStringInArrayByKeys($array, $targetKeys)
+    {
+        if (!is_array($array)) return null;
+        foreach ($array as $key => $value) {
+            if (in_array($key, $targetKeys) && is_string($value) && strlen(trim($value)) > 0) {
+                return trim($value);
+            }
+            if (is_array($value)) {
+                $found = $this->findStringInArrayByKeys($value, $targetKeys);
+                if ($found) return $found;
+            }
+        }
+        return null;
     }
 
     private function saveWebhookLog($assistantId, $data)

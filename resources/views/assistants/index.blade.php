@@ -469,7 +469,7 @@
                                 </div>
                             </div>
 
-                            <!-- PAINEL DE RAIO-X DO WEBHOOK EM TEMPO REAL -->
+                            <!-- PAINEL DE RAIO-X DO WEBHOOK -->
                             <div class="bg-gray-900 text-gray-100 p-3 rounded-lg text-[10px] font-mono shadow-inner border border-gray-800">
                                 <div class="flex items-center justify-between border-b border-gray-800 pb-1 mb-2">
                                     <span class="font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1">
@@ -511,12 +511,10 @@
                                             </p>
                                         @endif
 
-                                        @if(isset($lastWebhook['wa_send_result']['attempts']) && is_array($lastWebhook['wa_send_result']['attempts']))
+                                        @if(isset($lastWebhook['raw_snippet']))
                                             <div class="mt-2 pt-2 border-t border-gray-800 text-[9px] text-gray-400">
-                                                <p class="font-bold text-gray-300 mb-1">Log das Tentativas UaZapi:</p>
-                                                @foreach($lastWebhook['wa_send_result']['attempts'] as $att)
-                                                    <p class="bg-black/40 p-1 rounded font-mono mb-1 break-words text-red-300">{{ $att }}</p>
-                                                @endforeach
+                                                <p class="font-bold text-gray-300 mb-1">Payload JSON Recebido:</p>
+                                                <p class="bg-black/60 p-1 rounded font-mono break-words text-gray-300 text-[8px]">{{ $lastWebhook['raw_snippet'] }}</p>
                                             </div>
                                         @endif
                                     </div>
@@ -755,7 +753,7 @@
                                     </a>
 
                                     <a href="#" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-1.5 px-3 rounded-lg text-xs transition flex items-center justify-center gap-1.5 opacity-70">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0121 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008z" /></svg> Agenda
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008z" /></svg> Agenda
                                     </a>
                                     
                                     <form action="/" method="POST" onsubmit="return confirm('Tem certeza?');">
@@ -768,7 +766,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="3" class="text-center py-8 text-gray-400">Nenhum assistente cadastrado.</td></tr>
+                            <tr><td colspan="3" class="text-center py-8 text-gray-400">Nenhum assistente cadastrado.</td>层
                         @endforelse
                     </tbody>
                 </table>
