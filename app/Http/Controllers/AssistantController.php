@@ -128,10 +128,6 @@ class AssistantController extends Controller
         return redirect('/')->with('success', 'Assistente removido!');
     }
 
-    // ============================================================================
-    // RECEPTOR DE WEBHOOK COM LOG DE DIAGNÓSTICO
-    // ============================================================================
-
     public function webhook(Request $request, $id = null)
     {
         if ($request->isMethod('get')) {
@@ -141,7 +137,6 @@ class AssistantController extends Controller
         $assistantId = $id ?? $request->input('webhook_id');
         $assistant = Assistant::find($assistantId);
 
-        // LOG 1: Registra a chegada da requisição no servidor
         Log::info("--- WEBHOOK RECEBIDO PARA ASSISTENTE #{$assistantId} ---", [
             'payload' => $request->all()
         ]);
@@ -165,7 +160,7 @@ class AssistantController extends Controller
         $isFromMe = filter_var($fromMeRaw, FILTER_VALIDATE_BOOLEAN);
 
         if ($isFromMe) {
-            Log::info("Webhook ignorado: Mensagem enviada pelo próprio robô (fromMe=true).");
+            Log::info("Webhook ignorado: Mensagem enviada pelo próprio robô.");
             return response()->json(['status' => 'ignored_from_me'], 200);
         }
 
@@ -180,7 +175,7 @@ class AssistantController extends Controller
                     ?? $request->input('message');
 
         if (empty($userMessage) || !is_string($userMessage)) {
-            Log::warning("Webhook ignorado: Conteúdo da mensagem veio vazio ou em formato não texto.");
+            Log::warning("Webhook ignorado: Mensagem sem conteúdo legível.");
             return response()->json(['status' => 'ignored_empty_message'], 200);
         }
 
@@ -196,23 +191,23 @@ class AssistantController extends Controller
                   ?? $request->input('sender');
 
         if (is_string($remoteJid) && str_contains($remoteJid, '@g.us')) {
-            Log::info("Webhook ignorado: Mensagem de grupo de WhatsApp.");
+            Log::info("Webhook ignorado: Mensagem de grupo.");
             return response()->json(['status' => 'ignored_group_message'], 200);
         }
 
         $cleanNumber = preg_replace('/[^0-9]/', '', strtok($remoteJid, '@'));
 
         if (empty($cleanNumber)) {
-            Log::warning("Webhook ignorado: Número do remetente não identificado.");
+            Log::warning("Webhook ignorado: Número não identificado.");
             return response()->json(['status' => 'ignored_no_number'], 200);
         }
 
-        Log::info("Processando mensagem do número {$cleanNumber}: '{$userMessage}'");
+        Log::info("Processando mensagem do cliente {$cleanNumber}: '{$userMessage}'");
 
         $aiReply = $this->processAiConversation($assistant, $userMessage);
         $sent = $this->sendWaMessage($assistant, $cleanNumber, $aiReply);
 
-        Log::info("Envio para o WhatsApp {$cleanNumber}: " . ($sent ? "SUCESSO" : "FALHOU"));
+        Log::info("Envio para WhatsApp {$cleanNumber}: " . ($sent ? "SUCESSO" : "FALHOU"));
 
         return response()->json([
             'status' => $sent ? 'success' : 'failed_to_send',
@@ -242,16 +237,21 @@ class AssistantController extends Controller
         try {
             if ($provider === 'uazapi') {
                 $candidates = [
+                    ['path' => "/send/text?token={$token}", 'body' => ['number' => $number, 'text' => $text]],
                     ['path' => "/send/text", 'body' => ['number' => $number, 'text' => $text]],
+                    ['path' => "/send/text?token={$token}", 'body' => ['chatId' => "{$number}@s.whatsapp.net", 'text' => $text]],
                     ['path' => "/send/text", 'body' => ['chatId' => "{$number}@s.whatsapp.net", 'text' => $text]],
                     ['path' => "/message/sendText/{$instance}", 'body' => ['number' => $number, 'text' => $text]],
-                    ['path' => "/message/send-text", 'body' => ['number' => $number, 'text' => $text]],
-                    ['path' => "/instance/message/send-text", 'body' => ['number' => $number, 'text' => $text]]
+                    ['path' => "/message/send-text", 'body' => ['number' => $number, 'text' => $text]]
                 ];
 
                 foreach ($candidates as $cand) {
                     $res = Http::withHeaders($headers)->timeout(12)->post($url . $cand['path'], $cand['body']);
-                    if ($res->successful()) return true;
+                    if ($res->successful()) {
+                        Log::info("UaZapi mensagem entregue via {$cand['path']}");
+                        return true;
+                    }
+                    Log::warning("UaZapi tentativa {$cand['path']} status {$res->status()}: " . $res->body());
                 }
             } elseif ($provider === 'evolution') {
                 $res = Http::withHeaders($headers)->timeout(12)->post("{$url}/message/sendText/{$instance}", [
@@ -261,6 +261,7 @@ class AssistantController extends Controller
                 return $res->successful();
             }
         } catch (\Exception $e) {
+            Log::error("Erro no envio WhatsApp: " . $e->getMessage());
             return false;
         }
 
@@ -456,7 +457,7 @@ class AssistantController extends Controller
             }
 
             if ($res->successful()) {
-                return response()->json(['success' => true, 'message' => 'Conexão com IA estabelecida com sucesso!']);
+                return response()->json(['success' => true, 'message' => 'Conexão com IA established com sucesso!']);
             } else {
                 $errData = $res->json();
                 $msg = is_array($errData) ? ($errData['error']['message'] ?? $errData['message'] ?? "Status {$res->status()}") : "Status {$res->status()}";
