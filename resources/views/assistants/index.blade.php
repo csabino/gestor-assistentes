@@ -26,7 +26,7 @@
 </head>
 <body class="bg-gray-50 font-sans text-gray-900" 
     x-data="{ 
-        view: 'card', 
+        view: localStorage.getItem('assistant_view') || 'card', 
         filter: localStorage.getItem('assistant_filter') || 'active',
         total: {{ $assistants->count() }},
         activeCount: {{ $assistants->where('is_active', true)->count() }},
@@ -37,7 +37,10 @@
             return this.total;
         }
     }"
-    x-init="$watch('filter', value => localStorage.setItem('assistant_filter', value))"
+    x-init="
+        $watch('filter', value => localStorage.setItem('assistant_filter', value));
+        $watch('view', value => localStorage.setItem('assistant_view', value));
+    "
 >
     
     <nav class="bg-indigo-600 text-white shadow-sm relative z-50">
@@ -98,7 +101,6 @@
                 </div>
             </div>
 
-            <!-- FORMULÁRIO PRINCIPAL COM ALPINE -->
             <form id="configForm" action="/" method="POST" enctype="multipart/form-data" 
                 x-data="{ 
                     provider: '{{ $configuring->provider ?? 'openai' }}',
@@ -164,7 +166,7 @@
                     },
 
                     async disconnectWa() {
-                        if(!confirm('Tem certeza que deseja forçar a desvinculação deste celular?')) return;
+                        if(!confirm('Tem certeza que deseja desconectar a sessão do WhatsApp? (A instância na API NÃO será deletada)')) return;
                         this.waStatus = 'checking';
                         try {
                             const response = await fetch('/', {
@@ -313,7 +315,6 @@
                         </div>
                     </div>
 
-                    <!-- CAIXA DO WHATSAPP MENOR, ELEGANTE E COMPACTA (p-4) -->
                     <div class="lg:col-span-1 bg-white p-4 rounded-xl shadow-sm border border-gray-200 h-full flex flex-col">
                         
                         <h2 class="text-base font-bold text-gray-800 border-b border-gray-100 pb-2 mb-3 flex items-center justify-between">
@@ -407,13 +408,13 @@
                             
                             <button type="button" x-on:click="startWaConnection()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow-sm">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" /></svg>
-                                Conectar
+                                Conectar / QR Code
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- MODAL POPUP DO WHATSAPP COM AUTAPOLLING -->
+                <!-- MODAL POPUP DO WHATSAPP -->
                 <div x-show="showWaModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4" x-transition>
                     <div x-on:click.away="showWaModal = false" class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center relative border border-gray-100">
                         
@@ -427,16 +428,12 @@
                         </h3>
                         <p class="text-xs text-gray-500 mb-6">{{ $configuring->name }}</p>
 
-                        <!-- CARREGANDO INICIAL -->
                         <div x-show="waLoading && !waResult" class="py-8 space-y-3">
                             <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-emerald-500 border-t-transparent"></div>
                             <p class="text-sm font-semibold text-gray-600">Acessando API...</p>
                         </div>
 
-                        <!-- RESPOSTAS -->
                         <div x-show="waResult !== null">
-                            
-                            <!-- JÁ CONECTADO -->
                             <template x-if="waResult?.connected">
                                 <div class="py-6 space-y-3">
                                     <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
@@ -447,7 +444,6 @@
                                 </div>
                             </template>
 
-                            <!-- QR CODE PRONTO -->
                             <template x-if="waResult?.qr && !waResult?.connected">
                                 <div class="space-y-4">
                                     <p class="text-xs text-gray-600 font-medium" x-text="waResult?.message"></p>
@@ -463,7 +459,6 @@
                                 </div>
                             </template>
 
-                            <!-- AGUARDANDO QR CODE -->
                             <template x-if="!waResult?.qr && !waResult?.connected && waResult?.success">
                                 <div class="py-6 space-y-3">
                                     <div class="inline-block animate-spin rounded-full h-8 w-8 border-3 border-emerald-500 border-t-transparent"></div>
@@ -472,7 +467,6 @@
                                 </div>
                             </template>
 
-                            <!-- ERRO DE FACTO -->
                             <template x-if="!waResult?.success">
                                 <div class="py-4 space-y-2">
                                     <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
@@ -483,7 +477,6 @@
                             </template>
                         </div>
 
-                        <!-- RODAPÉ DO MODAL -->
                         <div class="mt-6 pt-4 border-t border-gray-100 flex gap-2">
                             <button type="button" x-on:click="runWaPoll()" :disabled="waLoading" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 rounded-lg text-xs transition">
                                 Atualizar / Tentar Novamente
@@ -498,7 +491,6 @@
 
             </form>
 
-            <!-- FORMS ESCONDIDOS PARA DELETAR ARQUIVOS -->
             @if($configuring->knowledge_files && count($configuring->knowledge_files) > 0)
                 @foreach($configuring->knowledge_files as $index => $file)
                     <form id="deleteFileForm_{{ $index }}" action="/" method="POST" class="hidden">
@@ -510,7 +502,7 @@
             @endif
 
         @else
-            <!-- TELA DE LISTAGEM -->
+            <!-- TELA DE LISTAGEM DE ASSISTENTES -->
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mt-6 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
                 <form action="/" method="POST" class="flex items-center gap-2 w-full md:w-auto flex-1 max-w-lg">
                     @csrf
@@ -523,24 +515,49 @@
             
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
                 <h2 class="text-base font-bold text-gray-700">Assistentes Cadastrados (<span x-text="currentCount"></span>/<span x-text="total"></span>)</h2>
-                <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
-                    <label class="text-xs text-gray-500 font-medium">Status:</label>
-                    <select x-model="filter" class="text-xs font-bold text-gray-700 bg-transparent focus:outline-none cursor-pointer">
-                        <option value="active">🟢 Ativos</option><option value="inactive">⚪ Inativos</option><option value="all">Todos</option>
-                    </select>
+                
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center bg-gray-200/80 p-0.5 rounded-lg border border-gray-200">
+                        <button type="button" @click="view = 'card'" :class="view === 'card' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'" class="px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
+                            Cards
+                        </button>
+                        <button type="button" @click="view = 'list'" :class="view === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'" class="px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M3.75 4.5h16.5" /></svg>
+                            Lista
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
+                        <label class="text-xs text-gray-500 font-medium">Status:</label>
+                        <select x-model="filter" class="text-xs font-bold text-gray-700 bg-transparent focus:outline-none cursor-pointer">
+                            <option value="active">🟢 Ativos</option>
+                            <option value="inactive">⚪ Inativos</option>
+                            <option value="all">Todos</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <!-- CARDS GRID -->
+            <div x-show="view === 'card'" x-transition class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 @forelse($assistants as $assistant)
                     <div x-show="(filter === 'all') || (filter === 'active' && {{ $assistant->is_active ? 'true' : 'false' }}) || (filter === 'inactive' && {{ !$assistant->is_active ? 'true' : 'false' }})"
                         class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:border-indigo-300 hover:shadow-md transition duration-200 flex flex-col justify-between gap-4">
+                        
                         <div class="flex justify-between items-start gap-2">
-                            <h3 class="font-bold text-gray-800 truncate text-lg">{{ $assistant->name }}</h3>
+                            <div class="flex items-center gap-2 truncate">
+                                <h3 class="font-bold text-gray-800 truncate text-lg">{{ $assistant->name }}</h3>
+                                <!-- BOTÃO ROXO DO CHAT POP-UP -->
+                                <button type="button" title="Testar Chat Público" onclick="window.open('/chat/{{ $assistant->id }}', 'chat_{{ $assistant->id }}', 'width=420,height=680,left=150,top=100,menubar=no,toolbar=no,location=no,status=no')" class="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-full transition shadow-sm border border-indigo-100 flex items-center justify-center shrink-0">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.522 1.522 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>
+                                </button>
+                            </div>
+
                             <form action="/" method="POST">
                                 @csrf @method('PATCH')
                                 <input type="hidden" name="assistant_id" value="{{ $assistant->id }}">
-                                <button type="submit" class="text-xs px-3 py-1 rounded-full font-semibold transition border flex items-center gap-1.5 {{ $assistant->is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-600 border-gray-300' }}">
+                                <button type="submit" class="text-xs px-3 py-1 rounded-full font-semibold transition border flex items-center gap-1.5 shrink-0 {{ $assistant->is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-600 border-gray-300' }}">
                                     @if($assistant->is_active) <svg class="w-2 h-2 fill-emerald-500" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg> Ativo @else <svg class="w-2 h-2 fill-gray-400" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg> Inativo @endif
                                 </button>
                             </form>
@@ -571,7 +588,8 @@
                 @endforelse
             </div>
             
-            <div x-show="view === 'list'" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden" style="display: none;" x-transition>
+            <!-- LISTA TABULAR -->
+            <div x-show="view === 'list'" x-transition class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <table class="w-full text-left border-collapse text-sm">
                     <thead>
                         <tr class="bg-gray-50 border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
@@ -584,7 +602,16 @@
                         @forelse($assistants as $assistant)
                             <tr x-show="(filter === 'all') || (filter === 'active' && {{ $assistant->is_active ? 'true' : 'false' }}) || (filter === 'inactive' && {{ !$assistant->is_active ? 'true' : 'false' }})"
                                 class="hover:bg-gray-50 transition duration-150 group">
-                                <td class="py-4 px-5 font-bold text-gray-800 text-base">{{ $assistant->name }}</td>
+                                
+                                <td class="py-4 px-5">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-gray-800 text-base">{{ $assistant->name }}</span>
+                                        <button type="button" title="Testar Chat Público" onclick="window.open('/chat/{{ $assistant->id }}', 'chat_{{ $assistant->id }}', 'width=420,height=680,left=150,top=100,menubar=no,toolbar=no,location=no,status=no')" class="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-full transition shadow-sm border border-indigo-100 flex items-center justify-center shrink-0">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.522 1.522 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>
+                                        </button>
+                                    </div>
+                                </td>
+
                                 <td class="py-4 px-5">
                                     <form action="/" method="POST">
                                         @csrf @method('PATCH')
@@ -594,6 +621,7 @@
                                         </button>
                                     </form>
                                 </td>
+
                                 <td class="py-4 px-5 text-right flex justify-end items-center gap-2 opacity-90 group-hover:opacity-100 transition">
                                     <a href="/?configure={{ $assistant->id }}" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-1.5 px-3 rounded-lg text-xs transition flex items-center justify-center gap-1.5">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg> Configurar

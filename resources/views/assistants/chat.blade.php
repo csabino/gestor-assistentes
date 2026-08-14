@@ -9,7 +9,6 @@
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         [x-cloak] { display: none !important; }
-        /* Esconde barra de rolagem mas permite rolar */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
@@ -24,24 +23,18 @@
         sendMessage() {
             if(this.newMessage.trim() === '') return;
             
-            // 1. Adiciona a mensagem do usuário
             this.messages.push({ id: Date.now(), role: 'user', content: this.newMessage });
-            const userMsg = this.newMessage;
             this.newMessage = '';
-            
-            // 2. Rola para o fim
             this.scrollToBottom();
             
-            // 3. Simula a IA digitando
             this.isTyping = true;
             
-            // FASE 4 ACONTECERÁ AQUI: Integração com o Backend da IA
             setTimeout(() => {
                 this.isTyping = false;
                 this.messages.push({ 
                     id: Date.now(), 
                     role: 'assistant', 
-                    content: 'Ainda estou em construção! Logo poderei ler seus PDFs e usar a inteligência do ' + '{{ ucfirst($assistant->provider) }}' + ' para te responder.' 
+                    content: 'Integração com a IA do ' + '{{ ucfirst($assistant->provider) }}' + ' pronta para ser conectada!' 
                 });
                 this.scrollToBottom();
             }, 1500);
@@ -54,7 +47,6 @@
         }
     }">
 
-    <!-- HEADER DO CHAT -->
     <header class="bg-white shadow-sm px-4 py-3 flex items-center justify-between shrink-0 z-10">
         <div class="flex items-center gap-3">
             <div class="relative">
@@ -70,7 +62,6 @@
         </div>
     </header>
 
-    <!-- ÁREA DE MENSAGENS -->
     <main class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50" x-ref="chatBox">
         <template x-for="msg in messages" :key="msg.id">
             <div class="flex flex-col" :class="msg.role === 'user' ? 'items-end' : 'items-start'">
@@ -82,7 +73,6 @@
             </div>
         </template>
 
-        <!-- Indicador de Digitação -->
         <div x-show="isTyping" x-transition class="flex items-start">
             <div class="bg-white border border-gray-200 px-4 py-3 rounded-2xl rounded-bl-none shadow-sm flex gap-1">
                 <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
@@ -92,7 +82,6 @@
         </div>
     </main>
 
-    <!-- FOOTER (INPUT) -->
     <footer class="bg-white p-3 border-t border-gray-200 shrink-0">
         <form @submit.prevent="sendMessage" class="flex items-center gap-2">
             <input type="text" x-model="newMessage" placeholder="Digite sua mensagem..." 
