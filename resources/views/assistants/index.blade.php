@@ -22,6 +22,15 @@
                 `toolbar=no, location=no, status=no, menubar=no, scrollbars=no, resizable=yes, width=${width}, height=${height}, top=${top}, left=${left}`
             );
         }
+
+        function copyChatLink(id) {
+            const url = window.location.origin + '/?chat_id=' + id;
+            navigator.clipboard.writeText(url).then(() => {
+                alert('Link do chat copiado para a área de transferência!');
+            }).catch(() => {
+                alert('Não foi possível copiar o link.');
+            });
+        }
     </script>
 
     @if($configuring)
@@ -284,7 +293,6 @@
                             <option value="grok">xAI (Grok)</option>
                         </select>
 
-                        <!-- CORREÇÃO DA SOBREPOSIÇÃO: :disabled Garante que apenas o modelo do provedor ativo seja enviado -->
                         <div x-show="provider === 'openai'" x-transition>
                             <label class="block text-sm font-semibold text-gray-700 mb-1">Modelo da OpenAI</label>
                             <select name="model" :disabled="provider !== 'openai'" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4">
@@ -598,10 +606,17 @@
                         class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:border-indigo-300 hover:shadow-md transition duration-200 flex flex-col justify-between gap-4">
                         
                         <div class="flex justify-between items-start gap-2">
-                            <div class="flex items-center gap-2 truncate">
+                            <div class="flex items-center gap-1.5 truncate">
                                 <h3 class="font-bold text-gray-800 truncate text-lg">{{ $assistant->name }}</h3>
+                                
+                                <!-- BOTÃO ROXO DO CHAT POP-UP -->
                                 <button type="button" title="Testar Chat Público" onclick="openChatPopup({{ $assistant->id }})" class="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-full transition shadow-sm border border-indigo-100 flex items-center justify-center shrink-0">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.522 1.522 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>
+                                </button>
+
+                                <!-- BOTÃO TRANSPARENTE COPIAR LINK DO CHAT -->
+                                <button type="button" title="Copiar link do chat" onclick="copyChatLink({{ $assistant->id }})" class="text-gray-400 hover:text-indigo-600 p-1.5 rounded-full transition hover:bg-gray-100 shrink-0">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 011.927-.184" /></svg>
                                 </button>
                             </div>
 
@@ -655,10 +670,17 @@
                                 class="hover:bg-gray-50 transition duration-150 group">
                                 
                                 <td class="py-4 px-5">
-                                    <div class="flex items-center gap-2">
+                                    <div class="flex items-center gap-1.5">
                                         <span class="font-bold text-gray-800 text-base">{{ $assistant->name }}</span>
+                                        
+                                        <!-- BOTÃO ROXO DO CHAT POP-UP -->
                                         <button type="button" title="Testar Chat Público" onclick="openChatPopup({{ $assistant->id }})" class="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-full transition shadow-sm border border-indigo-100 flex items-center justify-center shrink-0">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.522 1.522 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>
+                                        </button>
+
+                                        <!-- BOTÃO TRANSPARENTE COPIAR LINK DO CHAT -->
+                                        <button type="button" title="Copiar link do chat" onclick="copyChatLink({{ $assistant->id }})" class="text-gray-400 hover:text-indigo-600 p-1.5 rounded-full transition hover:bg-gray-100 shrink-0">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 011.927-.184" /></svg>
                                         </button>
                                     </div>
                                 </td>
