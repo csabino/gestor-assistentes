@@ -460,11 +460,60 @@
                             </template>
                         </div>
 
-                        <div x-show="wa_provider !== ''" x-transition class="mt-auto border-t border-gray-100 pt-3 mt-4">
-                            <label class="block text-[9px] uppercase font-bold tracking-wider text-gray-500 mb-1">Webhook de Retorno</label>
-                            <div class="flex items-center gap-1.5 mb-3">
-                                <input type="text" readonly id="webhookUrl" value="https://gestor-assistentes-painel-web.nn8oij.easypanel.host/?webhook_id={{ $configuring->id }}" class="w-full bg-gray-50 border border-gray-200 rounded-md p-1.5 text-[10px] text-gray-500 font-mono outline-none shadow-inner">
-                                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('webhookUrl').value); alert('Webhook copiado!');" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1.5 rounded-md transition text-[10px] font-bold shrink-0 shadow-sm">Copiar</button>
+                        <div x-show="wa_provider !== ''" x-transition class="mt-auto border-t border-gray-100 pt-3 mt-4 space-y-3">
+                            <div>
+                                <label class="block text-[9px] uppercase font-bold tracking-wider text-gray-500 mb-1">Webhook de Retorno</label>
+                                <div class="flex items-center gap-1.5">
+                                    <input type="text" readonly id="webhookUrl" value="https://gestor-assistentes-painel-web.nn8oij.easypanel.host/?webhook_id={{ $configuring->id }}" class="w-full bg-gray-50 border border-gray-200 rounded-md p-1.5 text-[10px] text-gray-500 font-mono outline-none shadow-inner">
+                                    <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('webhookUrl').value); alert('Webhook copiado!');" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1.5 rounded-md transition text-[10px] font-bold shrink-0 shadow-sm">Copiar</button>
+                                </div>
+                            </div>
+
+                            <!-- PAINEL DE RAIO-X DO WEBHOOK EM TEMPO REAL -->
+                            <div class="bg-gray-900 text-gray-100 p-3 rounded-lg text-[10px] font-mono shadow-inner border border-gray-800">
+                                <div class="flex items-center justify-between border-b border-gray-800 pb-1 mb-2">
+                                    <span class="font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1">
+                                        🔍 Diagnóstico do Webhook
+                                    </span>
+                                    <button type="button" onclick="window.location.reload();" class="text-gray-400 hover:text-white underline text-[9px]">
+                                        Atualizar
+                                    </button>
+                                </div>
+
+                                @if($lastWebhook)
+                                    <div class="space-y-1">
+                                        <p><span class="text-gray-500">Horário:</span> <span class="text-gray-300">{{ $lastWebhook['timestamp'] ?? '-' }}</span></p>
+                                        <p><span class="text-gray-500">De (Número):</span> <span class="text-amber-400 font-bold">{{ $lastWebhook['sender'] ?? '-' }}</span></p>
+                                        <p><span class="text-gray-500">Mensagem:</span> <span class="text-white">"{{ $lastWebhook['user_message'] ?? '-' }}"</span></p>
+                                        
+                                        @if(isset($lastWebhook['ai_reply']))
+                                            <p class="truncate"><span class="text-gray-500">Resposta IA:</span> <span class="text-emerald-400">{{ $lastWebhook['ai_reply'] }}</span></p>
+                                        @endif
+
+                                        <p class="pt-1 border-t border-gray-800 mt-1">
+                                            <span class="text-gray-500">Envio WhatsApp:</span>
+                                            @if(($lastWebhook['wa_send_result']['success'] ?? false) === true)
+                                                <span class="text-emerald-400 font-bold">✅ ENTREGUE</span>
+                                            @else
+                                                <span class="text-red-400 font-bold">❌ FALHOU</span>
+                                            @endif
+                                        </p>
+
+                                        @if(isset($lastWebhook['error']))
+                                            <p class="text-red-400 bg-red-950/50 p-1 rounded mt-1 border border-red-900/50 break-words">
+                                                Motivo: {{ $lastWebhook['error'] }}
+                                            </p>
+                                        @endif
+
+                                        @if(isset($lastWebhook['wa_send_result']['error']))
+                                            <p class="text-red-400 bg-red-950/50 p-1 rounded mt-1 border border-red-900/50 break-words">
+                                                UaZapi: {{ $lastWebhook['wa_send_result']['error'] }}
+                                            </p>
+                                        @endif
+                                    </div>
+                                @else
+                                    <p class="text-gray-500 italic py-1">⏳ Nenhum webhook recebido ainda. Envie um "Oi" no WhatsApp para testar.</p>
+                                @endif
                             </div>
                             
                             <button type="button" x-on:click="startWaConnection()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow-sm">
@@ -609,12 +658,10 @@
                             <div class="flex items-center gap-1.5 truncate">
                                 <h3 class="font-bold text-gray-800 truncate text-lg">{{ $assistant->name }}</h3>
                                 
-                                <!-- BOTÃO ROXO DO CHAT POP-UP -->
                                 <button type="button" title="Testar Chat Público" onclick="openChatPopup({{ $assistant->id }})" class="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-full transition shadow-sm border border-indigo-100 flex items-center justify-center shrink-0">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.522 1.522 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>
                                 </button>
 
-                                <!-- BOTÃO TRANSPARENTE COPIAR LINK DO CHAT -->
                                 <button type="button" title="Copiar link do chat" onclick="copyChatLink({{ $assistant->id }})" class="text-gray-400 hover:text-indigo-600 p-1.5 rounded-full transition hover:bg-gray-100 shrink-0">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 011.927-.184" /></svg>
                                 </button>
@@ -673,12 +720,10 @@
                                     <div class="flex items-center gap-1.5">
                                         <span class="font-bold text-gray-800 text-base">{{ $assistant->name }}</span>
                                         
-                                        <!-- BOTÃO ROXO DO CHAT POP-UP -->
                                         <button type="button" title="Testar Chat Público" onclick="openChatPopup({{ $assistant->id }})" class="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-full transition shadow-sm border border-indigo-100 flex items-center justify-center shrink-0">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.522 1.522 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>
                                         </button>
 
-                                        <!-- BOTÃO TRANSPARENTE COPIAR LINK DO CHAT -->
                                         <button type="button" title="Copiar link do chat" onclick="copyChatLink({{ $assistant->id }})" class="text-gray-400 hover:text-indigo-600 p-1.5 rounded-full transition hover:bg-gray-100 shrink-0">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 011.927-.184" /></svg>
                                         </button>
