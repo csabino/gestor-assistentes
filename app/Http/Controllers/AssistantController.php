@@ -128,6 +128,10 @@ class AssistantController extends Controller
         return redirect('/')->with('success', 'Assistente removido!');
     }
 
+    // ============================================================================
+    // RECEPTOR DE WEBHOOK DO WHATSAPP
+    // ============================================================================
+
     public function webhook(Request $request, $id = null)
     {
         if ($request->isMethod('get')) {
@@ -142,7 +146,7 @@ class AssistantController extends Controller
         ]);
 
         if (!$assistant) {
-            Log::warning("Webhook rejeitado: Assistente #{$assistantId} não encontrado no banco.");
+            Log::warning("Webhook rejeitado: Assistente #{$assistantId} não encontrado.");
             return response()->json(['status' => 'not_found'], 200);
         }
 
@@ -160,12 +164,14 @@ class AssistantController extends Controller
         $isFromMe = filter_var($fromMeRaw, FILTER_VALIDATE_BOOLEAN);
 
         if ($isFromMe) {
-            Log::info("Webhook ignorado: Mensagem enviada pelo próprio robô.");
+            Log::info("Webhook ignorado: Mensagem enviada pelo próprio número.");
             return response()->json(['status' => 'ignored_from_me'], 200);
         }
 
         $userMessage = $request->input('data.message.conversation')
                     ?? $request->input('data.message.extendedTextMessage.text')
+                    ?? $request->input('data.body')
+                    ?? $request->input('data.text')
                     ?? $request->input('message.text')
                     ?? $request->input('message.conversation')
                     ?? $request->input('message.body')
@@ -175,12 +181,16 @@ class AssistantController extends Controller
                     ?? $request->input('message');
 
         if (empty($userMessage) || !is_string($userMessage)) {
-            Log::warning("Webhook ignorado: Mensagem sem conteúdo legível.");
+            Log::warning("Webhook ignorado: Mensagem sem texto legível.");
             return response()->json(['status' => 'ignored_empty_message'], 200);
         }
 
         $remoteJid = $request->input('data.key.remoteJid')
+                  ?? $request->input('data.remoteJid')
+                  ?? $request->input('data.from')
+                  ?? $request->input('data.phone')
                   ?? $request->input('key.remoteJid')
+                  ?? $request->input('message.key.remoteJid')
                   ?? $request->input('message.chatId')
                   ?? $request->input('chatId')
                   ?? $request->input('chat.id')
@@ -236,13 +246,19 @@ class AssistantController extends Controller
 
         try {
             if ($provider === 'uazapi') {
+                $payload = [
+                    'number' => $number,
+                    'text' => $text,
+                    'message' => $text,
+                    'chatId' => "{$number}@s.whatsapp.net"
+                ];
+
                 $candidates = [
-                    ['path' => "/send/text?token={$token}", 'body' => ['number' => $number, 'text' => $text]],
-                    ['path' => "/send/text", 'body' => ['number' => $number, 'text' => $text]],
-                    ['path' => "/send/text?token={$token}", 'body' => ['chatId' => "{$number}@s.whatsapp.net", 'text' => $text]],
-                    ['path' => "/send/text", 'body' => ['chatId' => "{$number}@s.whatsapp.net", 'text' => $text]],
-                    ['path' => "/message/sendText/{$instance}", 'body' => ['number' => $number, 'text' => $text]],
-                    ['path' => "/message/send-text", 'body' => ['number' => $number, 'text' => $text]]
+                    ['path' => "/send/text", 'body' => $payload],
+                    ['path' => "/send/text?token={$token}", 'body' => $payload],
+                    ['path' => "/message/sendText/{$instance}", 'body' => $payload],
+                    ['path' => "/message/send-text", 'body' => $payload],
+                    ['path' => "/instance/message/send-text", 'body' => $payload]
                 ];
 
                 foreach ($candidates as $cand) {
@@ -457,7 +473,7 @@ class AssistantController extends Controller
             }
 
             if ($res->successful()) {
-                return response()->json(['success' => true, 'message' => 'Conexão com IA established com sucesso!']);
+                return response()->json(['success' => true, 'message' => 'Conexão com IA estabelecida com sucesso!']);
             } else {
                 $errData = $res->json();
                 $msg = is_array($errData) ? ($errData['error']['message'] ?? $errData['message'] ?? "Status {$res->status()}") : "Status {$res->status()}";
