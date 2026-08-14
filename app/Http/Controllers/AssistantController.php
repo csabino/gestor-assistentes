@@ -6,12 +6,12 @@ use App\Models\Assistant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class AssistantController extends Controller
 {
     public function index(Request $request)
     {
-        // Se for uma requisição de Webhook recebida por parâmetro (?webhook_id=1)
         if ($request->has('webhook_id')) {
             return $this->webhook($request, $request->input('webhook_id'));
         }
@@ -129,7 +129,7 @@ class AssistantController extends Controller
     }
 
     // ============================================================================
-    // RECEPTOR DE WEBHOOK DO WHATSAPP (COM FILTRO TRATADO)
+    // RECEPTOR DE WEBHOOK COM LOG DE DIAGNÓSTICO
     // ============================================================================
 
     public function webhook(Request $request, $id = null)
@@ -141,11 +141,21 @@ class AssistantController extends Controller
         $assistantId = $id ?? $request->input('webhook_id');
         $assistant = Assistant::find($assistantId);
 
-        if (!$assistant || !$assistant->is_active) {
+        // LOG 1: Registra a chegada da requisição no servidor
+        Log::info("--- WEBHOOK RECEBIDO PARA ASSISTENTE #{$assistantId} ---", [
+            'payload' => $request->all()
+        ]);
+
+        if (!$assistant) {
+            Log::warning("Webhook rejeitado: Assistente #{$assistantId} não encontrado no banco.");
+            return response()->json(['status' => 'not_found'], 200);
+        }
+
+        if (!$assistant->is_active) {
+            Log::warning("Webhook rejeitado: Assistente #{$assistantId} ({$assistant->name}) está INATIVO.");
             return response()->json(['status' => 'ignored_inactive'], 200);
         }
 
-        // 1. Tratamento rigoroso de Booleano para evitar falso-positivo em "fromMe"
         $fromMeRaw = $request->input('data.key.fromMe')
                   ?? $request->input('key.fromMe')
                   ?? $request->input('message.fromMe')
@@ -155,10 +165,10 @@ class AssistantController extends Controller
         $isFromMe = filter_var($fromMeRaw, FILTER_VALIDATE_BOOLEAN);
 
         if ($isFromMe) {
+            Log::info("Webhook ignorado: Mensagem enviada pelo próprio robô (fromMe=true).");
             return response()->json(['status' => 'ignored_from_me'], 200);
         }
 
-        // 2. Extrai o texto enviado pelo cliente no WhatsApp
         $userMessage = $request->input('data.message.conversation')
                     ?? $request->input('data.message.extendedTextMessage.text')
                     ?? $request->input('message.text')
@@ -170,10 +180,10 @@ class AssistantController extends Controller
                     ?? $request->input('message');
 
         if (empty($userMessage) || !is_string($userMessage)) {
+            Log::warning("Webhook ignorado: Conteúdo da mensagem veio vazio ou em formato não texto.");
             return response()->json(['status' => 'ignored_empty_message'], 200);
         }
 
-        // 3. Extrai o identificador/número do cliente
         $remoteJid = $request->input('data.key.remoteJid')
                   ?? $request->input('key.remoteJid')
                   ?? $request->input('message.chatId')
@@ -186,20 +196,23 @@ class AssistantController extends Controller
                   ?? $request->input('sender');
 
         if (is_string($remoteJid) && str_contains($remoteJid, '@g.us')) {
+            Log::info("Webhook ignorado: Mensagem de grupo de WhatsApp.");
             return response()->json(['status' => 'ignored_group_message'], 200);
         }
 
         $cleanNumber = preg_replace('/[^0-9]/', '', strtok($remoteJid, '@'));
 
         if (empty($cleanNumber)) {
+            Log::warning("Webhook ignorado: Número do remetente não identificado.");
             return response()->json(['status' => 'ignored_no_number'], 200);
         }
 
-        // 4. Processa a resposta usando a IA
-        $aiReply = $this->processAiConversation($assistant, $userMessage);
+        Log::info("Processando mensagem do número {$cleanNumber}: '{$userMessage}'");
 
-        // 5. Dispara a resposta para o celular do cliente
+        $aiReply = $this->processAiConversation($assistant, $userMessage);
         $sent = $this->sendWaMessage($assistant, $cleanNumber, $aiReply);
+
+        Log::info("Envio para o WhatsApp {$cleanNumber}: " . ($sent ? "SUCESSO" : "FALHOU"));
 
         return response()->json([
             'status' => $sent ? 'success' : 'failed_to_send',
