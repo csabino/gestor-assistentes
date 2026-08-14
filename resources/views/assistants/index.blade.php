@@ -9,20 +9,23 @@
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>[x-cloak] { display: none !important; }</style>
 
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            const key = 'scrollpos_' + window.location.search;
-            const scrollpos = sessionStorage.getItem(key);
-            if (scrollpos) {
-                window.scrollTo(0, parseInt(scrollpos));
-                sessionStorage.removeItem(key);
-            }
-        });
-        window.addEventListener("beforeunload", function() {
-            const key = 'scrollpos_' + window.location.search;
-            sessionStorage.setItem(key, window.scrollY);
-        });
-    </script>
+    @if($configuring)
+        <!-- MEMÓRIA DE ROLAGEM INTELIGENTE (Apenas ativa durante edições na mesma tela) -->
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const key = 'scrollpos_config_{{ $configuring->id }}';
+                const scrollpos = sessionStorage.getItem(key);
+                if (scrollpos) {
+                    window.scrollTo(0, parseInt(scrollpos));
+                    sessionStorage.removeItem(key);
+                }
+            });
+            window.addEventListener("beforeunload", function() {
+                const key = 'scrollpos_config_{{ $configuring->id }}';
+                sessionStorage.setItem(key, window.scrollY);
+            });
+        </script>
+    @endif
 </head>
 <body class="bg-gray-50 font-sans text-gray-900" 
     x-data="{ 
@@ -75,7 +78,8 @@
             
             <div class="sticky top-0 z-40 bg-gray-50/90 backdrop-blur-md py-4 mb-6 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4 -mx-4 px-4 sm:mx-0 sm:px-0 shadow-sm mt-4">
                 <div class="flex items-center gap-4">
-                    <a href="/" class="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1.5 text-sm transition bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-100">
+                    <!-- BOTÃO VOLTAR LIMPA A POSIÇÃO DE ROLAGEM -->
+                    <a href="/" onclick="sessionStorage.removeItem('scrollpos_config_{{ $configuring->id }}'); window.onbeforeunload = null;" class="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1.5 text-sm transition bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-100">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg> Voltar
                     </a>
                     <div class="h-6 w-px bg-gray-300 hidden md:block"></div>
@@ -414,7 +418,6 @@
                     </div>
                 </div>
 
-                <!-- MODAL POPUP DO WHATSAPP -->
                 <div x-show="showWaModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4" x-transition>
                     <div x-on:click.away="showWaModal = false" class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center relative border border-gray-100">
                         
@@ -548,6 +551,7 @@
                         <div class="flex justify-between items-start gap-2">
                             <div class="flex items-center gap-2 truncate">
                                 <h3 class="font-bold text-gray-800 truncate text-lg">{{ $assistant->name }}</h3>
+                                <!-- BOTÃO ROXO DO CHAT POP-UP -->
                                 <button type="button" title="Testar Chat Público" onclick="window.open('/chat/{{ $assistant->id }}', '_blank', 'width=420,height=680,scrollbars=no,resizable=no')" class="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-full transition shadow-sm border border-indigo-100 flex items-center justify-center shrink-0">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.522 1.522 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>
                                 </button>
@@ -563,7 +567,8 @@
                         </div>
                         
                         <div class="flex items-center justify-between border-t border-gray-100 pt-5 gap-2 mt-2">
-                            <a href="/?configure={{ $assistant->id }}" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-2 px-2 rounded-lg text-xs transition flex-1 flex items-center justify-center gap-1">
+                            <!-- AO CLICAR EM CONFIGURAR, LIMPA QUALQUER ROLAGEM ANTERIOR -->
+                            <a href="/?configure={{ $assistant->id }}" onclick="sessionStorage.removeItem('scrollpos_config_{{ $assistant->id }}');" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-2 px-2 rounded-lg text-xs transition flex-1 flex items-center justify-center gap-1">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg>
                                 Configurar
                             </a>
@@ -622,7 +627,8 @@
                                 </td>
 
                                 <td class="py-4 px-5 text-right flex justify-end items-center gap-2 opacity-90 group-hover:opacity-100 transition">
-                                    <a href="/?configure={{ $assistant->id }}" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-1.5 px-3 rounded-lg text-xs transition flex items-center justify-center gap-1.5">
+                                    <!-- AO CLICAR EM CONFIGURAR, LIMPA QUALQUER ROLAGEM ANTERIOR -->
+                                    <a href="/?configure={{ $assistant->id }}" onclick="sessionStorage.removeItem('scrollpos_config_{{ $assistant->id }}');" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-1.5 px-3 rounded-lg text-xs transition flex items-center justify-center gap-1.5">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg> Configurar
                                     </a>
 
