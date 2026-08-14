@@ -136,6 +136,10 @@ class AssistantController extends Controller
         return redirect('/')->with('success', 'Assistente removido!');
     }
 
+    // ============================================================================
+    // RECEPTOR DE WEBHOOK DO WHATSAPP
+    // ============================================================================
+
     public function webhook(Request $request, $id = null)
     {
         if ($request->isMethod('get')) {
@@ -203,20 +207,13 @@ class AssistantController extends Controller
             return response()->json(['status' => 'ignored_empty_message'], 200);
         }
 
+        // PRIORIDADE ABSOLUTA AO REMOTEJID REAL DO WHATSAPP
         $remoteJid = $request->input('data.key.remoteJid')
-                  ?? $request->input('data.remoteJid')
-                  ?? $request->input('data.from')
-                  ?? $request->input('data.phone')
                   ?? $request->input('key.remoteJid')
-                  ?? $request->input('message.key.remoteJid')
-                  ?? $request->input('message.chatId')
-                  ?? $request->input('chatId')
-                  ?? $request->input('chat.id')
+                  ?? $request->input('data.remoteJid')
                   ?? $request->input('remoteJid')
-                  ?? $request->input('phone')
-                  ?? $request->input('from')
-                  ?? $request->input('number')
-                  ?? $request->input('sender');
+                  ?? $request->input('chatId')
+                  ?? $request->input('data.from');
 
         if (is_string($remoteJid) && str_contains($remoteJid, '@g.us')) {
             $logData['status'] = 'ignored';
@@ -227,11 +224,16 @@ class AssistantController extends Controller
 
         $cleanNumber = preg_replace('/[^0-9]/', '', strtok($remoteJid, '@'));
 
-        if (empty($cleanNumber)) {
+        // Se for número do Brasil sem DDI (10 ou 11 dígitos), insere DDI 55 automaticamente
+        if (strlen($cleanNumber) >= 10 && strlen($cleanNumber) <= 11 && !str_starts_with($cleanNumber, '55')) {
+            $cleanNumber = '55' . $cleanNumber;
+        }
+
+        if (empty($cleanNumber) || strlen($cleanNumber) < 10) {
             $logData['status'] = 'ignored';
-            $logData['error'] = 'Número do remetente não identificado.';
+            $logData['error'] = "Número do remetente inválido capturado: '{$cleanNumber}'";
             $this->saveWebhookLog($assistantId, $logData);
-            return response()->json(['status' => 'ignored_no_number'], 200);
+            return response()->json(['status' => 'ignored_invalid_number'], 200);
         }
 
         $logData['sender'] = $cleanNumber;
@@ -288,14 +290,9 @@ class AssistantController extends Controller
                 $candidates = [
                     ['path' => "/send/text", 'body' => ['number' => $number, 'text' => $text]],
                     ['path' => "/send/text?token={$token}", 'body' => ['number' => $number, 'text' => $text]],
-                    ['path' => "/send/text?apikey={$token}", 'body' => ['number' => $number, 'text' => $text]],
-                    ['path' => "/send/text", 'body' => ['phone' => $number, 'message' => $text]],
                     ['path' => "/send/text", 'body' => ['chatId' => "{$number}@s.whatsapp.net", 'text' => $text]],
-                    ['path' => "/send-text", 'body' => ['number' => $number, 'text' => $text]],
-                    ['path' => "/send-message", 'body' => ['number' => $number, 'text' => $text]],
-                    ['path' => "/message/sendText/{$instance}", 'body' => ['number' => $number, 'text' => $text]],
-                    ['path' => "/message/send-text", 'body' => ['number' => $number, 'text' => $text]],
-                    ['path' => "/instance/message/send-text", 'body' => ['number' => $number, 'text' => $text]]
+                    ['path' => "/send/text", 'body' => ['number' => $number, 'message' => $text]],
+                    ['path' => "/message/sendText/{$instance}", 'body' => ['number' => $number, 'text' => $text]]
                 ];
 
                 $attempts = [];
