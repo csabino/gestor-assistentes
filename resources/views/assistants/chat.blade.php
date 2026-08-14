@@ -15,7 +15,7 @@
 </head>
 <body class="bg-gray-100 flex flex-col h-screen font-sans" x-data="chatComponent()">
 
-    <!-- CABEÇALHO DA JANELA RETANGULAR -->
+    <!-- CABEÇALHO -->
     <header class="bg-white shadow-sm px-6 py-3 flex items-center justify-between shrink-0 z-10 border-b border-gray-200">
         <div class="flex items-center gap-3">
             <div class="relative">
@@ -34,12 +34,11 @@
         </span>
     </header>
 
-    <!-- ÁREA DE MENSAGENS -->
+    <!-- ÁREA DE MENSAGENS (COM TRAVA DE QUEBRA DE LINHA ANTIESTOURO) -->
     <main class="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-gray-50/50" x-ref="chatBox">
         <template x-for="msg in messages" :key="msg.id">
             <div class="flex flex-col" :class="msg.role === 'user' ? 'items-end' : 'items-start'">
-                <!-- FORMATADOR x-html PARA RENDERIZAR LINKS E QUEBRAS DE LINHA -->
-                <div class="max-w-[80%] px-4 py-2.5 rounded-2xl text-sm shadow-sm leading-relaxed"
+                <div class="max-w-[80%] px-4 py-2.5 rounded-2xl text-sm shadow-sm leading-relaxed break-words [word-break:break-word]"
                      :class="msg.role === 'user' ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white text-gray-800 border border-gray-200 rounded-bl-none'"
                      x-html="formatMessage(msg.content, msg.role)">
                 </div>
@@ -47,7 +46,6 @@
             </div>
         </template>
 
-        <!-- INDICADOR DE DIGITAÇÃO -->
         <div x-show="isTyping" x-cloak class="flex items-start">
             <div class="bg-white border border-gray-200 px-4 py-3 rounded-2xl rounded-bl-none shadow-sm flex gap-1">
                 <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
@@ -57,7 +55,7 @@
         </div>
     </main>
 
-    <!-- RODAPÉ DE ENVIO -->
+    <!-- RODAPÉ -->
     <footer class="bg-white px-6 py-3 border-t border-gray-200 shrink-0">
         <form @submit.prevent="sendMessage()" class="flex items-center gap-3">
             <input type="text" x-model="newMessage" :disabled="isTyping" placeholder="Digite sua mensagem..." 
@@ -70,7 +68,7 @@
         </form>
     </footer>
 
-    <!-- SCRIPT DE REATIVIDADE E FORMATADOR DE LINKS -->
+    <!-- SCRIPT DE FORMATADOR COM SUPORTE A PALAVRAS EM LINKS -->
     <script>
         function chatComponent() {
             return {
@@ -85,20 +83,21 @@
                 formatMessage(content, role) {
                     if (!content) return '';
                     
-                    // 1. Escapa tags HTML perigosas
                     let esc = content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
                     
-                    // 2. Converte Markdown links [Texto](URL) para tags <a>
-                    const linkColor = role === 'user' ? 'text-indigo-100 underline hover:text-white' : 'text-indigo-600 font-bold underline hover:text-indigo-800';
+                    const linkColor = role === 'user' ? 'text-indigo-100 underline font-semibold' : 'text-indigo-600 font-bold underline hover:text-indigo-800';
+                    
+                    // 1. Converte Markdown [Texto](URL) para hiperlink de palavra
                     esc = esc.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, `<a href="$2" target="_blank" rel="noopener noreferrer" class="${linkColor}">$1</a>`);
                     
-                    // 3. Converte URLs soltas que não estavam em markdown
+                    // 2. Converte URLs soltas remanescentes
                     esc = esc.replace(/(^|[^"'])(https?:\/\/[^\s<]+)/g, `$1<a href="$2" target="_blank" rel="noopener noreferrer" class="${linkColor}">$2</a>`);
                     
-                    // 4. Converte negrito do WhatsApp (*texto*)
+                    // 3. Negrito (**texto** ou *texto*)
+                    esc = esc.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
                     esc = esc.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
                     
-                    // 5. Quebras de linha
+                    // 4. Quebras de linha
                     esc = esc.replace(/\n/g, '<br>');
                     
                     return esc;
