@@ -155,7 +155,7 @@ class AssistantController extends Controller
             'status' => 'received',
             'sender' => 'Desconhecido',
             'user_message' => 'Nenhuma',
-            'raw_snippet' => substr(json_encode($payload, JSON_UNESCAPED_UNICODE), 0, 1000), // Aumentado para ver mais do JSON
+            'raw_snippet' => substr(json_encode($payload, JSON_UNESCAPED_UNICODE), 0, 1000),
             'ai_reply' => null,
             'wa_send_result' => null,
             'error' => null
@@ -199,12 +199,24 @@ class AssistantController extends Controller
 
         Log::info("Processando mensagem do cliente {$cleanNumber}: '{$userMessage}'");
 
-        // 4. Processa a IA
+        // 4. Processa a IA (Retorna com formatação Markdown)
         $aiReply = $this->processAiConversation($assistant, $userMessage);
         $logData['ai_reply'] = $aiReply;
 
-        // 5. Envio de Volta
-        $sendResult = $this->sendWaMessageDetailed($assistant, $cleanNumber, $aiReply);
+        // ====================================================================
+        // TRADUTOR DE FORMATAÇÃO (MARKDOWN -> WHATSAPP)
+        // ====================================================================
+        
+        // A) Transforma links Markdown: [Nome do Link](https://site.com)  ->  *Nome do Link:* https://site.com
+        $waFormattedReply = preg_replace('/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/', '*$1:* $2', $aiReply);
+        
+        // B) Transforma negrito duplo (**texto**) em negrito simples (*texto*) para o WhatsApp
+        $waFormattedReply = preg_replace('/\*\*([^*]+)\*\*/', '*$1*', $waFormattedReply);
+
+        // ====================================================================
+
+        // 5. Dispara mensagem formatada no WhatsApp
+        $sendResult = $this->sendWaMessageDetailed($assistant, $cleanNumber, $waFormattedReply);
         $logData['wa_send_result'] = $sendResult;
         $logData['status'] = $sendResult['success'] ? 'success' : 'failed_to_send';
 
@@ -213,7 +225,7 @@ class AssistantController extends Controller
         return response()->json([
             'status' => $sendResult['success'] ? 'success' : 'failed_to_send',
             'recipient' => $cleanNumber,
-            'reply' => $aiReply,
+            'reply' => $waFormattedReply,
             'send_details' => $sendResult
         ], 200);
     }
@@ -226,7 +238,6 @@ class AssistantController extends Controller
     {
         if (!is_array($payload)) return null;
         
-        // Atalhos conhecidos (rápidos)
         $paths = [
             $payload['data']['message']['conversation'] ?? null,
             $payload['data']['message']['extendedTextMessage']['text'] ?? null,
@@ -241,7 +252,6 @@ class AssistantController extends Controller
             if (is_string($p) && strlen(trim($p)) > 0) return trim($p);
         }
 
-        // Se não achou nos atalhos, vira do avesso procurando as chaves
         return $this->findStringInArrayByKeys($payload, ['conversation', 'text', 'body', 'caption', 'message']);
     }
 
@@ -249,7 +259,6 @@ class AssistantController extends Controller
     {
         if (!is_array($payload)) return null;
 
-        // Atalhos rápidos
         $paths = [
             $payload['contact']['number'] ?? null,
             $payload['chat']['contact']['number'] ?? null,
@@ -270,14 +279,12 @@ class AssistantController extends Controller
             }
         }
 
-        // Se não achou: Caçada Recursiva por JIDs do WhatsApp (@s.whatsapp.net)
         $jid = $this->findJidInArray($payload);
         if ($jid) {
             $digits = preg_replace('/[^0-9]/', '', strtok($jid, '@'));
             if (strlen($digits) >= 10) return $this->formatDDI($digits);
         }
 
-        // Última chance: Caçada Recursiva por chaves que lembrem "telefone"
         $number = $this->findPhoneKeyInArray($payload, ['remoteJid', 'phone', 'number', 'from', 'sender']);
         if ($number) {
             $digits = preg_replace('/[^0-9]/', '', strtok($number, '@'));
@@ -288,7 +295,6 @@ class AssistantController extends Controller
     }
 
     private function formatDDI($digits) {
-        // Se for um número de celular do Brasil sem DDI 55 (10 ou 11 digitos), injeta o 55
         if (strlen($digits) >= 10 && strlen($digits) <= 11 && !str_starts_with($digits, '55')) {
             return '55' . $digits;
         }
@@ -371,7 +377,7 @@ class AssistantController extends Controller
         $provider = $assistant->whatsapp_provider;
 
         if (empty($url) || empty($token)) {
-            return ['success' => false, 'error' => 'URL ou Token não configurados.'];
+            return ['success' => false, 'error' => 'URL ou Token do WhatsApp não preenchidos nas configurações.'];
         }
 
         $headers = [
@@ -401,19 +407,20 @@ class AssistantController extends Controller
                     }
                     $attempts[] = "{$cand['path']} (Status {$res->status()}): " . substr($res->body(), 0, 150);
                 }
-                return ['success' => false, 'error' => 'UaZapi recusou rotas.', 'attempts' => $attempts];
+
+                return ['success' => false, 'error' => 'UaZapi recusou todas as rotas de envio.', 'attempts' => $attempts];
             } elseif ($provider === 'evolution') {
                 $res = Http::withHeaders($headers)->timeout(12)->post("{$url}/message/sendText/{$instance}", [
                     'number' => $number,
                     'text' => $text
                 ]);
                 if ($res->successful()) return ['success' => true, 'response' => $res->json()];
-                return ['success' => false, 'error' => "Evolution API Status {$res->status()}"];
+                return ['success' => false, 'error' => "Evolution API Status {$res->status()}: " . $res->body()];
             }
 
             return ['success' => false, 'error' => 'Provedor não suportado.'];
         } catch (\Exception $e) {
-            return ['success' => false, 'error' => 'Exceção: ' . $e->getMessage()];
+            return ['success' => false, 'error' => 'Exceção de rede: ' . $e->getMessage()];
         }
     }
 
@@ -563,7 +570,7 @@ class AssistantController extends Controller
 
             return "Provedor não suportado.";
         } catch (\Exception $e) {
-            return "Erro IA: " . $e->getMessage();
+            return "Erro ao processar conversa: " . $e->getMessage();
         }
     }
 
