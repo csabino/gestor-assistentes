@@ -152,20 +152,37 @@ class AssistantController extends Controller
         if (empty($provider) || empty($url) || empty($token)) return response()->json(['connected' => false]);
 
         try {
-            $headers = ['token' => $token, 'apikey' => $token, 'Client-Token' => $token, 'Authorization' => "Bearer {$token}"];
+            $headers = [
+                'token' => $token, 
+                'apikey' => $token, 
+                'Client-Token' => $token, 
+                'Authorization' => "Bearer {$token}",
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json'
+            ];
 
             if ($provider === 'uazapi') {
-                $res = Http::withHeaders($headers)->timeout(4)->get("{$url}/instance/connect");
+                $res = Http::withHeaders($headers)->timeout(5)->post("{$url}/instance/connect", ['instanceName' => $instance]);
+                if (!$res->successful() || $res->status() === 400) {
+                    $res = Http::withHeaders($headers)->timeout(5)->post("{$url}/instance/connect", (object)[]);
+                }
+                if (!$res->successful()) {
+                    $res = Http::withHeaders($headers)->timeout(5)->get("{$url}/instance/connect/{$instance}");
+                }
+                if (!$res->successful()) {
+                    $res = Http::withHeaders($headers)->timeout(5)->get("{$url}/instance/status");
+                }
+
                 if ($res->successful()) {
                     $data = $res->json();
                     $inst = $data['instance'] ?? $data;
-                    $status = strtolower($inst['state'] ?? $inst['status'] ?? $data['status'] ?? $data['state'] ?? '');
+                    $status = strtolower($inst['status'] ?? $inst['state'] ?? $data['status'] ?? $data['state'] ?? '');
                     if (in_array($status, ['open', 'connected', 'connecting_connected']) || ($data['connected'] ?? false) === true) {
                         return response()->json(['connected' => true]);
                     }
                 }
             } elseif ($provider === 'evolution') {
-                $res = Http::withHeaders($headers)->timeout(4)->get("{$url}/instance/connect/{$instance}");
+                $res = Http::withHeaders($headers)->timeout(5)->get("{$url}/instance/connect/{$instance}");
                 if ($res->successful()) {
                     $status = strtolower($res->json()['instance']['state'] ?? '');
                     return response()->json(['connected' => in_array($status, ['open', 'connected'])]);
@@ -177,7 +194,6 @@ class AssistantController extends Controller
         }
     }
 
-    // DESCONEXÃO ESTRITA: ZERO COMANDOS DE DELETE DE INSTÂNCIA
     private function disconnectWaConnection(Request $request)
     {
         $provider = $request->input('provider');
@@ -200,7 +216,6 @@ class AssistantController extends Controller
             ];
 
             if ($provider === 'uazapi' || $provider === 'evolution') {
-                // Rotas permitidas: APENAS disconnect e logout (Ações de Sessão)
                 $candidates = [
                     ['method' => 'POST',   'path' => "/instance/disconnect", 'body' => ['instanceName' => $instance]],
                     ['method' => 'POST',   'path' => "/instance/disconnect", 'body' => (object)[]],

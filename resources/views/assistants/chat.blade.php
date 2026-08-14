@@ -17,8 +17,10 @@
     x-data="{
         newMessage: '',
         isTyping: false,
+        assistantName: @json($assistant->name),
+        providerName: @json(ucfirst($assistant->provider ?? 'IA')),
         messages: [
-            { id: 1, role: 'assistant', content: 'Olá! Sou {{ $assistant->name }}. Como posso te ajudar hoje?' }
+            { id: 1, role: 'assistant', content: 'Olá! Sou ' + @json($assistant->name) + '. Como posso te ajudar hoje?' }
         ],
         sendMessage() {
             if(this.newMessage.trim() === '') return;
@@ -34,15 +36,15 @@
                 this.messages.push({ 
                     id: Date.now(), 
                     role: 'assistant', 
-                    content: 'Integração com a IA do ' + '{{ ucfirst($assistant->provider) }}' + ' pronta para ser conectada!' 
+                    content: 'Integração com o modelo ' + this.providerName + ' pronta para ser conectada!' 
                 });
                 this.scrollToBottom();
-            }, 1500);
+            }, 1200);
         },
         scrollToBottom() {
             this.$nextTick(() => {
                 const container = this.$refs.chatBox;
-                container.scrollTop = container.scrollHeight;
+                if(container) container.scrollTop = container.scrollHeight;
             });
         }
     }">
@@ -69,7 +71,7 @@
                      :class="msg.role === 'user' ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white text-gray-800 border border-gray-200 rounded-bl-none'">
                     <span x-text="msg.content"></span>
                 </div>
-                <span class="text-[10px] text-gray-400 mt-1 px-1" x-text="msg.role === 'user' ? 'Você' : '{{ $assistant->name }}'"></span>
+                <span class="text-[10px] text-gray-400 mt-1 px-1" x-text="msg.role === 'user' ? 'Você' : assistantName"></span>
             </div>
         </template>
 
