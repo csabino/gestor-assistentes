@@ -463,7 +463,7 @@
                         <div x-show="wa_provider !== ''" x-transition class="mt-auto border-t border-gray-100 pt-3 mt-4">
                             <label class="block text-[9px] uppercase font-bold tracking-wider text-gray-500 mb-1">Webhook de Retorno</label>
                             <div class="flex items-center gap-1.5 mb-3">
-                                <input type="text" readonly id="webhookUrl" value="https://gestor-assistentes-painel-web.nn8oij.easypanel.host/webhook/whatsapp/{{ $configuring->id }}" class="w-full bg-gray-50 border border-gray-200 rounded-md p-1.5 text-[10px] text-gray-500 font-mono outline-none shadow-inner">
+                                <input type="text" readonly id="webhookUrl" value="https://gestor-assistentes-painel-web.nn8oij.easypanel.host/?webhook_id={{ $configuring->id }}" class="w-full bg-gray-50 border border-gray-200 rounded-md p-1.5 text-[10px] text-gray-500 font-mono outline-none shadow-inner">
                                 <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('webhookUrl').value); alert('Webhook copiado!');" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1.5 rounded-md transition text-[10px] font-bold shrink-0 shadow-sm">Copiar</button>
                             </div>
                             

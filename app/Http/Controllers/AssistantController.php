@@ -11,6 +11,11 @@ class AssistantController extends Controller
 {
     public function index(Request $request)
     {
+        // Se for uma requisição de Webhook recebida por parâmetro (?webhook_id=1)
+        if ($request->has('webhook_id')) {
+            return $this->webhook($request, $request->input('webhook_id'));
+        }
+
         if ($request->isMethod('put')) {
             return $this->updateConfig($request);
         }
@@ -123,45 +128,61 @@ class AssistantController extends Controller
         return redirect('/')->with('success', 'Assistente removido!');
     }
 
-    public function webhook(Request $request, $id)
+    // ============================================================================
+    // RECEPTOR DE WEBHOOK DO WHATSAPP (COM FILTRO TRATADO)
+    // ============================================================================
+
+    public function webhook(Request $request, $id = null)
     {
         if ($request->isMethod('get')) {
             return response('OK', 200);
         }
 
-        $assistant = Assistant::find($id);
+        $assistantId = $id ?? $request->input('webhook_id');
+        $assistant = Assistant::find($assistantId);
 
         if (!$assistant || !$assistant->is_active) {
             return response()->json(['status' => 'ignored_inactive'], 200);
         }
 
-        $fromMe = $request->input('data.key.fromMe')
-               ?? $request->input('key.fromMe')
-               ?? $request->input('fromMe')
-               ?? false;
+        // 1. Tratamento rigoroso de Booleano para evitar falso-positivo em "fromMe"
+        $fromMeRaw = $request->input('data.key.fromMe')
+                  ?? $request->input('key.fromMe')
+                  ?? $request->input('message.fromMe')
+                  ?? $request->input('fromMe')
+                  ?? false;
 
-        if ($fromMe) {
+        $isFromMe = filter_var($fromMeRaw, FILTER_VALIDATE_BOOLEAN);
+
+        if ($isFromMe) {
             return response()->json(['status' => 'ignored_from_me'], 200);
         }
 
+        // 2. Extrai o texto enviado pelo cliente no WhatsApp
         $userMessage = $request->input('data.message.conversation')
                     ?? $request->input('data.message.extendedTextMessage.text')
-                    ?? $request->input('message.conversation')
                     ?? $request->input('message.text')
+                    ?? $request->input('message.conversation')
+                    ?? $request->input('message.body')
                     ?? $request->input('text')
                     ?? $request->input('body')
+                    ?? $request->input('msg')
                     ?? $request->input('message');
 
         if (empty($userMessage) || !is_string($userMessage)) {
             return response()->json(['status' => 'ignored_empty_message'], 200);
         }
 
+        // 3. Extrai o identificador/número do cliente
         $remoteJid = $request->input('data.key.remoteJid')
                   ?? $request->input('key.remoteJid')
+                  ?? $request->input('message.chatId')
+                  ?? $request->input('chatId')
+                  ?? $request->input('chat.id')
                   ?? $request->input('remoteJid')
-                  ?? $request->input('chatJid')
-                  ?? $request->input('from')
                   ?? $request->input('phone')
+                  ?? $request->input('from')
+                  ?? $request->input('number')
                   ?? $request->input('sender');
 
         if (is_string($remoteJid) && str_contains($remoteJid, '@g.us')) {
@@ -174,7 +195,10 @@ class AssistantController extends Controller
             return response()->json(['status' => 'ignored_no_number'], 200);
         }
 
+        // 4. Processa a resposta usando a IA
         $aiReply = $this->processAiConversation($assistant, $userMessage);
+
+        // 5. Dispara a resposta para o celular do cliente
         $sent = $this->sendWaMessage($assistant, $cleanNumber, $aiReply);
 
         return response()->json([
@@ -208,7 +232,8 @@ class AssistantController extends Controller
                     ['path' => "/send/text", 'body' => ['number' => $number, 'text' => $text]],
                     ['path' => "/send/text", 'body' => ['chatId' => "{$number}@s.whatsapp.net", 'text' => $text]],
                     ['path' => "/message/sendText/{$instance}", 'body' => ['number' => $number, 'text' => $text]],
-                    ['path' => "/message/send-text", 'body' => ['number' => $number, 'text' => $text]]
+                    ['path' => "/message/send-text", 'body' => ['number' => $number, 'text' => $text]],
+                    ['path' => "/instance/message/send-text", 'body' => ['number' => $number, 'text' => $text]]
                 ];
 
                 foreach ($candidates as $cand) {
