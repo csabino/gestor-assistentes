@@ -13,63 +13,9 @@
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
 </head>
-<body class="bg-gray-100 flex flex-col h-screen font-sans" 
-    x-data="{
-        newMessage: '',
-        isTyping: false,
-        assistantId: {{ $assistant->id }},
-        assistantName: @json($assistant->name),
-        providerName: @json(ucfirst($assistant->provider ?? 'IA')),
-        messages: [
-            { id: 1, role: 'assistant', content: 'Olá! Sou ' + @json($assistant->name) + '. Como posso te ajudar hoje?' }
-        ],
-        async sendMessage() {
-            if(this.newMessage.trim() === '' || this.isTyping) return;
-            
-            const text = this.newMessage;
-            this.messages.push({ id: Date.now(), role: 'user', content: text });
-            this.newMessage = '';
-            this.scrollToBottom();
-            
-            this.isTyping = true;
-            
-            try {
-                const response = await fetch('/', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json', 
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}' 
-                    },
-                    body: JSON.stringify({ 
-                        action: 'chat_message', 
-                        assistant_id: this.assistantId, 
-                        message: text 
-                    })
-                });
+<body class="bg-gray-100 flex flex-col h-screen font-sans" x-data="chatComponent()">
 
-                const data = await response.json();
-                this.isTyping = false;
-                
-                if(data.success) {
-                    this.messages.push({ id: Date.now(), role: 'assistant', content: data.reply });
-                } else {
-                    this.messages.push({ id: Date.now(), role: 'assistant', content: '⚠️ ' + (data.reply || 'Erro ao processar mensagem.') });
-                }
-            } catch(e) {
-                this.isTyping = false;
-                this.messages.push({ id: Date.now(), role: 'assistant', content: '⚠️ Erro de comunicação com o servidor.' });
-            } finally {
-                this.scrollToBottom();
-            }
-        },
-        scrollToBottom() {
-            this.$nextTick(() => {
-                const container = this.$refs.chatBox;
-                if(container) container.scrollTop = container.scrollHeight;
-            });
-        }
-    }">
-
+    <!-- CABEÇALHO DA JANELA RETANGULAR -->
     <header class="bg-white shadow-sm px-6 py-3 flex items-center justify-between shrink-0 z-10 border-b border-gray-200">
         <div class="flex items-center gap-3">
             <div class="relative">
@@ -88,6 +34,7 @@
         </span>
     </header>
 
+    <!-- ÁREA DE MENSAGENS -->
     <main class="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-gray-50/50" x-ref="chatBox">
         <template x-for="msg in messages" :key="msg.id">
             <div class="flex flex-col" :class="msg.role === 'user' ? 'items-end' : 'items-start'">
@@ -99,7 +46,8 @@
             </div>
         </template>
 
-        <div x-show="isTyping" x-transition class="flex items-start">
+        <!-- INDICADOR DE DIGITAÇÃO -->
+        <div x-show="isTyping" x-cloak class="flex items-start">
             <div class="bg-white border border-gray-200 px-4 py-3 rounded-2xl rounded-bl-none shadow-sm flex gap-1">
                 <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
                 <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
@@ -108,17 +56,78 @@
         </div>
     </main>
 
+    <!-- RODAPÉ DE ENVIO DE MENSAGEM -->
     <footer class="bg-white px-6 py-3 border-t border-gray-200 shrink-0">
-        <form @submit.prevent="sendMessage" class="flex items-center gap-3">
+        <form @submit.prevent="sendMessage()" class="flex items-center gap-3">
             <input type="text" x-model="newMessage" :disabled="isTyping" placeholder="Digite sua mensagem..." 
                 class="flex-1 bg-gray-100 border-transparent focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 rounded-full px-4 py-2 text-sm transition outline-none disabled:opacity-50">
             
-            <button type="submit" :disabled="newMessage.trim() === '' || isTyping" class="h-9 px-5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-bold text-xs rounded-full flex items-center justify-center transition shadow-sm shrink-0 gap-1.5">
+            <button type="submit" :disabled="newMessage.trim() === '' || isTyping" class="h-9 px-5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-bold text-xs rounded-full flex items-center justify-center transition shadow-sm shrink-0 gap-1.5 cursor-pointer disabled:cursor-not-allowed">
                 <span>Enviar</span>
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>
             </button>
         </form>
     </footer>
 
+    <!-- SCRIPT DE LÓGICA REATIVO (ISOLADO PARA EVITAR VAZAMENTO NO HTML) -->
+    <script>
+        function chatComponent() {
+            return {
+                newMessage: '',
+                isTyping: false,
+                assistantId: {{ $assistant->id }},
+                assistantName: {!! json_encode($assistant->name) !!},
+                providerName: {!! json_encode(ucfirst($assistant->provider ?? 'IA')) !!},
+                messages: [
+                    { id: 1, role: 'assistant', content: 'Olá! Sou ' + {!! json_encode($assistant->name) !!} + '. Como posso te ajudar hoje?' }
+                ],
+                async sendMessage() {
+                    if(this.newMessage.trim() === '' || this.isTyping) return;
+                    
+                    const text = this.newMessage;
+                    this.messages.push({ id: Date.now(), role: 'user', content: text });
+                    this.newMessage = '';
+                    this.scrollToBottom();
+                    
+                    this.isTyping = true;
+                    
+                    try {
+                        const response = await fetch('/', {
+                            method: 'POST',
+                            headers: { 
+                                'Content-Type': 'application/json', 
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}' 
+                            },
+                            body: JSON.stringify({ 
+                                action: 'chat_message', 
+                                assistant_id: this.assistantId, 
+                                message: text 
+                            })
+                        });
+
+                        const data = await response.json();
+                        this.isTyping = false;
+                        
+                        if(data.success) {
+                            this.messages.push({ id: Date.now(), role: 'assistant', content: data.reply });
+                        } else {
+                            this.messages.push({ id: Date.now(), role: 'assistant', content: '⚠️ ' + (data.reply || 'Erro ao processar mensagem.') });
+                        }
+                    } catch(e) {
+                        this.isTyping = false;
+                        this.messages.push({ id: Date.now(), role: 'assistant', content: '⚠️ Erro de comunicação com o servidor.' });
+                    } finally {
+                        this.scrollToBottom();
+                    }
+                },
+                scrollToBottom() {
+                    this.$nextTick(() => {
+                        const container = this.$refs.chatBox;
+                        if(container) container.scrollTop = container.scrollHeight;
+                    });
+                }
+            }
+        }
+    </script>
 </body>
 </html>
