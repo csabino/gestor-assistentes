@@ -15,11 +15,15 @@
         .fc .fc-button-primary:hover { background-color: #4338ca !important; border-color: #4338ca !important; }
         .fc-event { cursor: pointer; transition: 0.2s; }
         .fc-event:hover { opacity: 0.9; }
+        /* Mantém o calendário preenchendo a área livre sem estourar a tela */
+        .fc { height: 100% !important; display: flex; flex-direction: column; }
+        .fc .fc-view-harness { flex: 1 1 auto; height: 100% !important; }
     </style>
 </head>
-<body class="bg-gray-50 font-sans text-gray-900">
+<body class="bg-gray-50 font-sans text-gray-900 h-screen flex flex-col overflow-hidden">
     
-    <nav class="bg-indigo-600 text-white shadow-sm relative z-50">
+    <!-- NAVBAR (FIXO) -->
+    <nav class="bg-indigo-600 text-white shadow-sm relative z-50 shrink-0">
         <div class="container mx-auto px-4 flex justify-between items-center h-14">
             <div class="flex items-center gap-6 h-full">
                 <a href="/" class="font-bold text-lg flex items-center gap-2.5 hover:text-indigo-200 transition">
@@ -36,11 +40,14 @@
         </div>
     </nav>
 
-    <div class="container mx-auto px-4 max-w-6xl mt-8 mb-12">
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+    <!-- CONTEÚDO PRINCIPAL COM ALTURA AJUSTADA -->
+    <div class="container mx-auto px-4 max-w-6xl pt-6 pb-4 flex-1 flex flex-col overflow-hidden">
+        
+        <!-- CABEÇALHO DA PÁGINA E CONTROLES (FIXO NO TOPO) -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4 shrink-0">
             <div>
                 <h1 class="text-2xl font-bold text-gray-800">Calendário e Horários</h1>
-                <p class="text-sm text-gray-500">Gerencie a disponibilidade e as reuniões agendadas de cada membro.</p>
+                <p class="text-xs text-gray-500">Gerencie a disponibilidade e as reuniões agendadas de cada membro.</p>
             </div>
             
             <div class="flex flex-wrap items-center gap-3">
@@ -66,13 +73,19 @@
             </div>
         </div>
 
+        <!-- CONTAINER DO CALENDÁRIO (CRAVADO NO ESPAÇO RESTANTE) -->
         @if($currentAgentId)
-            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                <p class="text-xs text-gray-400 mb-4 font-semibold uppercase tracking-wider"><svg class="w-4 h-4 inline text-indigo-500 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Dica: Clique em qualquer lugar vazio do calendário para criar um bloqueio ou agendamento. Arraste as caixas para mudar de horário.</p>
-                <div id="calendar"></div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden">
+                <p class="text-[11px] text-gray-400 mb-2 font-semibold uppercase tracking-wider shrink-0">
+                    <svg class="w-3.5 h-3.5 inline text-indigo-500 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Dica: Clique em qualquer lugar vazio para agendar ou criar bloqueio. Arraste os eventos para mudar o horário.
+                </p>
+                
+                <!-- ÁREA INTERNA DO CALENDÁRIO QUE FAZ A ROLAGEM DOS HORÁRIOS -->
+                <div id="calendar" class="flex-1 min-h-0"></div>
             </div>
         @else
-            <div class="text-center py-16 bg-white rounded-xl border border-gray-200 border-dashed">
+            <div class="text-center py-16 bg-white rounded-xl border border-gray-200 border-dashed shrink-0">
                 <p class="text-gray-500 mb-2">Este robô ainda não possui agentes humanos cadastrados.</p>
                 <a href="/?view=equipe&assistant_id={{ $currentAssistantId }}" class="text-indigo-600 font-bold hover:underline">Ir para Gestão de Equipes</a>
             </div>
@@ -96,7 +109,7 @@
                 this.showCreate = false;
                 window.calendarInstance.refetchEvents();
             } else {
-                alert('Erro ao salvar. Verifique os campos.');
+                alert('Erro ao salvar. Verifique se preencheu os campos.');
             }
         },
         
@@ -133,9 +146,9 @@
                 </div>
                 
                 <div x-show="eventData.type === 'appointment'" class="space-y-3 mb-5">
-                    <input type="text" x-model="eventData.client_name" placeholder="Nome do Cliente (Obrigatório)" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
-                    <input type="email" x-model="eventData.client_email" placeholder="E-mail (Obrigatório)" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
-                    <input type="text" x-model="eventData.client_phone" placeholder="Celular/WhatsApp (Obrigatório)" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+                    <input type="text" x-model="eventData.client_name" placeholder="Nome do Cliente" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+                    <input type="email" x-model="eventData.client_email" placeholder="E-mail" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+                    <input type="text" x-model="eventData.client_phone" placeholder="Celular/WhatsApp" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
                 </div>
 
                 <div x-show="eventData.type === 'block'" class="mb-5 text-sm text-gray-500 bg-gray-50 p-3 rounded-lg border border-gray-200">
@@ -178,6 +191,8 @@
             var calendar = new FullCalendar.Calendar(calendarEl, {
                 locale: 'pt-br',
                 initialView: 'timeGridWeek',
+                height: '100%',
+                stickyHeaderDates: true,
                 headerToolbar: {
                     left: 'prev,next today',
                     center: 'title',
