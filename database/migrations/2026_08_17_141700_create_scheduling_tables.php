@@ -8,10 +8,12 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Limpeza de Segurança: Destrói as tabelas caso tenham ficado presas no banco
+        // Desativa a checagem de FK para permitir o drop sem travar no MariaDB
+        Schema::disableForeignKeyConstraints();
         Schema::dropIfExists('appointments');
         Schema::dropIfExists('human_agents');
         Schema::dropIfExists('departments');
+        Schema::enableForeignKeyConstraints();
 
         // 1. Tabela de Departamentos
         Schema::create('departments', function (Blueprint $table) {
@@ -51,8 +53,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        Schema::disableForeignKeyConstraints();
         Schema::dropIfExists('appointments');
         Schema::dropIfExists('human_agents');
         Schema::dropIfExists('departments');
+        Schema::enableForeignKeyConstraints();
     }
 };
