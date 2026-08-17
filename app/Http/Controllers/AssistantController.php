@@ -3,10 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Assistant;
-use App\Models\WebhookLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class AssistantController extends Controller
 {
@@ -54,8 +55,14 @@ class AssistantController extends Controller
 
         if ($request->has('configure')) {
             $configuring = Assistant::find($request->configure);
-            if ($configuring) {
-                $lastWebhook = WebhookLog::where('assistant_id', $configuring->id)->latest()->first();
+            if ($configuring && Schema::hasTable('webhook_logs')) {
+                $log = DB::table('webhook_logs')->where('assistant_id', $configuring->id)->latest('id')->first();
+                if ($log) {
+                    $lastWebhook = (array) $log;
+                    if (isset($lastWebhook['wa_send_result']) && is_string($lastWebhook['wa_send_result'])) {
+                        $lastWebhook['wa_send_result'] = json_decode($lastWebhook['wa_send_result'], true);
+                    }
+                }
             }
         }
 
@@ -230,15 +237,19 @@ class AssistantController extends Controller
 
         $waResult = $this->sendWhatsappMessage($assistant, $sender, $aiReply);
 
-        WebhookLog::create([
-            'assistant_id' => $assistant->id,
-            'sender' => $sender,
-            'user_message' => $userMessage,
-            'ai_reply' => $aiReply,
-            'wa_send_result' => $waResult,
-            'raw_snippet' => json_encode($request->all()),
-            'timestamp' => now()->toDateTimeString()
-        ]);
+        if (Schema::hasTable('webhook_logs')) {
+            DB::table('webhook_logs')->insert([
+                'assistant_id' => $assistant->id,
+                'sender' => $sender,
+                'user_message' => $userMessage,
+                'ai_reply' => $aiReply,
+                'wa_send_result' => json_encode($waResult),
+                'raw_snippet' => json_encode($request->all()),
+                'timestamp' => now()->toDateTimeString(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
 
         return response()->json(['status' => 'success', 'reply' => $aiReply]);
     }
