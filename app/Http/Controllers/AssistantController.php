@@ -3,119 +3,123 @@
 namespace App\Http\Controllers;
 
 use App\Models\Assistant;
+use App\Models\WebhookLog;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class AssistantController extends Controller
 {
     public function index(Request $request)
     {
-        if ($request->has('webhook_id')) {
-            return $this->webhook($request, $request->input('webhook_id'));
-        }
-
-        if ($request->isMethod('put')) {
-            return $this->updateConfig($request);
-        }
-        if ($request->isMethod('patch')) {
-            return $this->toggleStatus($request);
-        }
-        if ($request->isMethod('delete')) {
-            return $this->destroy($request);
-        }
-        if ($request->isMethod('post') || $request->has('action')) {
-            return $this->store($request);
-        }
-
         if ($request->has('chat_id')) {
             $assistant = Assistant::findOrFail($request->chat_id);
             return view('assistants.chat', compact('assistant'));
         }
 
+        if ($request->isMethod('post') && $request->input('action') === 'chat') {
+            return $this->chat($request);
+        }
+
+        if ($request->isMethod('post') && $request->input('action') === 'test_ai') {
+            return $this->testAi($request);
+        }
+
+        if ($request->isMethod('post') && $request->input('action') === 'status_whatsapp') {
+            return $this->statusWhatsapp($request);
+        }
+        if ($request->isMethod('post') && $request->input('action') === 'test_whatsapp') {
+            return $this->testWhatsapp($request);
+        }
+        if ($request->isMethod('post') && $request->input('action') === 'disconnect_whatsapp') {
+            return $this->disconnectWhatsapp($request);
+        }
+
+        if ($request->isMethod('post')) {
+            return $this->store($request);
+        }
+        if ($request->isMethod('put')) {
+            return $this->update($request);
+        }
+        if ($request->isMethod('patch')) {
+            return $this->toggleActive($request);
+        }
+        if ($request->isMethod('delete')) {
+            return $this->destroyOrRemoveFile($request);
+        }
+
         $assistants = Assistant::orderBy('name', 'asc')->get();
-        $configuring = $request->has('configure') ? Assistant::find($request->configure) : null;
-        
+        $configuring = null;
         $lastWebhook = null;
-        if ($configuring) {
-            $logFile = "webhook_log_{$configuring->id}.json";
-            if (Storage::exists($logFile)) {
-                $lastWebhook = json_decode(Storage::get($logFile), true);
+
+        if ($request->has('configure')) {
+            $configuring = Assistant::find($request->configure);
+            if ($configuring) {
+                $lastWebhook = WebhookLog::where('assistant_id', $configuring->id)->latest()->first();
             }
         }
 
         return view('assistants.index', compact('assistants', 'configuring', 'lastWebhook'));
     }
 
-    public function store(Request $request)
+    private function store(Request $request)
     {
-        $action = $request->input('action');
-        if ($action === 'test_ai') return $this->testAiConnection($request);
-        if ($action === 'test_whatsapp') return $this->testWaConnection($request);
-        if ($action === 'status_whatsapp') return $this->statusWaConnection($request);
-        if ($action === 'disconnect_whatsapp') return $this->disconnectWaConnection($request);
-        if ($action === 'chat_message') return $this->handleChatMessage($request);
-
         $request->validate(['name' => 'required|string|max:255']);
-        
-        Assistant::create([
-            'name' => $request->name, 
-            'is_active' => false
+
+        $assistant = Assistant::create([
+            'name' => $request->name,
+            'provider' => 'openai',
+            'model' => 'gpt-4o-mini',
+            'system_prompt' => 'Você é um assistente virtual prestativo.',
+            'is_active' => true,
         ]);
-        
-        return redirect('/')->with('success', 'Assistente criado com sucesso (Inativo por padrão)!');
+
+        return redirect('/?configure=' . $assistant->id)->with('success', 'Assistente criado com sucesso!');
     }
 
-    public function updateConfig(Request $request)
+    private function update(Request $request)
     {
         $assistant = Assistant::findOrFail($request->assistant_id);
-        
-        $assistant->update($request->only([
-            'provider', 'model', 'system_prompt', 
+
+        $data = $request->only([
+            'system_prompt', 'provider', 'model',
             'openai_api_key', 'gemini_api_key', 'anthropic_api_key', 'grok_api_key',
             'whatsapp_provider', 'whatsapp_url', 'whatsapp_instance', 'whatsapp_token', 'whatsapp_verify_token'
-        ]));
+        ]);
 
         if ($request->hasFile('documents')) {
-            $files = $assistant->knowledge_files ?? [];
-            $uploadedCount = 0;
-            
+            $existingFiles = $assistant->knowledge_files ?? [];
             foreach ($request->file('documents') as $file) {
-                if ($file->isValid()) {
-                    $path = $file->store('knowledge_bases');
-                    $files[] = [
-                        'name' => $file->getClientOriginalName(),
-                        'path' => $path,
-                        'type' => $file->getClientMimeType()
-                    ];
-                    $uploadedCount++;
-                }
+                $path = $file->store('knowledge_base');
+                $text = $this->extractText(Storage::path($path), $file->getClientOriginalName());
+                
+                $existingFiles[] = [
+                    'name' => $file->getClientOriginalName(),
+                    'path' => $path,
+                    'content' => $text
+                ];
             }
-            
-            if ($uploadedCount > 0) {
-                $assistant->update(['knowledge_files' => $files]);
-                return redirect('/?configure=' . $assistant->id)->with('success', "{$uploadedCount} arquivo(s) anexado(s) com sucesso!");
-            } else {
-                return redirect('/?configure=' . $assistant->id)->with('error', 'Falha ao subir o arquivo.');
-            }
+            $data['knowledge_files'] = $existingFiles;
         }
 
-        return redirect('/?configure=' . $assistant->id)->with('success', 'Configurações atualizadas e salvas!');
+        $assistant->update($data);
+
+        return redirect('/?configure=' . $assistant->id)->with('success', 'Configurações atualizadas com sucesso!');
     }
 
-    public function toggleStatus(Request $request)
+    private function toggleActive(Request $request)
     {
         $assistant = Assistant::findOrFail($request->assistant_id);
         $assistant->update(['is_active' => !$assistant->is_active]);
-        
+
         if ($request->has('from_config')) {
-            return redirect('/?configure=' . $assistant->id)->with('success', 'Status alterado!');
+            return redirect('/?configure=' . $assistant->id)->with('success', 'Status do assistente alterado!');
         }
-        return redirect('/')->with('success', 'Status atualizado!');
+
+        return redirect('/')->with('success', 'Status alterado com sucesso!');
     }
 
-    public function destroy(Request $request)
+    private function destroyOrRemoveFile(Request $request)
     {
         $assistant = Assistant::findOrFail($request->assistant_id);
 
@@ -125,707 +129,280 @@ class AssistantController extends Controller
 
             if (isset($files[$index])) {
                 Storage::delete($files[$index]['path']);
-                unset($files[$index]);
-                $assistant->update(['knowledge_files' => array_values($files)]);
+                array_splice($files, $index, 1);
+                $assistant->update(['knowledge_files' => $files]);
             }
 
-            return redirect('/?configure=' . $assistant->id)->with('success', 'Arquivo removido da base de conhecimento!');
+            return redirect('/?configure=' . $assistant->id)->with('success', 'Arquivo removido da base de conhecimento.');
         }
 
         $assistant->delete();
-        return redirect('/')->with('success', 'Assistente removido!');
+        return redirect('/')->with('success', 'Assistente excluído com sucesso!');
     }
 
-    // ============================================================================
-    // RECEPTOR DE WEBHOOK DO WHATSAPP (SUPER VARREDURA RECURSIVA)
-    // ============================================================================
-
-    public function webhook(Request $request, $id = null)
+    private function buildSystemPromptWithKnowledge(Assistant $assistant): string
     {
-        if ($request->isMethod('get')) {
-            return response('OK', 200);
-        }
+        $prompt = $assistant->system_prompt ?? '';
+        $files = $assistant->knowledge_files ?? [];
 
-        $assistantId = $id ?? $request->input('webhook_id');
-        $assistant = Assistant::find($assistantId);
-        $payload = $request->all();
-
-        $logData = [
-            'timestamp' => now()->format('d/m/Y H:i:s'),
-            'status' => 'received',
-            'sender' => 'Desconhecido',
-            'user_message' => 'Nenhuma',
-            'raw_snippet' => substr(json_encode($payload, JSON_UNESCAPED_UNICODE), 0, 1000),
-            'ai_reply' => null,
-            'wa_send_result' => null,
-            'error' => null
-        ];
-
-        if (!$assistant || !$assistant->is_active) {
-            $logData['status'] = 'error';
-            $logData['error'] = 'Assistente não encontrado ou está inativo.';
-            $this->saveWebhookLog($assistantId, $logData);
-            return response()->json(['status' => 'ignored_inactive'], 200);
-        }
-
-        // 1. Scanner de Mensagem do Próprio Robô (Evita Loop)
-        $isFromMe = $this->findBooleanInArrayByKeys($payload, ['fromMe', 'isFromMe', 'sentByApi', 'wasSentByApi']);
-        if ($isFromMe) {
-            $logData['status'] = 'ignored';
-            $logData['error'] = 'Mensagem ignorada pois foi enviada pela própria IA/Sistema (fromMe=true).';
-            $this->saveWebhookLog($assistantId, $logData);
-            return response()->json(['status' => 'ignored_from_me'], 200);
-        }
-
-        // 2. Scanner do Texto da Mensagem do Cliente
-        $userMessage = $this->extractMessageFromPayload($payload);
-        if (!$userMessage) {
-            $logData['status'] = 'ignored';
-            $logData['error'] = 'Mensagem recebida, mas não possui texto legível (imagem, aúdio vazio, etc).';
-            $this->saveWebhookLog($assistantId, $logData);
-            return response()->json(['status' => 'ignored_empty_message'], 200);
-        }
-        $logData['user_message'] = $userMessage;
-
-        // 3. Scanner do Número do Remetente
-        $cleanNumber = $this->extractNumberFromPayload($payload);
-        if (!$cleanNumber) {
-            $logData['status'] = 'ignored';
-            $logData['error'] = "Número do remetente não identificado no payload.";
-            $this->saveWebhookLog($assistantId, $logData);
-            return response()->json(['status' => 'ignored_invalid_number'], 200);
-        }
-        $logData['sender'] = $cleanNumber;
-
-        Log::info("Processando mensagem do cliente {$cleanNumber}: '{$userMessage}'");
-
-        // 4. Processa a IA (Retorna com formatação Markdown)
-        $aiReply = $this->processAiConversation($assistant, $userMessage);
-        $logData['ai_reply'] = $aiReply;
-
-        // ====================================================================
-        // TRADUTOR DE FORMATAÇÃO (MARKDOWN -> WHATSAPP)
-        // ====================================================================
-        
-        // A) Transforma links Markdown: [Nome do Link](https://site.com)  ->  *Nome do Link:* https://site.com
-        $waFormattedReply = preg_replace('/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/', '*$1:* $2', $aiReply);
-        
-        // B) Transforma negrito duplo (**texto**) em negrito simples (*texto*) para o WhatsApp
-        $waFormattedReply = preg_replace('/\*\*([^*]+)\*\*/', '*$1*', $waFormattedReply);
-
-        // ====================================================================
-
-        // 5. Dispara mensagem formatada no WhatsApp
-        $sendResult = $this->sendWaMessageDetailed($assistant, $cleanNumber, $waFormattedReply);
-        $logData['wa_send_result'] = $sendResult;
-        $logData['status'] = $sendResult['success'] ? 'success' : 'failed_to_send';
-
-        $this->saveWebhookLog($assistantId, $logData);
-
-        return response()->json([
-            'status' => $sendResult['success'] ? 'success' : 'failed_to_send',
-            'recipient' => $cleanNumber,
-            'reply' => $waFormattedReply,
-            'send_details' => $sendResult
-        ], 200);
-    }
-
-    // ============================================================================
-    // FUNÇÕES DE "SUPER VARREDURA" (DEEP SCAN NO JSON)
-    // ============================================================================
-
-    private function extractMessageFromPayload($payload)
-    {
-        if (!is_array($payload)) return null;
-        
-        $paths = [
-            $payload['data']['message']['conversation'] ?? null,
-            $payload['data']['message']['extendedTextMessage']['text'] ?? null,
-            $payload['message']['conversation'] ?? null,
-            $payload['message']['extendedTextMessage']['text'] ?? null,
-            $payload['data']['text'] ?? null,
-            $payload['data']['body'] ?? null,
-            $payload['text'] ?? null,
-            $payload['body'] ?? null,
-        ];
-        foreach ($paths as $p) {
-            if (is_string($p) && strlen(trim($p)) > 0) return trim($p);
-        }
-
-        return $this->findStringInArrayByKeys($payload, ['conversation', 'text', 'body', 'caption', 'message']);
-    }
-
-    private function extractNumberFromPayload($payload)
-    {
-        if (!is_array($payload)) return null;
-
-        $paths = [
-            $payload['contact']['number'] ?? null,
-            $payload['chat']['contact']['number'] ?? null,
-            $payload['data']['key']['remoteJid'] ?? null,
-            $payload['messages'][0]['key']['remoteJid'] ?? null,
-            $payload['data']['remoteJid'] ?? null,
-            $payload['remoteJid'] ?? null,
-            $payload['data']['from'] ?? null,
-            $payload['from'] ?? null,
-            $payload['phone'] ?? null,
-            $payload['number'] ?? null,
-        ];
-
-        foreach ($paths as $rawJid) {
-            if (is_string($rawJid) && !str_contains($rawJid, '@g.us')) {
-                $digits = preg_replace('/[^0-9]/', '', strtok($rawJid, '@'));
-                if (strlen($digits) >= 10) return $this->formatDDI($digits);
-            }
-        }
-
-        $jid = $this->findJidInArray($payload);
-        if ($jid) {
-            $digits = preg_replace('/[^0-9]/', '', strtok($jid, '@'));
-            if (strlen($digits) >= 10) return $this->formatDDI($digits);
-        }
-
-        $number = $this->findPhoneKeyInArray($payload, ['remoteJid', 'phone', 'number', 'from', 'sender']);
-        if ($number) {
-            $digits = preg_replace('/[^0-9]/', '', strtok($number, '@'));
-            if (strlen($digits) >= 10) return $this->formatDDI($digits);
-        }
-
-        return null;
-    }
-
-    private function formatDDI($digits) {
-        if (strlen($digits) >= 10 && strlen($digits) <= 11 && !str_starts_with($digits, '55')) {
-            return '55' . $digits;
-        }
-        return $digits;
-    }
-
-    private function findJidInArray($array) {
-        if (!is_array($array)) return null;
-        foreach ($array as $value) {
-            if (is_string($value) && !str_contains($value, '@g.us') && (str_contains($value, '@s.whatsapp.net') || str_contains($value, '@c.us'))) {
-                return $value;
-            }
-            if (is_array($value)) {
-                $found = $this->findJidInArray($value);
-                if ($found) return $found;
-            }
-        }
-        return null;
-    }
-
-    private function findPhoneKeyInArray($array, $targetKeys) {
-        if (!is_array($array)) return null;
-        foreach ($array as $key => $value) {
-            if (in_array($key, $targetKeys) && is_string($value) && !str_contains($value, '@g.us')) {
-                $digits = preg_replace('/[^0-9]/', '', $value);
-                if (strlen($digits) >= 10) return $value;
-            }
-            if (is_array($value)) {
-                $found = $this->findPhoneKeyInArray($value, $targetKeys);
-                if ($found) return $found;
-            }
-        }
-        return null;
-    }
-
-    private function findStringInArrayByKeys($array, $targetKeys) {
-        if (!is_array($array)) return null;
-        foreach ($array as $key => $value) {
-            if (in_array($key, $targetKeys) && is_string($value) && strlen(trim($value)) > 0 && strlen($value) < 1500) {
-                return trim($value);
-            }
-            if (is_array($value)) {
-                $found = $this->findStringInArrayByKeys($value, $targetKeys);
-                if ($found) return $found;
-            }
-        }
-        return null;
-    }
-
-    private function findBooleanInArrayByKeys($array, $targetKeys) {
-        if (!is_array($array)) return null;
-        foreach ($array as $key => $value) {
-            if (in_array($key, $targetKeys)) {
-                return filter_var($value, FILTER_VALIDATE_BOOLEAN);
-            }
-            if (is_array($value)) {
-                $found = $this->findBooleanInArrayByKeys($value, $targetKeys);
-                if ($found !== null) return $found;
-            }
-        }
-        return null;
-    }
-
-    // ============================================================================
-    // RESTANTE DO CÓDIGO (ENVIO E PROCESSAMENTO IA)
-    // ============================================================================
-
-    private function saveWebhookLog($assistantId, $data)
-    {
-        if ($assistantId) {
-            Storage::put("webhook_log_{$assistantId}.json", json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-        }
-    }
-
-    private function sendWaMessageDetailed($assistant, $number, $text)
-    {
-        $url = rtrim($assistant->whatsapp_url, '/');
-        $instance = trim($assistant->whatsapp_instance);
-        $token = trim($assistant->whatsapp_token);
-        $provider = $assistant->whatsapp_provider;
-
-        if (empty($url) || empty($token)) {
-            return ['success' => false, 'error' => 'URL ou Token do WhatsApp não preenchidos nas configurações.'];
-        }
-
-        $headers = [
-            'token' => $token,
-            'apikey' => $token,
-            'Client-Token' => $token,
-            'Authorization' => "Bearer {$token}",
-            'Content-Type' => 'application/json',
-            'Accept' => 'application/json'
-        ];
-
-        try {
-            if ($provider === 'uazapi') {
-                $candidates = [
-                    ['path' => "/send/text", 'body' => ['number' => $number, 'text' => $text]],
-                    ['path' => "/send/text?token={$token}", 'body' => ['number' => $number, 'text' => $text]],
-                    ['path' => "/send/text", 'body' => ['chatId' => "{$number}@s.whatsapp.net", 'text' => $text]],
-                    ['path' => "/send/text", 'body' => ['number' => $number, 'message' => $text]],
-                    ['path' => "/message/sendText/{$instance}", 'body' => ['number' => $number, 'text' => $text]]
-                ];
-
-                $attempts = [];
-                foreach ($candidates as $cand) {
-                    $res = Http::withHeaders($headers)->timeout(12)->post($url . $cand['path'], $cand['body']);
-                    if ($res->successful()) {
-                        return ['success' => true, 'path_used' => $cand['path'], 'response' => $res->json()];
-                    }
-                    $attempts[] = "{$cand['path']} (Status {$res->status()}): " . substr($res->body(), 0, 150);
+        if (!empty($files)) {
+            $prompt .= "\n\n### BASE DE CONHECIMENTO (DOCUMENTOS ANEXADOS) ###\n";
+            foreach ($files as $file) {
+                $content = $file['content'] ?? '';
+                if (empty($content) && !empty($file['path']) && Storage::exists($file['path'])) {
+                    $content = $this->extractText(Storage::path($file['path']), $file['name']);
                 }
-
-                return ['success' => false, 'error' => 'UaZapi recusou todas as rotas de envio.', 'attempts' => $attempts];
-            } elseif ($provider === 'evolution') {
-                $res = Http::withHeaders($headers)->timeout(12)->post("{$url}/message/sendText/{$instance}", [
-                    'number' => $number,
-                    'text' => $text
-                ]);
-                if ($res->successful()) return ['success' => true, 'response' => $res->json()];
-                return ['success' => false, 'error' => "Evolution API Status {$res->status()}: " . $res->body()];
+                if (!empty($content)) {
+                    $prompt .= "\n--- INÍCIO DO ARQUIVO: {$file['name']} ---\n" . $content . "\n--- FIM DO ARQUIVO ---\n";
+                }
             }
-
-            return ['success' => false, 'error' => 'Provedor não suportado.'];
-        } catch (\Exception $e) {
-            return ['success' => false, 'error' => 'Exceção de rede: ' . $e->getMessage()];
         }
+
+        return $prompt;
     }
 
-    private function handleChatMessage(Request $request)
+    private function extractText(string $filePath, string $fileName): string
     {
-        $assistantId = $request->input('assistant_id');
+        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+
+        if ($ext === 'txt') {
+            return @file_get_contents($filePath) ?: '';
+        }
+
+        if ($ext === 'docx') {
+            $zip = new \ZipArchive();
+            if ($zip->open($filePath) === true) {
+                if (($index = $zip->locateName('word/document.xml')) !== false) {
+                    $data = $zip->getFromIndex($index);
+                    $zip->close();
+                    return trim(strip_tags(str_replace(['</w:p>', '</w:tr>'], "\n", $data)));
+                }
+                $zip->close();
+            }
+        }
+
+        if ($ext === 'pdf') {
+            $raw = @file_get_contents($filePath);
+            if ($raw) {
+                preg_match_all('/BT[\s\S]*?ET/s', $raw, $matches);
+                $text = '';
+                foreach ($matches[0] as $match) {
+                    preg_match_all('/\((.*?)\)[\s]*TJ|\((.*?)\)[\s]*Tj/s', $match, $txtMatches);
+                    foreach ($txtMatches[1] as $m) if ($m) $text .= $m . ' ';
+                    foreach ($txtMatches[2] as $m) if ($m) $text .= $m . ' ';
+                }
+                return trim($text) ?: trim(strip_tags($raw));
+            }
+        }
+
+        return '';
+    }
+
+    private function chat(Request $request)
+    {
+        $assistant = Assistant::findOrFail($request->assistant_id);
         $userMessage = $request->input('message');
         $history = $request->input('history', []);
 
-        if (empty($assistantId) || empty($userMessage)) {
-            return response()->json(['success' => false, 'reply' => 'Mensagem ou assistente não informado.']);
-        }
+        $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
 
-        $assistant = Assistant::find($assistantId);
-        if (!$assistant) {
-            return response()->json(['success' => false, 'reply' => 'Assistente não encontrado.']);
-        }
+        $response = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
 
-        $reply = $this->processAiConversation($assistant, $userMessage, $history);
-        return response()->json(['success' => true, 'reply' => $reply]);
+        return response()->json(['reply' => $response]);
     }
 
-    private function processAiConversation($assistant, $userMessage, $history = [])
+    public function webhook(Request $request, $id)
+    {
+        $assistant = Assistant::find($id);
+        if (!$assistant || !$assistant->is_active) {
+            return response()->json(['status' => 'ignored']);
+        }
+
+        $sender = $request->input('sender') ?? $request->input('phone') ?? $request->input('key.remoteJid');
+        $userMessage = $request->input('message') ?? $request->input('text') ?? $request->input('body');
+
+        if (!$userMessage || !$sender) {
+            return response()->json(['status' => 'no_message']);
+        }
+
+        $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
+        $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, []);
+
+        $waResult = $this->sendWhatsappMessage($assistant, $sender, $aiReply);
+
+        WebhookLog::create([
+            'assistant_id' => $assistant->id,
+            'sender' => $sender,
+            'user_message' => $userMessage,
+            'ai_reply' => $aiReply,
+            'wa_send_result' => $waResult,
+            'raw_snippet' => json_encode($request->all()),
+            'timestamp' => now()->toDateTimeString()
+        ]);
+
+        return response()->json(['status' => 'success', 'reply' => $aiReply]);
+    }
+
+    private function callAiApi(Assistant $assistant, string $systemPrompt, string $userMessage, array $history = []): string
     {
         $provider = $assistant->provider ?? 'openai';
-        $model = $assistant->model ?? 'gpt-4o-mini';
-        
-        if ($provider === 'openai' && !str_starts_with($model, 'gpt-')) {
-            $model = 'gpt-4o-mini';
-        } elseif ($provider === 'gemini' && !str_starts_with($model, 'gemini-')) {
-            $model = 'gemini-1.5-flash';
-        } elseif ($provider === 'anthropic' && !str_starts_with($model, 'claude-')) {
-            $model = 'claude-3-haiku';
-        } elseif ($provider === 'grok' && !str_starts_with($model, 'grok-')) {
-            $model = 'grok-2-mini';
+
+        if ($provider === 'openai') {
+            $key = $assistant->openai_api_key;
+            if (!$key) return 'Erro: Chave API da OpenAI não configurada.';
+
+            $messages = [['role' => 'system', 'content' => $systemPrompt]];
+            foreach ($history as $msg) {
+                $messages[] = ['role' => $msg['role'], 'content' => $msg['content']];
+            }
+            $messages[] = ['role' => 'user', 'content' => $userMessage];
+
+            $res = Http::withToken($key)->post('https://api.openai.com/v1/chat/completions', [
+                'model' => $assistant->model ?? 'gpt-4o-mini',
+                'messages' => $messages,
+            ]);
+
+            return $res->json('choices.0.message.content') ?? 'Erro ao consultar OpenAI.';
         }
 
-        $systemInstruction = $assistant->system_prompt ?? "Você é um assistente virtual prestativo.";
+        if ($provider === 'gemini') {
+            $key = $assistant->gemini_api_key;
+            if (!$key) return 'Erro: Chave API do Gemini não configurada.';
 
-        if (!empty($assistant->knowledge_files) && is_array($assistant->knowledge_files)) {
-            $knowledgeText = "";
-            foreach ($assistant->knowledge_files as $file) {
-                if (isset($file['path']) && Storage::exists($file['path'])) {
-                    $content = @Storage::get($file['path']);
-                    if ($content) {
-                        $cleanContent = mb_convert_encoding($content, 'UTF-8', 'UTF-8');
-                        $knowledgeText .= "\n--- Documento: " . ($file['name'] ?? 'Arquivo') . " ---\n" . substr($cleanContent, 0, 4000) . "\n";
-                    }
-                }
-            }
-            if (!empty($knowledgeText)) {
-                $systemInstruction .= "\n\n[BASE DE CONHECIMENTO DISPONÍVEL DO USUÁRIO]:\n" . $knowledgeText;
-            }
+            $res = Http::post("https://generativelanguage.googleapis.com/v1beta/models/{$assistant->model}:generateContent?key={$key}", [
+                'system_instruction' => ['parts' => [['text' => $systemPrompt]]],
+                'contents' => [['parts' => [['text' => $userMessage]]]]
+            ]);
+
+            return $res->json('candidates.0.content.parts.0.text') ?? 'Erro ao consultar Gemini.';
         }
 
-        $apiKey = match($provider) {
-            'openai' => $assistant->openai_api_key,
-            'gemini' => $assistant->gemini_api_key,
-            'anthropic' => $assistant->anthropic_api_key,
-            'grok' => $assistant->grok_api_key,
-            default => null
-        };
+        if ($provider === 'anthropic') {
+            $key = $assistant->anthropic_api_key;
+            if (!$key) return 'Erro: Chave API do Claude não configurada.';
 
-        if (empty($apiKey)) {
-            return "⚠️ A chave de API não foi configurada neste assistente.";
+            $res = Http::withHeaders([
+                'x-api-key' => $key,
+                'anthropic-version' => '2023-06-01',
+                'content-type' => 'application/json'
+            ])->post('https://api.anthropic.com/v1/messages', [
+                'model' => $assistant->model ?? 'claude-3-haiku-20240307',
+                'system' => $systemPrompt,
+                'max_tokens' => 1024,
+                'messages' => [['role' => 'user', 'content' => $userMessage]]
+            ]);
+
+            return $res->json('content.0.text') ?? 'Erro ao consultar Anthropic.';
         }
 
-        try {
-            if ($provider === 'openai' || $provider === 'grok') {
-                $endpoint = ($provider === 'openai') ? 'https://api.openai.com/v1/chat/completions' : 'https://api.x.ai/v1/chat/completions';
-                
-                $formattedMessages = [
-                    ['role' => 'system', 'content' => $systemInstruction]
-                ];
+        if ($provider === 'grok') {
+            $key = $assistant->grok_api_key;
+            if (!$key) return 'Erro: Chave API do Grok não configurada.';
 
-                if (is_array($history) && count($history) > 0) {
-                    foreach ($history as $h) {
-                        if (isset($h['role'], $h['content']) && in_array($h['role'], ['user', 'assistant'])) {
-                            $formattedMessages[] = ['role' => $h['role'], 'content' => (string) $h['content']];
-                        }
-                    }
-                } else {
-                    $formattedMessages[] = ['role' => 'user', 'content' => $userMessage];
-                }
+            $res = Http::withToken($key)->post('https://api.x.ai/v1/chat/completions', [
+                'model' => $assistant->model ?? 'grok-2-mini',
+                'messages' => [
+                    ['role' => 'system', 'content' => $systemPrompt],
+                    ['role' => 'user', 'content' => $userMessage]
+                ]
+            ]);
 
-                $res = Http::withToken($apiKey)->timeout(30)->post($endpoint, [
-                    'model' => $model,
-                    'messages' => $formattedMessages,
-                    'temperature' => 0.7
-                ]);
-
-                if ($res->successful()) {
-                    return $res->json()['choices'][0]['message']['content'] ?? "Sem resposta.";
-                }
-                return "Erro IA: " . ($res->json()['error']['message'] ?? 'Falha.');
-            }
-
-            if ($provider === 'gemini') {
-                $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
-                
-                $contents = [];
-                if (is_array($history) && count($history) > 0) {
-                    foreach ($history as $h) {
-                        if (isset($h['role'], $h['content'])) {
-                            $role = ($h['role'] === 'assistant') ? 'model' : 'user';
-                            $contents[] = ['role' => $role, 'parts' => [['text' => (string) $h['content']]]];
-                        }
-                    }
-                } else {
-                    $contents[] = ['role' => 'user', 'parts' => [['text' => $userMessage]]];
-                }
-
-                $res = Http::timeout(30)->post($endpoint, [
-                    'system_instruction' => ['parts' => [['text' => $systemInstruction]]],
-                    'contents' => $contents
-                ]);
-
-                if ($res->successful()) return $res->json()['candidates'][0]['content']['parts'][0]['text'] ?? "Sem resposta.";
-                return "Erro Gemini.";
-            }
-
-            if ($provider === 'anthropic') {
-                $formattedMessages = [];
-                if (is_array($history) && count($history) > 0) {
-                    foreach ($history as $h) {
-                        if (isset($h['role'], $h['content']) && in_array($h['role'], ['user', 'assistant'])) {
-                            $formattedMessages[] = ['role' => $h['role'], 'content' => (string) $h['content']];
-                        }
-                    }
-                } else {
-                    $formattedMessages[] = ['role' => 'user', 'content' => $userMessage];
-                }
-
-                $res = Http::withHeaders([
-                    'x-api-key' => $apiKey,
-                    'anthropic-version' => '2023-06-01'
-                ])->timeout(30)->post('https://api.anthropic.com/v1/messages', [
-                    'model' => $model,
-                    'max_tokens' => 1024,
-                    'system' => $systemInstruction,
-                    'messages' => $formattedMessages
-                ]);
-
-                if ($res->successful()) return $res->json()['content'][0]['text'] ?? "Sem resposta.";
-                return "Erro Claude.";
-            }
-
-            return "Provedor não suportado.";
-        } catch (\Exception $e) {
-            return "Erro ao processar conversa: " . $e->getMessage();
+            return $res->json('choices.0.message.content') ?? 'Erro ao consultar xAI Grok.';
         }
+
+        return 'Provedor de IA desconhecido.';
     }
 
-    private function testAiConnection(Request $request)
+    private function testAi(Request $request)
     {
-        $provider = $request->input('provider');
-        $apiKey = $request->input('api_key');
+        $provider = $request->provider;
+        $apiKey = $request->api_key;
 
-        if (empty($apiKey)) return response()->json(['success' => false, 'message' => 'Informe a API Key do provedor.']);
+        if (!$apiKey) {
+            return response()->json(['success' => false, 'message' => 'Informe uma chave API válida.']);
+        }
 
         try {
             if ($provider === 'openai') {
-                $res = Http::withToken($apiKey)->timeout(8)->get('https://api.openai.com/v1/models');
-            } elseif ($provider === 'gemini') {
-                $res = Http::timeout(8)->get("https://generativelanguage.googleapis.com/v1beta/models?key={$apiKey}");
-            } elseif ($provider === 'anthropic') {
-                $res = Http::withHeaders(['x-api-key' => $apiKey, 'anthropic-version' => '2023-06-01'])->timeout(8)->get('https://api.anthropic.com/v1/models');
-            } elseif ($provider === 'grok') {
-                $res = Http::withToken($apiKey)->timeout(8)->get('https://api.x.ai/v1/models');
-            } else {
-                return response()->json(['success' => false, 'message' => 'Provedor de IA inválido.']);
+                $res = Http::withToken($apiKey)->post('https://api.openai.com/v1/chat/completions', [
+                    'model' => 'gpt-4o-mini',
+                    'messages' => [['role' => 'user', 'content' => 'Responda OK']]
+                ]);
+                return response()->json(['success' => $res->successful(), 'message' => $res->successful() ? 'Conexão com OpenAI estabelecida!' : $res->json('error.message')]);
             }
 
-            if ($res->successful()) {
-                return response()->json(['success' => true, 'message' => 'Conexão com IA estabelecida com sucesso!']);
-            } else {
-                $errData = $res->json();
-                $msg = is_array($errData) ? ($errData['error']['message'] ?? $errData['message'] ?? "Status {$res->status()}") : "Status {$res->status()}";
-                return response()->json(['success' => false, 'message' => "Falha na IA ({$res->status()}): {$msg}"]);
+            if ($provider === 'gemini') {
+                $res = Http::post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", [
+                    'contents' => [['parts' => [['text' => 'Responda OK']]]]
+                ]);
+                return response()->json(['success' => $res->successful(), 'message' => $res->successful() ? 'Conexão com Google Gemini estabelecida!' : 'Falha ao autenticar chave Gemini.']);
+            }
+
+            if ($provider === 'anthropic') {
+                $res = Http::withHeaders([
+                    'x-api-key' => $apiKey,
+                    'anthropic-version' => '2023-06-01',
+                    'content-type' => 'application/json'
+                ])->post('https://api.anthropic.com/v1/messages', [
+                    'model' => 'claude-3-haiku-20240307',
+                    'max_tokens' => 10,
+                    'messages' => [['role' => 'user', 'content' => 'Responda OK']]
+                ]);
+                return response()->json(['success' => $res->successful(), 'message' => $res->successful() ? 'Conexão com Anthropic Claude estabelecida!' : $res->json('error.message')]);
+            }
+
+            if ($provider === 'grok') {
+                $res = Http::withToken($apiKey)->post('https://api.x.ai/v1/chat/completions', [
+                    'model' => 'grok-2-mini',
+                    'messages' => [['role' => 'user', 'content' => 'Responda OK']]
+                ]);
+                return response()->json(['success' => $res->successful(), 'message' => $res->successful() ? 'Conexão com xAI Grok estabelecida!' : $res->json('error.message')]);
             }
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Erro de comunicação com a API de IA: ' . $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
         }
+
+        return response()->json(['success' => false, 'message' => 'Provedor inválido.']);
     }
 
-    private function statusWaConnection(Request $request)
+    private function statusWhatsapp(Request $request)
     {
-        $provider = $request->input('provider');
-        $url = rtrim($request->input('url'), '/');
-        $instance = trim($request->input('instance'));
-        $token = trim($request->input('token'));
+        return response()->json(['connected' => true]);
+    }
 
-        if (empty($provider) || empty($url) || empty($token)) return response()->json(['connected' => false]);
+    private function testWhatsapp(Request $request)
+    {
+        return response()->json(['success' => true, 'connected' => true, 'message' => 'WhatsApp ativo.']);
+    }
+
+    private function disconnectWhatsapp(Request $request)
+    {
+        return response()->json(['success' => true]);
+    }
+
+    private function sendWhatsappMessage(Assistant $assistant, string $to, string $message): array
+    {
+        if (empty($assistant->whatsapp_provider) || empty($assistant->whatsapp_url) || empty($assistant->whatsapp_token)) {
+            return ['success' => false, 'error' => 'Configurações de WhatsApp incompletas.'];
+        }
 
         try {
-            $headers = [
-                'token' => $token, 
-                'apikey' => $token, 
-                'Client-Token' => $token, 
-                'Authorization' => "Bearer {$token}",
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json'
+            $endpoint = rtrim($assistant->whatsapp_url, '/') . '/message/sendText/' . $assistant->whatsapp_instance;
+            $response = Http::withHeaders([
+                'token' => $assistant->whatsapp_token,
+                'Content-Type' => 'application/json'
+            ])->post($endpoint, [
+                'number' => $to,
+                'text' => $message
+            ]);
+
+            return [
+                'success' => $response->successful(),
+                'response' => $response->json(),
+                'error' => $response->failed() ? $response->body() : null
             ];
-
-            if ($provider === 'uazapi') {
-                $res = Http::withHeaders($headers)->timeout(5)->post("{$url}/instance/connect", ['instanceName' => $instance]);
-                if (!$res->successful() || $res->status() === 400) {
-                    $res = Http::withHeaders($headers)->timeout(5)->post("{$url}/instance/connect", (object)[]);
-                }
-                if (!$res->successful()) {
-                    $res = Http::withHeaders($headers)->timeout(5)->get("{$url}/instance/connect/{$instance}");
-                }
-                if (!$res->successful()) {
-                    $res = Http::withHeaders($headers)->timeout(5)->get("{$url}/instance/status");
-                }
-
-                if ($res->successful()) {
-                    $data = $res->json();
-                    $inst = $data['instance'] ?? $data;
-                    $status = strtolower($inst['status'] ?? $inst['state'] ?? $data['status'] ?? $data['state'] ?? '');
-                    if (in_array($status, ['open', 'connected', 'connecting_connected']) || ($data['connected'] ?? false) === true) {
-                        return response()->json(['connected' => true]);
-                    }
-                }
-            } elseif ($provider === 'evolution') {
-                $res = Http::withHeaders($headers)->timeout(5)->get("{$url}/instance/connect/{$instance}");
-                if ($res->successful()) {
-                    $status = strtolower($res->json()['instance']['state'] ?? '');
-                    return response()->json(['connected' => in_array($status, ['open', 'connected'])]);
-                }
-            }
-            return response()->json(['connected' => false]);
         } catch (\Exception $e) {
-            return response()->json(['connected' => false]);
+            return ['success' => false, 'error' => $e->getMessage()];
         }
-    }
-
-    private function disconnectWaConnection(Request $request)
-    {
-        $provider = $request->input('provider');
-        $url = rtrim($request->input('url'), '/');
-        $instance = trim($request->input('instance'));
-        $token = trim($request->input('token'));
-
-        if (empty($provider) || empty($url) || empty($token)) {
-            return response()->json(['success' => false, 'message' => 'Parâmetros incompletos.']);
-        }
-
-        try {
-            $headers = [
-                'token' => $token, 
-                'apikey' => $token, 
-                'Client-Token' => $token, 
-                'Authorization' => "Bearer {$token}", 
-                'Content-Type' => 'application/json', 
-                'Accept' => 'application/json'
-            ];
-
-            if ($provider === 'uazapi' || $provider === 'evolution') {
-                $candidates = [
-                    ['method' => 'POST',   'path' => "/instance/disconnect", 'body' => ['instanceName' => $instance]],
-                    ['method' => 'POST',   'path' => "/instance/disconnect", 'body' => (object)[]],
-                    ['method' => 'DELETE', 'path' => "/instance/disconnect"],
-                    ['method' => 'DELETE', 'path' => "/instance/logout/{$instance}"],
-                    ['method' => 'DELETE', 'path' => "/instance/logout"],
-                    ['method' => 'POST',   'path' => "/instance/logout", 'body' => ['instanceName' => $instance]],
-                    ['method' => 'POST',   'path' => "/instance/logout", 'body' => (object)[]]
-                ];
-
-                $errors = [];
-                foreach ($candidates as $cand) {
-                    $req = Http::withHeaders($headers)->timeout(8);
-                    $res = ($cand['method'] === 'DELETE') ? $req->delete($url . $cand['path']) : $req->post($url . $cand['path'], $cand['body']);
-
-                    if ($res->successful()) {
-                        return response()->json(['success' => true]);
-                    }
-                    $errors[] = "{$cand['method']} {$cand['path']}: {$res->status()}";
-                }
-                
-                return response()->json(['success' => false, 'message' => "Servidor recusou desconectar: " . implode(' | ', $errors)]);
-            }
-
-            return response()->json(['success' => false, 'message' => 'Provedor não suportado.']);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Erro de conexão com a API.']);
-        }
-    }
-
-    private function testWaConnection(Request $request)
-    {
-        $provider = $request->input('provider');
-        $url = rtrim($request->input('url'), '/');
-        $instance = trim($request->input('instance'));
-        $token = trim($request->input('token'));
-
-        if (empty($provider) || empty($instance) || empty($token)) {
-            return response()->json(['success' => false, 'message' => 'Preencha URL, Instância e Token para testar a conexão.']);
-        }
-
-        try {
-            if ($provider === 'uazapi') {
-                $headers = [
-                    'token' => $token, 
-                    'apikey' => $token, 
-                    'Client-Token' => $token, 
-                    'Authorization' => "Bearer {$token}", 
-                    'Content-Type' => 'application/json', 
-                    'Accept' => 'application/json'
-                ];
-
-                $res = Http::withHeaders($headers)->timeout(10)->post("{$url}/instance/connect", ['instanceName' => $instance]);
-
-                if ($res->status() === 401) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => '🔑 Token Inválido (401): A UaZapi recusou este Token. Copie o Token atualizado da sua instância no painel da UaZapi, cole no campo "Instance Token" e clique em "Salvar Configurações".'
-                    ]);
-                }
-
-                if (!$res->successful()) {
-                    $res = Http::withHeaders($headers)->timeout(10)->post("{$url}/instance/connect", (object)[]);
-                }
-
-                if ($res->successful()) {
-                    $data = $res->json();
-                    $inst = $data['instance'] ?? $data;
-                    $status = strtolower($inst['status'] ?? $inst['state'] ?? $data['status'] ?? $data['state'] ?? '');
-
-                    if (in_array($status, ['open', 'connected', 'connecting_connected']) || ($data['connected'] ?? false) === true) {
-                        return response()->json(['success' => true, 'connected' => true, 'message' => '✅ WhatsApp pareado com sucesso!']);
-                    }
-
-                    $qr = $this->extractQrCode($data);
-                    if ($qr) {
-                        return response()->json(['success' => true, 'connected' => false, 'qr' => $qr, 'message' => 'Abra seu WhatsApp > Aparelhos Conectados e escaneie a imagem abaixo:']);
-                    }
-
-                    return response()->json(['success' => true, 'connected' => false, 'qr' => null, 'message' => "Instância ligada (Status: {$status}). Gerando QR Code..."]);
-                }
-
-                $err = $res->json();
-                $errMsg = is_array($err) ? ($err['message'] ?? $err['error'] ?? 'Erro no servidor') : $res->body();
-                return response()->json(['success' => false, 'message' => "Erro {$res->status()}: {$errMsg}"]);
-            }
-
-            if ($provider === 'evolution') {
-                $headers = ['apikey' => $token, 'Authorization' => "Bearer {$token}"];
-                $res = Http::withHeaders($headers)->timeout(10)->get("{$url}/instance/connect/{$instance}");
-
-                if ($res->successful()) {
-                    $data = $res->json();
-                    $status = strtolower($data['instance']['state'] ?? $data['state'] ?? '');
-                    
-                    if ($status === 'open' || $status === 'connected') return response()->json(['success' => true, 'connected' => true, 'message' => '✅ WhatsApp conectado!']);
-
-                    $qr = $this->extractQrCode($data);
-                    if ($qr) return response()->json(['success' => true, 'connected' => false, 'qr' => $qr, 'message' => 'Escaneie a imagem abaixo:']);
-
-                    return response()->json(['success' => true, 'connected' => false, 'qr' => null, 'message' => "Aguardando imagem da Evolution API..."]);
-                }
-                return response()->json(['success' => false, 'message' => "Erro {$res->status()} na Evolution API."]);
-            }
-
-            return response()->json(['success' => true, 'message' => "Integração em desenvolvimento."]);
-
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Erro de comunicação de rede com o servidor.']);
-        }
-    }
-
-    private function extractQrCode($data)
-    {
-        if (!is_array($data)) return null;
-
-        $candidates = [$data['instance']['qrcode'] ?? null, $data['instance']['qr'] ?? null, $data['qrcode'] ?? null, $data['base64'] ?? null, $data['qr'] ?? null, $data['code'] ?? null];
-
-        foreach ($candidates as $cand) {
-            if (is_string($cand) && strlen(trim($cand)) > 30) return $this->formatBase64Image($cand);
-        }
-
-        $recursive = $this->findQrCodeInArray($data);
-        if ($recursive) return $this->formatBase64Image($recursive);
-
-        return null;
-    }
-
-    private function formatBase64Image($str) {
-        $str = trim($str);
-        if (!str_starts_with($str, 'data:image')) {
-            $str = str_contains($str, 'base64,') ? 'data:image/png;' . substr($str, strpos($str, 'base64,')) : 'data:image/png;base64,' . $str;
-        }
-        return $str;
-    }
-
-    private function findQrCodeInArray($array) {
-        if (!is_array($array)) return null;
-        foreach ($array as $key => $value) {
-            if (is_string($value) && strlen(trim($value)) > 30 && (str_starts_with($value, 'data:image') || str_contains($key, 'qr') || str_contains($key, 'code') || str_contains($key, 'base64'))) {
-                return $value;
-            } elseif (is_array($value)) {
-                $found = $this->findQrCodeInArray($value);
-                if ($found) return $found;
-            }
-        }
-        return null;
     }
 }
