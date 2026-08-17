@@ -8,9 +8,28 @@ use Illuminate\Http\Request;
 
 class AgentController extends Controller
 {
+    public function handle(Request $request)
+    {
+        $action = $request->input('action');
+
+        if ($action === 'store_department') {
+            return $this->storeDepartment($request);
+        }
+        if ($action === 'delete_department') {
+            return $this->destroyDepartment($request);
+        }
+        if ($action === 'store_agent') {
+            return $this->storeAgent($request);
+        }
+        if ($action === 'delete_agent') {
+            return $this->destroyAgent($request);
+        }
+
+        return $this->index();
+    }
+
     public function index()
     {
-        // Busca todos os departamentos e já traz os agentes junto (ordem alfabética)
         $departments = Department::with(['agents' => function($query) {
             $query->orderBy('name', 'asc');
         }])->orderBy('name', 'asc')->get();
@@ -18,7 +37,7 @@ class AgentController extends Controller
         return view('agents.index', compact('departments'));
     }
 
-    public function storeDepartment(Request $request)
+    private function storeDepartment(Request $request)
     {
         $request->validate(['name' => 'required|string|max:255']);
         
@@ -27,16 +46,16 @@ class AgentController extends Controller
             'description' => $request->description
         ]);
 
-        return redirect('/equipe')->with('success', 'Departamento criado com sucesso!');
+        return redirect('/?view=equipe')->with('success', 'Departamento criado com sucesso!');
     }
 
-    public function destroyDepartment(Request $request)
+    private function destroyDepartment(Request $request)
     {
         Department::findOrFail($request->department_id)->delete();
-        return redirect('/equipe')->with('success', 'Departamento e seus agentes foram removidos!');
+        return redirect('/?view=equipe')->with('success', 'Departamento e seus agentes foram removidos!');
     }
 
-    public function storeAgent(Request $request)
+    private function storeAgent(Request $request)
     {
         $request->validate([
             'department_id' => 'required|exists:departments,id',
@@ -45,12 +64,12 @@ class AgentController extends Controller
 
         HumanAgent::create($request->only('department_id', 'name', 'email', 'phone'));
 
-        return redirect('/equipe')->with('success', 'Agente adicionado com sucesso!');
+        return redirect('/?view=equipe')->with('success', 'Agente adicionado com sucesso!');
     }
 
-    public function destroyAgent(Request $request)
+    private function destroyAgent(Request $request)
     {
         HumanAgent::findOrFail($request->agent_id)->delete();
-        return redirect('/equipe')->with('success', 'Agente removido da equipe!');
+        return redirect('/?view=equipe')->with('success', 'Agente removido da equipe!');
     }
 }

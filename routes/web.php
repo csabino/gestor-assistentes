@@ -4,15 +4,13 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\AgentController;
 
-// Rotas da Equipe e Agendas (Fase 6)
-Route::get('/equipe', [AgentController::class, 'index']);
-Route::post('/equipe/departamento', [AgentController::class, 'storeDepartment']);
-Route::delete('/equipe/departamento', [AgentController::class, 'destroyDepartment']);
-Route::post('/equipe/agente', [AgentController::class, 'storeAgent']);
-Route::delete('/equipe/agente', [AgentController::class, 'destroyAgent']);
-
-// Webhook do WhatsApp
+// Webhook do WhatsApp (Suporte a rota por subpasta)
 Route::match(['get', 'post'], '/webhook/whatsapp/{id}', [AssistantController::class, 'webhook']);
 
-// Rotas do Gestor de Assistentes (IA)
-Route::match(['get', 'post', 'patch', 'put', 'delete'], '/', [AssistantController::class, 'index']);
+// Central de Roteamento Imune a Erros 404 do Nginx
+Route::match(['get', 'post', 'patch', 'put', 'delete'], '/', function (\Illuminate\Http\Request $request) {
+    if ($request->input('view') === 'equipe') {
+        return app(AgentController::class)->handle($request);
+    }
+    return app(AssistantController::class)->index($request);
+});

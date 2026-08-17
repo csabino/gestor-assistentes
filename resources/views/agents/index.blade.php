@@ -10,7 +10,6 @@
 </head>
 <body class="bg-gray-50 font-sans text-gray-900" x-data="{ showDeptModal: false, showAgentModal: false, selectedDept: null }">
     
-    <!-- NAVEGAÇÃO TOPO -->
     <nav class="bg-indigo-600 text-white shadow-sm relative z-50">
         <div class="container mx-auto px-4 flex justify-between items-center h-14">
             <div class="flex items-center gap-6 h-full">
@@ -21,9 +20,10 @@
                 
                 <div class="h-full flex">
                     <a href="/" class="flex items-center px-3 text-sm font-medium border-b-2 border-transparent text-indigo-100 hover:text-white hover:border-indigo-300 transition">Robôs IA</a>
-                    <a href="/equipe" class="flex items-center px-3 text-sm font-medium border-b-2 border-white text-white">Equipe & Agendas</a>
+                    <a href="/?view=equipe" class="flex items-center px-3 text-sm font-medium border-b-2 border-white text-white">Equipe & Agendas</a>
                 </div>
             </div>
+            <span class="text-xs bg-indigo-500 px-3 py-1 rounded-full font-medium border border-indigo-400">Multi-Model</span>
         </div>
     </nav>
 
@@ -55,8 +55,9 @@
                             </h2>
                             <p class="text-[11px] text-gray-500 mt-0.5">{{ $dept->description ?? 'Sem descrição' }}</p>
                         </div>
-                        <form action="/equipe/departamento" method="POST" onsubmit="return confirm('Excluir este departamento apagará todos os agentes dele. Confirma?');">
-                            @csrf @method('DELETE')
+                        <form action="/?view=equipe" method="POST" onsubmit="return confirm('Excluir este departamento apagará todos os agentes dele. Confirma?');">
+                            @csrf
+                            <input type="hidden" name="action" value="delete_department">
                             <input type="hidden" name="department_id" value="{{ $dept->id }}">
                             <button type="submit" class="text-gray-400 hover:text-red-500 transition p-1"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                         </form>
@@ -76,8 +77,9 @@
                                             <p class="text-[10px] text-gray-500">{{ $agent->email ?? 'Sem e-mail' }}</p>
                                         </div>
                                     </div>
-                                    <form action="/equipe/agente" method="POST" onsubmit="return confirm('Remover {{ $agent->name }}?');">
-                                        @csrf @method('DELETE')
+                                    <form action="/?view=equipe" method="POST" onsubmit="return confirm('Remover {{ $agent->name }}?');">
+                                        @csrf
+                                        <input type="hidden" name="action" value="delete_agent">
                                         <input type="hidden" name="agent_id" value="{{ $agent->id }}">
                                         <button type="submit" class="text-red-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
                                     </form>
@@ -106,8 +108,9 @@
         <div x-show="showDeptModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
             <div @click.away="showDeptModal = false" class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
                 <h3 class="text-lg font-bold text-gray-800 mb-4">Novo Departamento</h3>
-                <form action="/equipe/departamento" method="POST">
+                <form action="/?view=equipe" method="POST">
                     @csrf
+                    <input type="hidden" name="action" value="store_department">
                     <label class="block text-xs font-bold text-gray-700 mb-1">Nome do Departamento</label>
                     <input type="text" name="name" required placeholder="Ex: Comercial, Suporte Técnico..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4">
                     
@@ -129,8 +132,9 @@
                     <svg class="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
                     Adicionar Agente
                 </h3>
-                <form action="/equipe/agente" method="POST">
+                <form action="/?view=equipe" method="POST">
                     @csrf
+                    <input type="hidden" name="action" value="store_agent">
                     <input type="hidden" name="department_id" :value="selectedDept">
                     
                     <label class="block text-xs font-bold text-gray-700 mb-1">Nome Completo</label>
