@@ -14,57 +14,57 @@ class AssistantController extends Controller
 {
     public function index(Request $request)
     {
-        // AUTO-CURA: Limpa a sujeira do banco automaticamente sem precisar de terminal
         try {
-            DB::table('assistants')->update(['knowledge_files' => null]);
-        } catch (\Throwable $e) {}
+            if ($request->has('chat_id')) {
+                $assistant = Assistant::findOrFail($request->chat_id);
+                return view('assistants.chat', compact('assistant'));
+            }
 
-        if ($request->has('chat_id')) {
-            $assistant = Assistant::findOrFail($request->chat_id);
-            return view('assistants.chat', compact('assistant'));
-        }
+            if ($request->isMethod('post') && $request->input('action') === 'chat') {
+                return $this->chat($request);
+            }
 
-        if ($request->isMethod('post') && $request->input('action') === 'chat') {
-            return $this->chat($request);
-        }
+            if ($request->isMethod('post') && $request->input('action') === 'test_ai') {
+                return $this->testAi($request);
+            }
 
-        if ($request->isMethod('post') && $request->input('action') === 'test_ai') {
-            return $this->testAi($request);
-        }
+            if ($request->isMethod('post') && $request->input('action') === 'status_whatsapp') {
+                return response()->json(['connected' => true]);
+            }
+            if ($request->isMethod('post') && $request->input('action') === 'test_whatsapp') {
+                return response()->json(['success' => true, 'connected' => true, 'message' => 'WhatsApp ativo.']);
+            }
+            if ($request->isMethod('post') && $request->input('action') === 'disconnect_whatsapp') {
+                return response()->json(['success' => true]);
+            }
 
-        if ($request->isMethod('post') && $request->input('action') === 'status_whatsapp') {
-            return response()->json(['connected' => true]);
-        }
-        if ($request->isMethod('post') && $request->input('action') === 'test_whatsapp') {
-            return response()->json(['success' => true, 'connected' => true, 'message' => 'WhatsApp ativo.']);
-        }
-        if ($request->isMethod('post') && $request->input('action') === 'disconnect_whatsapp') {
-            return response()->json(['success' => true]);
-        }
+            if ($request->isMethod('post')) return $this->store($request);
+            if ($request->isMethod('put')) return $this->update($request);
+            if ($request->isMethod('patch')) return $this->toggleActive($request);
+            if ($request->isMethod('delete')) return $this->destroyOrRemoveFile($request);
 
-        if ($request->isMethod('post')) return $this->store($request);
-        if ($request->isMethod('put')) return $this->update($request);
-        if ($request->isMethod('patch')) return $this->toggleActive($request);
-        if ($request->isMethod('delete')) return $this->destroyOrRemoveFile($request);
+            $assistants = Assistant::orderBy('name', 'asc')->get();
+            $configuring = null;
+            $lastWebhook = null;
 
-        $assistants = Assistant::orderBy('name', 'asc')->get();
-        $configuring = null;
-        $lastWebhook = null;
-
-        if ($request->has('configure')) {
-            $configuring = Assistant::find($request->configure);
-            if ($configuring && Schema::hasTable('webhook_logs')) {
-                $log = DB::table('webhook_logs')->where('assistant_id', $configuring->id)->latest('id')->first();
-                if ($log) {
-                    $lastWebhook = (array) $log;
-                    if (isset($lastWebhook['wa_send_result']) && is_string($lastWebhook['wa_send_result'])) {
-                        $lastWebhook['wa_send_result'] = json_decode($lastWebhook['wa_send_result'], true);
+            if ($request->has('configure')) {
+                $configuring = Assistant::find($request->configure);
+                if ($configuring && Schema::hasTable('webhook_logs')) {
+                    $log = DB::table('webhook_logs')->where('assistant_id', $configuring->id)->latest('id')->first();
+                    if ($log) {
+                        $lastWebhook = (array) $log;
+                        if (isset($lastWebhook['wa_send_result']) && is_string($lastWebhook['wa_send_result'])) {
+                            $lastWebhook['wa_send_result'] = json_decode($lastWebhook['wa_send_result'], true);
+                        }
                     }
                 }
             }
-        }
 
-        return view('assistants.index', compact('assistants', 'configuring', 'lastWebhook'));
+            return view('assistants.index', compact('assistants', 'configuring', 'lastWebhook'));
+        } catch (\Throwable $e) {
+            Log::error('Erro index: ' . $e->getMessage());
+            return redirect('/')->with('error', 'Erro ao carregar o painel.');
+        }
     }
 
     private function store(Request $request)
@@ -146,7 +146,7 @@ class AssistantController extends Controller
 
             return response()->json(['reply' => $response]);
         } catch (\Throwable $e) {
-            return response()->json(['reply' => '⚠️ Erro de comunicação interna: ' . $e->getMessage()]);
+            return response()->json(['reply' => '⚠️ Erro na IA: ' . $e->getMessage()]);
         }
     }
 
@@ -174,8 +174,8 @@ class AssistantController extends Controller
                     'sender' => $sender,
                     'user_message' => $userMessage,
                     'ai_reply' => $aiReply,
-                    'wa_send_result' => json_encode($waResult),
-                    'raw_snippet' => json_encode($request->all()),
+                    'wa_send_result' => json_encode($waResult, JSON_INVALID_UTF8_IGNORE),
+                    'raw_snippet' => json_encode($request->all(), JSON_INVALID_UTF8_IGNORE),
                     'timestamp' => now()->toDateTimeString(),
                     'created_at' => now(),
                     'updated_at' => now(),
