@@ -53,9 +53,21 @@
                     ],
                     get filteredAssistants() {
                         return this.assistants.filter(a => this.astFilter === 'all' || (this.astFilter === 'active' && a.is_active) || (this.astFilter === 'inactive' && !a.is_active));
+                    },
+                    checkAndRedirect() {
+                        let exists = this.filteredAssistants.find(a => a.id == this.currentAstId);
+                        if (!exists && this.filteredAssistants.length > 0) {
+                            window.location.href = '/?view=equipe&assistant_id=' + this.filteredAssistants[0].id;
+                        }
                     }
                  }"
-                 x-init="$watch('astFilter', val => localStorage.setItem('equipe_ast_filter', val))"
+                 x-init="
+                    checkAndRedirect();
+                    $watch('astFilter', val => {
+                        localStorage.setItem('equipe_ast_filter', val);
+                        checkAndRedirect();
+                    });
+                 "
             >
                 
                 <!-- Filtro de Status do Robô -->
@@ -68,10 +80,10 @@
                     </select>
                 </div>
 
-                <!-- Seletor do Robô (Assistente) Dinâmico com Trava Anti-Fantasma -->
+                <!-- Seletor do Robô (Assistente) Dinâmico -->
                 <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
                     <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Robô:</span>
-                    <select x-model="currentAstId" @change="if($event.isTrusted && $el.value) window.location.href = '/?view=equipe&assistant_id=' + $el.value" class="text-sm font-bold text-indigo-700 bg-transparent focus:outline-none cursor-pointer w-40">
+                    <select x-model="currentAstId" @change="window.location.href = '/?view=equipe&assistant_id=' + $el.value" class="text-sm font-bold text-indigo-700 bg-transparent focus:outline-none cursor-pointer w-40">
                         <template x-for="ast in filteredAssistants" :key="ast.id">
                             <option :value="ast.id" x-text="ast.name + (ast.is_active ? '' : ' (Inativo)')"></option>
                         </template>
