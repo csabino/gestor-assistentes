@@ -15,7 +15,6 @@
         .fc .fc-button-primary:hover { background-color: #4338ca !important; border-color: #4338ca !important; }
         .fc-event { cursor: pointer; transition: 0.2s; }
         .fc-event:hover { opacity: 0.9; }
-        /* Mantém o calendário preenchendo a área livre sem estourar a tela */
         .fc { height: 100% !important; display: flex; flex-direction: column; }
         .fc .fc-view-harness { flex: 1 1 auto; height: 100% !important; }
     </style>
@@ -40,29 +39,29 @@
         </div>
     </nav>
 
-    <!-- CONTEÚDO PRINCIPAL COM ALTURA AJUSTADA -->
+    <!-- CONTEÚDO PRINCIPAL -->
     <div class="container mx-auto px-4 max-w-6xl pt-6 pb-4 flex-1 flex flex-col overflow-hidden">
         
-        <!-- CABEÇALHO DA PÁGINA E CONTROLES (FIXO NO TOPO) -->
+        <!-- CABEÇALHO DA PÁGINA E CONTROLES DINÂMICOS -->
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4 shrink-0">
             <div>
                 <h1 class="text-2xl font-bold text-gray-800">Calendário e Horários</h1>
                 <p class="text-xs text-gray-500">Gerencie a disponibilidade e as reuniões agendadas de cada membro.</p>
             </div>
             
-            <div class="flex flex-wrap items-center gap-3">
-                <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
-                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Robô:</span>
-                    <select onchange="window.location.href='/?view=agenda&assistant_id=' + this.value" class="text-sm font-bold text-indigo-700 bg-transparent focus:outline-none cursor-pointer w-32">
+            <div class="flex flex-wrap items-center justify-end gap-3 w-full md:w-auto">
+                <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm shrink-0">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider shrink-0">Robô:</span>
+                    <select onchange="window.location.href='/?view=agenda&assistant_id=' + this.value" class="text-sm font-bold text-indigo-700 bg-transparent focus:outline-none cursor-pointer w-auto max-w-[12rem]">
                         @foreach($assistants as $ast)
                             <option value="{{ $ast->id }}" {{ $currentAssistantId == $ast->id ? 'selected' : '' }}>{{ $ast->name }}</option>
                         @endforeach
                     </select>
                 </div>
 
-                <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
-                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Agente:</span>
-                    <select onchange="window.location.href='/?view=agenda&assistant_id={{ $currentAssistantId }}&agent_id=' + this.value" class="text-sm font-bold text-indigo-700 bg-transparent focus:outline-none cursor-pointer w-48">
+                <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm shrink-0 max-w-full">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider shrink-0">Agente:</span>
+                    <select onchange="window.location.href='/?view=agenda&assistant_id={{ $currentAssistantId }}&agent_id=' + this.value" class="text-sm font-bold text-indigo-700 bg-transparent focus:outline-none cursor-pointer w-auto max-w-[20rem] truncate">
                         @forelse($agents as $agent)
                             <option value="{{ $agent->id }}" {{ $currentAgentId == $agent->id ? 'selected' : '' }}>{{ $agent->name }} ({{ $agent->department_name }})</option>
                         @empty
@@ -73,7 +72,7 @@
             </div>
         </div>
 
-        <!-- CONTAINER DO CALENDÁRIO (CRAVADO NO ESPAÇO RESTANTE) -->
+        <!-- CONTAINER DO CALENDÁRIO -->
         @if($currentAgentId)
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden">
                 <p class="text-[11px] text-gray-400 mb-2 font-semibold uppercase tracking-wider shrink-0">
@@ -81,7 +80,6 @@
                     Dica: Clique em qualquer lugar vazio para agendar ou criar bloqueio. Arraste os eventos para mudar o horário.
                 </p>
                 
-                <!-- ÁREA INTERNA DO CALENDÁRIO QUE FAZ A ROLAGEM DOS HORÁRIOS -->
                 <div id="calendar" class="flex-1 min-h-0"></div>
             </div>
         @else
