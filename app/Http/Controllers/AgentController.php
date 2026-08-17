@@ -29,8 +29,16 @@ class AgentController extends Controller
             return redirect('/')->with('error', 'Crie pelo menos um assistente/robô antes de configurar as equipes!');
         }
 
-        // Pega o assistente selecionado na URL ou o primeiro da lista por padrão
-        $currentAssistantId = $request->input('assistant_id', $assistants->first()->id);
+        // Pega da URL. Se não tiver, pega da última sessão salva. Se não tiver, pega o primeiro.
+        $currentAssistantId = $request->input('assistant_id', session('last_equipe_ast_id', $assistants->first()->id));
+
+        // Valida se o assistente do ID realmente existe (caso tenha sido apagado)
+        if (!$assistants->contains('id', $currentAssistantId)) {
+            $currentAssistantId = $assistants->first()->id;
+        }
+
+        // Salva na memória para não resetar quando trocar de tela
+        session(['last_equipe_ast_id' => $currentAssistantId]);
 
         $departments = Department::with(['agents' => function($query) {
             $query->orderBy('name', 'asc');
