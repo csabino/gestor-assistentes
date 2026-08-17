@@ -14,9 +14,25 @@ class Assistant extends Model
     ];
 
     protected $casts = [
-        'knowledge_files' => 'array',
         'is_active' => 'boolean',
     ];
+
+    // Se tiver lixo binário, ele ignora e salva a tela de dar Erro 500
+    public function getKnowledgeFilesAttribute($value)
+    {
+        if (empty($value)) return [];
+        $decoded = json_decode($value, true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    public function setKnowledgeFilesAttribute($value)
+    {
+        if (empty($value)) {
+            $this->attributes['knowledge_files'] = null;
+        } else {
+            $this->attributes['knowledge_files'] = is_string($value) ? $value : json_encode($value, JSON_INVALID_UTF8_IGNORE);
+        }
+    }
 
     public function departments()
     {
