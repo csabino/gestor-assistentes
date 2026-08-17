@@ -14,7 +14,9 @@ class AgentController extends Controller
         $action = $request->input('action');
 
         if ($action === 'store_department') return $this->storeDepartment($request);
+        if ($action === 'update_department') return $this->updateDepartment($request);
         if ($action === 'delete_department') return $this->destroyDepartment($request);
+        
         if ($action === 'store_agent') return $this->storeAgent($request);
         if ($action === 'delete_agent') return $this->destroyAgent($request);
 
@@ -64,6 +66,22 @@ class AgentController extends Controller
         ]);
 
         return redirect()->back()->with('success', 'Departamento criado com sucesso!');
+    }
+
+    private function updateDepartment(Request $request)
+    {
+        $request->validate([
+            'department_id' => 'required|exists:departments,id',
+            'name' => 'required|string|max:255'
+        ]);
+
+        $dept = Department::findOrFail($request->department_id);
+        $dept->update([
+            'name' => $request->name,
+            'description' => $request->description
+        ]);
+
+        return redirect()->back()->with('success', 'Departamento atualizado com sucesso!');
     }
 
     private function destroyDepartment(Request $request)

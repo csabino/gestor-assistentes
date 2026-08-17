@@ -12,6 +12,8 @@
 <body class="bg-gray-50 font-sans text-gray-900" x-data="{ 
     view: localStorage.getItem('equipe_view') || 'card', 
     showDeptModal: false, 
+    showEditDeptModal: false,
+    editDeptData: { id: '', name: '', description: '' },
     showAgentModal: false, 
     selectedDept: null 
 }" x-init="$watch('view', value => localStorage.setItem('equipe_view', value))">
@@ -80,10 +82,10 @@
                     </select>
                 </div>
 
-                <!-- Seletor do Robô (Assistente) Dinâmico -->
+                <!-- Seletor do Robô -->
                 <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
                     <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Robô:</span>
-                    <select x-model="currentAstId" @change="window.location.href = '/?view=equipe&assistant_id=' + $el.value" class="text-sm font-bold text-indigo-700 bg-transparent focus:outline-none cursor-pointer w-40">
+                    <select x-model="currentAstId" @change="if($event.isTrusted && $el.value) window.location.href = '/?view=equipe&assistant_id=' + $el.value" class="text-sm font-bold text-indigo-700 bg-transparent focus:outline-none cursor-pointer w-40">
                         <template x-for="ast in filteredAssistants" :key="ast.id">
                             <option :value="ast.id" x-text="ast.name + (ast.is_active ? '' : ' (Inativo)')"></option>
                         </template>
@@ -130,12 +132,17 @@
                             </h2>
                             <p class="text-[11px] text-gray-500 mt-0.5">{{ $dept->description ?? 'Sem descrição' }}</p>
                         </div>
-                        <form action="/?view=equipe" method="POST" onsubmit="return confirm('Excluir este departamento apagará todos os agentes dele. Confirma?');">
-                            @csrf
-                            <input type="hidden" name="action" value="delete_department">
-                            <input type="hidden" name="department_id" value="{{ $dept->id }}">
-                            <button type="submit" class="text-gray-400 hover:text-red-500 transition p-1" title="Excluir Departamento"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
-                        </form>
+                        <div class="flex items-center gap-1">
+                            <button type="button" @click="editDeptData = { id: '{{ $dept->id }}', name: '{{ addslashes($dept->name) }}', description: '{{ addslashes($dept->description ?? '') }}' }; showEditDeptModal = true" class="text-gray-400 hover:text-indigo-600 transition p-1" title="Editar Departamento">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>
+                            </button>
+                            <form action="/?view=equipe" method="POST" onsubmit="return confirm('Excluir este departamento apagará todos os agentes dele. Confirma?');">
+                                @csrf
+                                <input type="hidden" name="action" value="delete_department">
+                                <input type="hidden" name="department_id" value="{{ $dept->id }}">
+                                <button type="submit" class="text-gray-400 hover:text-red-500 transition p-1" title="Excluir Departamento"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                            </form>
+                        </div>
                     </div>
 
                     <div class="p-4 flex-1">
@@ -228,7 +235,10 @@
                                     @endforelse
                                 </div>
                             </td>
-                            <td class="py-4 px-5 align-top text-right">
+                            <td class="py-4 px-5 align-top text-right flex justify-end gap-1">
+                                <button type="button" @click="editDeptData = { id: '{{ $dept->id }}', name: '{{ addslashes($dept->name) }}', description: '{{ addslashes($dept->description ?? '') }}' }; showEditDeptModal = true" class="text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 p-2 rounded-lg transition" title="Editar Departamento">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>
+                                </button>
                                 <form action="/?view=equipe" method="POST" onsubmit="return confirm('Excluir departamento?');">
                                     @csrf
                                     <input type="hidden" name="action" value="delete_department">
@@ -246,7 +256,7 @@
             </table>
         </div>
 
-        <!-- MODAL DEPARTAMENTO -->
+        <!-- MODAL NOVO DEPARTAMENTO -->
         <div x-show="showDeptModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
             <div @click.away="showDeptModal = false" class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
                 <h3 class="text-lg font-bold text-gray-800 mb-4">Novo Departamento</h3>
@@ -264,6 +274,29 @@
                     <div class="flex gap-2 justify-end border-t border-gray-100 pt-4">
                         <button type="button" @click="showDeptModal = false" class="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
                         <button type="submit" class="px-5 py-2 text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg shadow-sm">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL EDITAR DEPARTAMENTO -->
+        <div x-show="showEditDeptModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
+            <div @click.away="showEditDeptModal = false" class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">Editar Departamento</h3>
+                <form action="/?view=equipe" method="POST">
+                    @csrf
+                    <input type="hidden" name="action" value="update_department">
+                    <input type="hidden" name="department_id" x-model="editDeptData.id">
+                    
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Nome do Departamento</label>
+                    <input type="text" name="name" x-model="editDeptData.name" required class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4">
+                    
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Descrição (Opcional)</label>
+                    <textarea name="description" x-model="editDeptData.description" rows="2" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-5"></textarea>
+                    
+                    <div class="flex gap-2 justify-end border-t border-gray-100 pt-4">
+                        <button type="button" @click="showEditDeptModal = false" class="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
+                        <button type="submit" class="px-5 py-2 text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg shadow-sm">Salvar Alterações</button>
                     </div>
                 </form>
             </div>
