@@ -8,16 +8,16 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Desativa a checagem de FK para permitir o drop sem travar no MariaDB
         Schema::disableForeignKeyConstraints();
         Schema::dropIfExists('appointments');
         Schema::dropIfExists('human_agents');
         Schema::dropIfExists('departments');
         Schema::enableForeignKeyConstraints();
 
-        // 1. Tabela de Departamentos
+        // 1. Tabela de Departamentos (Subordinada ao Assistente)
         Schema::create('departments', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('assistant_id')->constrained('assistants')->cascadeOnDelete();
             $table->string('name');
             $table->text('description')->nullable();
             $table->timestamps();
