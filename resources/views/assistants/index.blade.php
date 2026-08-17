@@ -70,13 +70,20 @@
 >
     
     <nav class="bg-indigo-600 text-white shadow-sm relative z-50">
-        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
-            <a href="/" class="font-bold text-lg flex items-center gap-2.5 hover:text-indigo-200 transition">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z" />
-                </svg>
-                Gestor de Assistentes AI
-            </a>
+        <div class="container mx-auto px-4 flex justify-between items-center h-14">
+            <div class="flex items-center gap-6 h-full">
+                <a href="/" class="font-bold text-lg flex items-center gap-2.5 hover:text-indigo-200 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z" />
+                    </svg>
+                    Painel
+                </a>
+                
+                <div class="h-full flex">
+                    <a href="/" class="flex items-center px-3 text-sm font-medium border-b-2 border-white text-white">Robôs IA</a>
+                    <a href="/equipe" class="flex items-center px-3 text-sm font-medium border-b-2 border-transparent text-indigo-100 hover:text-white hover:border-indigo-300 transition">Equipe & Agendas</a>
+                </div>
+            </div>
             <span class="text-xs bg-indigo-500 px-3 py-1 rounded-full font-medium border border-indigo-400">Multi-Model</span>
         </div>
     </nav>
@@ -766,7 +773,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="3" class="text-center py-8 text-gray-400">Nenhum assistente cadastrado.</td>层
+                            <tr><td colspan="3" class="text-center py-8 text-gray-400">Nenhum assistente cadastrado.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

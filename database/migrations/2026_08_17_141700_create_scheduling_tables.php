@@ -8,6 +8,12 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Limpeza de Segurança: Destrói as tabelas caso tenham ficado presas no banco
+        Schema::dropIfExists('appointments');
+        Schema::dropIfExists('human_agents');
+        Schema::dropIfExists('departments');
+
+        // 1. Tabela de Departamentos
         Schema::create('departments', function (Blueprint $table) {
             $table->id();
             $table->string('name');
@@ -15,6 +21,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
+        // 2. Tabela de Agentes Humanos
         Schema::create('human_agents', function (Blueprint $table) {
             $table->id();
             $table->foreignId('department_id')->constrained()->cascadeOnDelete();
@@ -27,6 +34,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
+        // 3. Tabela de Agendamentos
         Schema::create('appointments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('human_agent_id')->constrained()->cascadeOnDelete();
