@@ -62,8 +62,8 @@ class AssistantController extends Controller
 
             return view('assistants.index', compact('assistants', 'configuring', 'lastWebhook'));
         } catch (\Throwable $e) {
-            Log::error('Erro no AssistantController index: ' . $e->getMessage());
-            return redirect('/')->with('error', 'Erro ao carregar: ' . $e->getMessage());
+            Log::error('Erro index: ' . $e->getMessage());
+            return redirect('/')->with('error', 'Erro ao carregar.');
         }
     }
 
@@ -93,19 +93,12 @@ class AssistantController extends Controller
         if ($request->hasFile('documents')) {
             $existingFiles = $assistant->knowledge_files ?? [];
             foreach ($request->file('documents') as $file) {
-                try {
-                    $path = $file->store('knowledge_base');
-                    $fullPath = Storage::path($path);
-                    $text = $this->extractText($fullPath, $file->getClientOriginalName());
-
-                    $existingFiles[] = [
-                        'name' => $file->getClientOriginalName(),
-                        'path' => $path,
-                        'content' => $text
-                    ];
-                } catch (\Throwable $e) {
-                    Log::error("Erro no arquivo: " . $e->getMessage());
-                }
+                $path = $file->store('knowledge_base');
+                // Salva APENAS metadados leves no banco (zero risco de quebrar JSON)
+                $existingFiles[] = [
+                    'name' => $file->getClientOriginalName(),
+                    'path' => $path
+                ];
             }
             $data['knowledge_files'] = $existingFiles;
         }
@@ -129,7 +122,9 @@ class AssistantController extends Controller
             $files = $assistant->knowledge_files ?? [];
             $index = $request->file_index;
             if (isset($files[$index])) {
-                Storage::delete($files[$index]['path']);
+                if (isset($files[$index]['path'])) {
+                    Storage::delete($files[$index]['path']);
+                }
                 array_splice($files, $index, 1);
                 $assistant->update(['knowledge_files' => $files]);
             }
@@ -146,11 +141,18 @@ class AssistantController extends Controller
         $files = $assistant->knowledge_files ?? [];
 
         if (is_array($files) && !empty($files)) {
-            $prompt .= "\n\n### BASE DE CONHECIMENTO ###\n";
+            $prompt .= "\n\n### BASE DE CONHECIMENTO (DOCUMENTOS ANEXADOS) ###\n";
             foreach ($files as $file) {
-                $content = $file['content'] ?? '';
-                if (!empty($content)) {
-                    $prompt .= "\n--- DOCUMENTO: " . ($file['name'] ?? 'Arquivo') . " ---\n" . $content . "\n";
+                if (!empty($file['path']) && Storage::exists($file['path'])) {
+                    try {
+                        $fullPath = Storage::path($file['path']);
+                        $text = $this->extractText($fullPath, $file['name'] ?? '');
+                        if (!empty($text)) {
+                            $prompt .= "\n--- DOCUMENTO: " . ($file['name'] ?? 'Arquivo') . " ---\n" . $text . "\n";
+                        }
+                    } catch (\Throwable $e) {
+                        Log::error('Erro ao ler anexo no prompt: ' . $e->getMessage());
+                    }
                 }
             }
         }
@@ -177,24 +179,17 @@ class AssistantController extends Controller
                 $zip->close();
             }
         } elseif ($ext === 'pdf') {
-            // Tenta extração via pdftotext do sistema operacional se disponível
-            $output = [];
-            @exec("pdftotext " . escapeshellarg($filePath) . " -", $output);
-            if (!empty($output)) {
-                $text = implode("\n", $output);
-            } else {
-                $raw = @file_get_contents($filePath);
-                if ($raw) {
-                    preg_match_all('/BT[\s\S]*?ET/s', $raw, $matches);
-                    $extracted = '';
-                    foreach ($matches[0] ?? [] as $match) {
-                        preg_match_all('/\((.*?)\)/s', $match, $txtMatches);
-                        foreach ($txtMatches[1] ?? [] as $m) {
-                            if (strlen($m) > 1 && ctype_print($m)) $extracted .= $m . ' ';
-                        }
+            $raw = @file_get_contents($filePath);
+            if ($raw) {
+                preg_match_all('/BT[\s\S]*?ET/s', $raw, $matches);
+                $extracted = '';
+                foreach ($matches[0] ?? [] as $match) {
+                    preg_match_all('/\((.*?)\)/s', $match, $txtMatches);
+                    foreach ($txtMatches[1] ?? [] as $m) {
+                        if (strlen($m) > 1 && ctype_print($m)) $extracted .= $m . ' ';
                     }
-                    $text = trim($extracted);
                 }
+                $text = trim($extracted);
             }
         }
 
@@ -204,8 +199,6 @@ class AssistantController extends Controller
     private function sanitizeUtf8($text): string
     {
         if (!is_string($text) || empty($text)) return '';
-        
-        // Remove sequências inválidas de UTF-8
         $clean = @iconv('UTF-8', 'UTF-8//IGNORE', $text);
         if ($clean === false) {
             $clean = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]/', '', $text);
@@ -225,7 +218,7 @@ class AssistantController extends Controller
 
             return response()->json(['reply' => $response]);
         } catch (\Throwable $e) {
-            return response()->json(['reply' => '⚠️ Erro ao consultar IA: ' . $e->getMessage()]);
+            return response()->json(['reply' => '⚠️ Erro na IA: ' . $e->getMessage()]);
         }
     }
 
