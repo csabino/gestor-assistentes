@@ -8,65 +8,71 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 
 class AssistantController extends Controller
 {
     public function index(Request $request)
     {
-        if ($request->has('chat_id')) {
-            $assistant = Assistant::findOrFail($request->chat_id);
-            return view('assistants.chat', compact('assistant'));
-        }
+        try {
+            if ($request->has('chat_id')) {
+                $assistant = Assistant::findOrFail($request->chat_id);
+                return view('assistants.chat', compact('assistant'));
+            }
 
-        if ($request->isMethod('post') && $request->input('action') === 'chat') {
-            return $this->chat($request);
-        }
+            if ($request->isMethod('post') && $request->input('action') === 'chat') {
+                return $this->chat($request);
+            }
 
-        if ($request->isMethod('post') && $request->input('action') === 'test_ai') {
-            return $this->testAi($request);
-        }
+            if ($request->isMethod('post') && $request->input('action') === 'test_ai') {
+                return $this->testAi($request);
+            }
 
-        if ($request->isMethod('post') && $request->input('action') === 'status_whatsapp') {
-            return $this->statusWhatsapp($request);
-        }
-        if ($request->isMethod('post') && $request->input('action') === 'test_whatsapp') {
-            return $this->testWhatsapp($request);
-        }
-        if ($request->isMethod('post') && $request->input('action') === 'disconnect_whatsapp') {
-            return $this->disconnectWhatsapp($request);
-        }
+            if ($request->isMethod('post') && $request->input('action') === 'status_whatsapp') {
+                return $this->statusWhatsapp($request);
+            }
+            if ($request->isMethod('post') && $request->input('action') === 'test_whatsapp') {
+                return $this->testWhatsapp($request);
+            }
+            if ($request->isMethod('post') && $request->input('action') === 'disconnect_whatsapp') {
+                return $this->disconnectWhatsapp($request);
+            }
 
-        if ($request->isMethod('post')) {
-            return $this->store($request);
-        }
-        if ($request->isMethod('put')) {
-            return $this->update($request);
-        }
-        if ($request->isMethod('patch')) {
-            return $this->toggleActive($request);
-        }
-        if ($request->isMethod('delete')) {
-            return $this->destroyOrRemoveFile($request);
-        }
+            if ($request->isMethod('post')) {
+                return $this->store($request);
+            }
+            if ($request->isMethod('put')) {
+                return $this->update($request);
+            }
+            if ($request->isMethod('patch')) {
+                return $this->toggleActive($request);
+            }
+            if ($request->isMethod('delete')) {
+                return $this->destroyOrRemoveFile($request);
+            }
 
-        $assistants = Assistant::orderBy('name', 'asc')->get();
-        $configuring = null;
-        $lastWebhook = null;
+            $assistants = Assistant::orderBy('name', 'asc')->get();
+            $configuring = null;
+            $lastWebhook = null;
 
-        if ($request->has('configure')) {
-            $configuring = Assistant::find($request->configure);
-            if ($configuring && Schema::hasTable('webhook_logs')) {
-                $log = DB::table('webhook_logs')->where('assistant_id', $configuring->id)->latest('id')->first();
-                if ($log) {
-                    $lastWebhook = (array) $log;
-                    if (isset($lastWebhook['wa_send_result']) && is_string($lastWebhook['wa_send_result'])) {
-                        $lastWebhook['wa_send_result'] = json_decode($lastWebhook['wa_send_result'], true);
+            if ($request->has('configure')) {
+                $configuring = Assistant::find($request->configure);
+                if ($configuring && Schema::hasTable('webhook_logs')) {
+                    $log = DB::table('webhook_logs')->where('assistant_id', $configuring->id)->latest('id')->first();
+                    if ($log) {
+                        $lastWebhook = (array) $log;
+                        if (isset($lastWebhook['wa_send_result']) && is_string($lastWebhook['wa_send_result'])) {
+                            $lastWebhook['wa_send_result'] = json_decode($lastWebhook['wa_send_result'], true);
+                        }
                     }
                 }
             }
-        }
 
-        return view('assistants.index', compact('assistants', 'configuring', 'lastWebhook'));
+            return view('assistants.index', compact('assistants', 'configuring', 'lastWebhook'));
+        } catch (\Throwable $e) {
+            Log::error('Erro no AssistantController index: ' . $e->getMessage());
+            return redirect('/')->with('error', 'Ocorreu um erro: ' . $e->getMessage());
+        }
     }
 
     private function store(Request $request)
@@ -97,14 +103,19 @@ class AssistantController extends Controller
         if ($request->hasFile('documents')) {
             $existingFiles = $assistant->knowledge_files ?? [];
             foreach ($request->file('documents') as $file) {
-                $path = $file->store('knowledge_base');
-                $text = $this->extractText(Storage::path($path), $file->getClientOriginalName());
-                
-                $existingFiles[] = [
-                    'name' => $file->getClientOriginalName(),
-                    'path' => $path,
-                    'content' => $text
-                ];
+                try {
+                    $path = $file->store('knowledge_base');
+                    $fullPath = Storage::path($path);
+                    $text = $this->extractText($fullPath, $file->getClientOriginalName());
+                    
+                    $existingFiles[] = [
+                        'name' => $file->getClientOriginalName(),
+                        'path' => $path,
+                        'content' => $text
+                    ];
+                } catch (\Throwable $e) {
+                    Log::error("Erro ao processar arquivo " . $file->getClientOriginalName() . ": " . $e->getMessage());
+                }
             }
             $data['knowledge_files'] = $existingFiles;
         }
@@ -150,19 +161,26 @@ class AssistantController extends Controller
     private function buildSystemPromptWithKnowledge(Assistant $assistant): string
     {
         $prompt = $assistant->system_prompt ?? '';
-        $files = $assistant->knowledge_files ?? [];
+        
+        try {
+            $files = $assistant->knowledge_files ?? [];
 
-        if (!empty($files)) {
-            $prompt .= "\n\n### BASE DE CONHECIMENTO (DOCUMENTOS ANEXADOS) ###\n";
-            foreach ($files as $file) {
-                $content = $file['content'] ?? '';
-                if (empty($content) && !empty($file['path']) && Storage::exists($file['path'])) {
-                    $content = $this->extractText(Storage::path($file['path']), $file['name']);
-                }
-                if (!empty($content)) {
-                    $prompt .= "\n--- INÍCIO DO ARQUIVO: {$file['name']} ---\n" . $content . "\n--- FIM DO ARQUIVO ---\n";
+            if (is_array($files) && !empty($files)) {
+                $prompt .= "\n\n### BASE DE CONHECIMENTO (DOCUMENTOS ANEXADOS) ###\n";
+                foreach ($files as $file) {
+                    $content = $file['content'] ?? '';
+                    if (empty($content) && !empty($file['path'])) {
+                        if (Storage::exists($file['path'])) {
+                            $content = $this->extractText(Storage::path($file['path']), $file['name'] ?? 'doc.txt');
+                        }
+                    }
+                    if (!empty($content)) {
+                        $prompt .= "\n--- INÍCIO DO ARQUIVO: " . ($file['name'] ?? 'Arquivo') . " ---\n" . $content . "\n--- FIM DO ARQUIVO ---\n";
+                    }
                 }
             }
+        } catch (\Throwable $e) {
+            Log::error('Erro ao construir prompt com base de conhecimento: ' . $e->getMessage());
         }
 
         return $prompt;
@@ -170,101 +188,160 @@ class AssistantController extends Controller
 
     private function extractText(string $filePath, string $fileName): string
     {
-        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-        $text = '';
+        try {
+            if (!file_exists($filePath)) {
+                return '';
+            }
 
-        if ($ext === 'txt') {
-            $text = @file_get_contents($filePath) ?: '';
-        } elseif ($ext === 'docx') {
-            $zip = new \ZipArchive();
-            if ($zip->open($filePath) === true) {
-                if (($index = $zip->locateName('word/document.xml')) !== false) {
-                    $data = $zip->getFromIndex($index);
-                    $zip->close();
-                    $text = trim(strip_tags(str_replace(['</w:p>', '</w:tr>'], "\n", $data)));
-                } else {
-                    $zip->close();
+            $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+            $text = '';
+
+            if ($ext === 'txt') {
+                $text = @file_get_contents($filePath) ?: '';
+            } elseif ($ext === 'docx') {
+                if (class_exists('\ZipArchive')) {
+                    $zip = new \ZipArchive();
+                    if ($zip->open($filePath) === true) {
+                        if (($index = $zip->locateName('word/document.xml')) !== false) {
+                            $data = $zip->getFromIndex($index);
+                            $zip->close();
+                            $text = trim(strip_tags(str_replace(['</w:p>', '</w:tr>'], "\n", $data)));
+                        } else {
+                            $zip->close();
+                        }
+                    }
+                }
+            } elseif ($ext === 'pdf') {
+                $raw = @file_get_contents($filePath);
+                if ($raw) {
+                    preg_match_all('/BT[\s\S]*?ET/s', $raw, $matches);
+                    $extracted = '';
+                    if (!empty($matches[0])) {
+                        foreach ($matches[0] as $match) {
+                            preg_match_all('/\((.*?)\)[\s]*TJ|\((.*?)\)[\s]*Tj/s', $match, $txtMatches);
+                            if (!empty($txtMatches[1])) {
+                                foreach ($txtMatches[1] as $m) if ($m) $extracted .= $m . ' ';
+                            }
+                            if (!empty($txtMatches[2])) {
+                                foreach ($txtMatches[2] as $m) if ($m) $extracted .= $m . ' ';
+                            }
+                        }
+                    }
+                    $text = trim($extracted);
                 }
             }
-        } elseif ($ext === 'pdf') {
-            $raw = @file_get_contents($filePath);
-            if ($raw) {
-                preg_match_all('/BT[\s\S]*?ET/s', $raw, $matches);
-                $extracted = '';
-                foreach ($matches[0] as $match) {
-                    preg_match_all('/\((.*?)\)[\s]*TJ|\((.*?)\)[\s]*Tj/s', $match, $txtMatches);
-                    foreach ($txtMatches[1] as $m) if ($m) $extracted .= $m . ' ';
-                    foreach ($txtMatches[2] as $m) if ($m) $extracted .= $m . ' ';
-                }
-                $text = trim($extracted);
-            }
+
+            return $this->sanitizeUtf8($text);
+        } catch (\Throwable $e) {
+            Log::error('Erro na extracao de texto do arquivo ' . $fileName . ': ' . $e->getMessage());
+            return '';
         }
-
-        return $this->sanitizeUtf8($text);
     }
 
-    private function sanitizeUtf8(string $text): string
+    private function sanitizeUtf8($text): string
     {
-        if (empty($text)) {
+        if (!is_string($text) || empty($text)) {
             return '';
         }
 
-        // Garante a conversão/limpeza para UTF-8 válido
-        $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+        if (function_exists('mb_convert_encoding')) {
+            $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+        }
 
-        // Remove caracteres de controle não-imprimíveis mantendo quebras de linha e tabs
-        $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $text);
-
-        return trim($text);
+        $cleaned = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $text);
+        return trim($cleaned ?? '');
     }
 
     private function chat(Request $request)
     {
-        $assistant = Assistant::findOrFail($request->assistant_id);
-        $userMessage = $request->input('message');
-        $history = $request->input('history', []);
+        try {
+            $assistant = Assistant::findOrFail($request->assistant_id);
+            $userMessage = $request->input('message');
+            $history = $request->input('history', []);
 
-        $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
+            if (is_array($userMessage)) {
+                $userMessage = json_encode($userMessage);
+            }
 
-        $response = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
+            $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
 
-        return response()->json(['reply' => $response]);
+            $response = $this->callAiApi($assistant, $systemPrompt, (string)$userMessage, $history);
+
+            return response()->json(['reply' => $response]);
+        } catch (\Throwable $e) {
+            Log::error('Erro na funcao chat: ' . $e->getMessage());
+            return response()->json(['reply' => '⚠️ Erro ao processar mensagem: ' . $e->getMessage()], 200);
+        }
     }
 
     public function webhook(Request $request, $id)
     {
-        $assistant = Assistant::find($id);
-        if (!$assistant || !$assistant->is_active) {
-            return response()->json(['status' => 'ignored']);
+        $sender = 'desconhecido';
+        $userMessage = '';
+
+        try {
+            $assistant = Assistant::find($id);
+            if (!$assistant || !$assistant->is_active) {
+                return response()->json(['status' => 'ignored']);
+            }
+
+            $rawSender = $request->input('sender') ?? $request->input('phone') ?? $request->input('key.remoteJid');
+            if (is_array($rawSender)) {
+                $sender = $rawSender['user'] ?? $rawSender['number'] ?? json_encode($rawSender);
+            } else {
+                $sender = (string)$rawSender;
+            }
+
+            $rawMessage = $request->input('message') ?? $request->input('text') ?? $request->input('body');
+            if (is_array($rawMessage)) {
+                $userMessage = $rawMessage['conversation'] ?? $rawMessage['text'] ?? json_encode($rawMessage);
+            } else {
+                $userMessage = (string)$rawMessage;
+            }
+
+            if (!$userMessage || !$sender) {
+                return response()->json(['status' => 'no_message']);
+            }
+
+            $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
+            $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, []);
+
+            $waResult = $this->sendWhatsappMessage($assistant, $sender, $aiReply);
+
+            if (Schema::hasTable('webhook_logs')) {
+                DB::table('webhook_logs')->insert([
+                    'assistant_id' => $assistant->id,
+                    'sender' => $sender,
+                    'user_message' => $userMessage,
+                    'ai_reply' => $aiReply,
+                    'wa_send_result' => json_encode($waResult),
+                    'raw_snippet' => json_encode($request->all()),
+                    'timestamp' => now()->toDateTimeString(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            return response()->json(['status' => 'success', 'reply' => $aiReply]);
+        } catch (\Throwable $e) {
+            Log::error('Erro no webhook WhatsApp: ' . $e->getMessage());
+
+            if (isset($assistant) && $assistant && Schema::hasTable('webhook_logs')) {
+                DB::table('webhook_logs')->insert([
+                    'assistant_id' => $assistant->id,
+                    'sender' => $sender,
+                    'user_message' => $userMessage,
+                    'ai_reply' => '⚠️ Erro interno no servidor',
+                    'wa_send_result' => json_encode(['error' => $e->getMessage()]),
+                    'raw_snippet' => json_encode($request->all()),
+                    'timestamp' => now()->toDateTimeString(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 200);
         }
-
-        $sender = $request->input('sender') ?? $request->input('phone') ?? $request->input('key.remoteJid');
-        $userMessage = $request->input('message') ?? $request->input('text') ?? $request->input('body');
-
-        if (!$userMessage || !$sender) {
-            return response()->json(['status' => 'no_message']);
-        }
-
-        $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
-        $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, []);
-
-        $waResult = $this->sendWhatsappMessage($assistant, $sender, $aiReply);
-
-        if (Schema::hasTable('webhook_logs')) {
-            DB::table('webhook_logs')->insert([
-                'assistant_id' => $assistant->id,
-                'sender' => $sender,
-                'user_message' => $userMessage,
-                'ai_reply' => $aiReply,
-                'wa_send_result' => json_encode($waResult),
-                'raw_snippet' => json_encode($request->all()),
-                'timestamp' => now()->toDateTimeString(),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        }
-
-        return response()->json(['status' => 'success', 'reply' => $aiReply]);
     }
 
     private function callAiApi(Assistant $assistant, string $systemPrompt, string $userMessage, array $history = []): string
