@@ -171,38 +171,51 @@ class AssistantController extends Controller
     private function extractText(string $filePath, string $fileName): string
     {
         $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        $text = '';
 
         if ($ext === 'txt') {
-            return @file_get_contents($filePath) ?: '';
-        }
-
-        if ($ext === 'docx') {
+            $text = @file_get_contents($filePath) ?: '';
+        } elseif ($ext === 'docx') {
             $zip = new \ZipArchive();
             if ($zip->open($filePath) === true) {
                 if (($index = $zip->locateName('word/document.xml')) !== false) {
                     $data = $zip->getFromIndex($index);
                     $zip->close();
-                    return trim(strip_tags(str_replace(['</w:p>', '</w:tr>'], "\n", $data)));
+                    $text = trim(strip_tags(str_replace(['</w:p>', '</w:tr>'], "\n", $data)));
+                } else {
+                    $zip->close();
                 }
-                $zip->close();
             }
-        }
-
-        if ($ext === 'pdf') {
+        } elseif ($ext === 'pdf') {
             $raw = @file_get_contents($filePath);
             if ($raw) {
                 preg_match_all('/BT[\s\S]*?ET/s', $raw, $matches);
-                $text = '';
+                $extracted = '';
                 foreach ($matches[0] as $match) {
                     preg_match_all('/\((.*?)\)[\s]*TJ|\((.*?)\)[\s]*Tj/s', $match, $txtMatches);
-                    foreach ($txtMatches[1] as $m) if ($m) $text .= $m . ' ';
-                    foreach ($txtMatches[2] as $m) if ($m) $text .= $m . ' ';
+                    foreach ($txtMatches[1] as $m) if ($m) $extracted .= $m . ' ';
+                    foreach ($txtMatches[2] as $m) if ($m) $extracted .= $m . ' ';
                 }
-                return trim($text) ?: trim(strip_tags($raw));
+                $text = trim($extracted);
             }
         }
 
-        return '';
+        return $this->sanitizeUtf8($text);
+    }
+
+    private function sanitizeUtf8(string $text): string
+    {
+        if (empty($text)) {
+            return '';
+        }
+
+        // Garante a conversão/limpeza para UTF-8 válido
+        $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+
+        // Remove caracteres de controle não-imprimíveis mantendo quebras de linha e tabs
+        $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $text);
+
+        return trim($text);
     }
 
     private function chat(Request $request)
