@@ -30,9 +30,23 @@ class AssistantController extends Controller
         }
     }
 
+    // Cria as novas colunas na tabela assistants (se não existirem)
+    private function ensureAssistantColumnsExist()
+    {
+        if (Schema::hasTable('assistants')) {
+            if (!Schema::hasColumn('assistants', 'context_limit')) {
+                Schema::table('assistants', function (Blueprint $table) {
+                    $table->integer('context_limit')->default(12)->after('model');
+                    $table->longText('lead_fields')->nullable()->after('context_limit');
+                });
+            }
+        }
+    }
+
     public function index(Request $request)
     {
         $this->ensureWebhookLogTableExists();
+        $this->ensureAssistantColumnsExist();
 
         if ($request->has('chat_id')) {
             $assistant = Assistant::findOrFail($request->chat_id);
@@ -69,6 +83,14 @@ class AssistantController extends Controller
         if ($request->has('configure')) {
             $configuring = Assistant::find($request->configure);
             if ($configuring) {
+                // Decodifica JSON dos campos dinâmicos para a View usar
+                if (is_string($configuring->lead_fields)) {
+                    $configuring->lead_fields = json_decode($configuring->lead_fields, true);
+                }
+                if (!is_array($configuring->lead_fields)) {
+                    $configuring->lead_fields = [];
+                }
+
                 $log = DB::table('webhook_logs')->where('assistant_id', $configuring->id)->latest('id')->first();
                 if ($log) {
                     $lastWebhook = (array) $log;
@@ -89,6 +111,7 @@ class AssistantController extends Controller
             'name' => $request->name,
             'provider' => 'openai',
             'model' => 'gpt-4o-mini',
+            'context_limit' => 12,
             'system_prompt' => 'Você é um assistente virtual prestativo.',
             'is_active' => true,
         ]);
@@ -100,9 +123,26 @@ class AssistantController extends Controller
         $assistant = Assistant::findOrFail($request->assistant_id);
 
         $data = $request->only([
-            'system_prompt', 'provider', 'model',
+            'system_prompt', 'provider', 'model', 'context_limit',
             'whatsapp_provider', 'whatsapp_url', 'whatsapp_instance', 'whatsapp_token', 'whatsapp_verify_token'
         ]);
+
+        // Trata os campos de qualificação dinâmicos
+        if ($request->has('lead_fields')) {
+            $fields = $request->input('lead_fields');
+            $cleanFields = [];
+            foreach ($fields as $field) {
+                if (!empty($field['name']) && !empty($field['label'])) {
+                    $cleanFields[] = $field;
+                }
+            }
+            $data['lead_fields'] = json_encode($cleanFields, JSON_UNESCAPED_UNICODE);
+        } else {
+            // Se veio do form principal e não tem campos, zera.
+            if ($request->has('system_prompt')) {
+                $data['lead_fields'] = json_encode([]);
+            }
+        }
 
         foreach (['openai_api_key', 'gemini_api_key', 'anthropic_api_key', 'grok_api_key'] as $keyName) {
             if ($request->filled($keyName)) {
@@ -319,23 +359,15 @@ class AssistantController extends Controller
     {
         if (empty($text)) return '';
 
-        // 1. Converte links Markdown [Texto](URL) para visual limpo com seta
         $text = preg_replace_callback('/\[([^\]]+)\]\(([^)]+)\)/', function ($matches) {
             $label = trim($matches[1]);
             $url = trim($matches[2]);
             return "{$label}:\n👉 {$url}";
         }, $text);
 
-        // 2. Converte Títulos (### Título) para Negrito do WhatsApp (*Título*)
         $text = preg_replace('/^#{1,6}\s*(.+)$/m', '*$1*', $text);
-
-        // 3. Converte Negrito de Markdown (**texto**) para Negrito do WhatsApp (*texto*)
         $text = preg_replace('/\*\*(.*?)\*\*/s', '*$1*', $text);
-
-        // 4. Padroniza marcadores de listas (* ou -) para bolinhas do WhatsApp (•)
         $text = preg_replace('/^\s*[\*\-]\s+/m', '• ', $text);
-
-        // 5. Remove excesso de quebras de linha (no máximo 2 seguidas)
         $text = preg_replace("/\n{3,}/", "\n\n", $text);
 
         return trim($text);
@@ -402,7 +434,6 @@ class AssistantController extends Controller
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
             $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, []);
 
-            // APLICA O TRATAMENTO EXCLUSIVO DO WHATSAPP AQUI
             $formattedReply = $this->formatTextForWhatsapp($aiReply);
 
             $waResult = $this->sendWhatsappMessage($assistant, $sender, $formattedReply);

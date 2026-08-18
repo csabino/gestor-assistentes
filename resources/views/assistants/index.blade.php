@@ -147,6 +147,9 @@
                     testResult: null,
                     showWaModal: false,
                     showWebhookModal: new URLSearchParams(window.location.search).get('modal') === 'webhook',
+                    showLeadModal: false,
+                    leadFields: {{ json_encode($configuring->lead_fields) }},
+                    
                     waLoading: false,
                     waResult: null,
                     pollAttempts: 0,
@@ -275,10 +278,16 @@
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                     
                     <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200 h-full">
-                        <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" /></svg>
-                            Personalidade e Prompt
-                        </h2>
+                        <div class="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
+                            <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" /></svg>
+                                Personalidade e Prompt
+                            </h2>
+                            <button type="button" x-on:click="showLeadModal = true" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded-lg border border-indigo-200 flex items-center gap-1.5 transition">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
+                                Campos de Qualificação
+                            </button>
+                        </div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Instruções do Sistema</label>
                         <textarea name="system_prompt" rows="12" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="Ex: Você é um vendedor especializado na loja X...">{{ $configuring->system_prompt }}</textarea>
                     </div>
@@ -299,52 +308,60 @@
                             <p x-text="testResult?.message"></p>
                         </div>
 
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Provedor</label>
-                        <select name="provider" x-model="provider" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-5 focus:ring-2 focus:ring-indigo-500">
-                            <option value="openai">OpenAI (ChatGPT)</option>
-                            <option value="gemini">Google (Gemini)</option>
-                            <option value="anthropic">Anthropic (Claude)</option>
-                            <option value="grok">xAI (Grok)</option>
-                        </select>
+                        <div class="flex gap-3 mb-4">
+                            <div class="flex-1">
+                                <label class="block text-[11px] font-semibold text-gray-700 mb-1">Provedor</label>
+                                <select name="provider" x-model="provider" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500">
+                                    <option value="openai">OpenAI</option>
+                                    <option value="gemini">Google</option>
+                                    <option value="anthropic">Anthropic</option>
+                                    <option value="grok">xAI</option>
+                                </select>
+                            </div>
+                            <div class="w-24">
+                                <label class="block text-[11px] font-semibold text-gray-700 mb-1" title="Mensagens lembradas">Contexto</label>
+                                <input type="number" name="context_limit" value="{{ $configuring->context_limit ?? 12 }}" min="2" max="50" class="w-full border border-gray-300 rounded-lg p-2 text-xs text-center focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                        </div>
 
                         <div x-show="provider === 'openai'" x-transition>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Modelo da OpenAI</label>
-                            <select name="model" :disabled="provider !== 'openai'" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Modelo da OpenAI</label>
+                            <select name="model" :disabled="provider !== 'openai'" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs mb-4">
                                 <option value="gpt-4o-mini" {{ $configuring->model == 'gpt-4o-mini' ? 'selected' : '' }}>GPT-4o Mini (Rápido/Barato)</option>
                                 <option value="gpt-4o" {{ $configuring->model == 'gpt-4o' ? 'selected' : '' }}>GPT-4o (Avançado)</option>
                             </select>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">OpenAI API Key</label>
-                            <input type="password" name="openai_api_key" value="{{ $configuring->openai_api_key }}" placeholder="sk-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">OpenAI API Key</label>
+                            <input type="password" name="openai_api_key" value="{{ $configuring->openai_api_key }}" placeholder="sk-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-xs">
                         </div>
 
                         <div x-show="provider === 'gemini'" x-transition style="display: none;">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Modelo do Google</label>
-                            <select name="model" :disabled="provider !== 'gemini'" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Modelo do Google</label>
+                            <select name="model" :disabled="provider !== 'gemini'" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs mb-4">
                                 <option value="gemini-1.5-flash" {{ $configuring->model == 'gemini-1.5-flash' ? 'selected' : '' }}>Gemini 1.5 Flash</option>
                                 <option value="gemini-1.5-pro" {{ $configuring->model == 'gemini-1.5-pro' ? 'selected' : '' }}>Gemini 1.5 Pro</option>
                             </select>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Gemini API Key</label>
-                            <input type="password" name="gemini_api_key" value="{{ $configuring->gemini_api_key }}" placeholder="AIza..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Gemini API Key</label>
+                            <input type="password" name="gemini_api_key" value="{{ $configuring->gemini_api_key }}" placeholder="AIza..." class="w-full border border-gray-300 rounded-lg p-2.5 text-xs">
                         </div>
 
                         <div x-show="provider === 'anthropic'" x-transition style="display: none;">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Modelo do Claude</label>
-                            <select name="model" :disabled="provider !== 'anthropic'" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Modelo do Claude</label>
+                            <select name="model" :disabled="provider !== 'anthropic'" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs mb-4">
                                 <option value="claude-3-haiku" {{ $configuring->model == 'claude-3-haiku' ? 'selected' : '' }}>Claude 3 Haiku</option>
                                 <option value="claude-3.5-sonnet" {{ $configuring->model == 'claude-3.5-sonnet' ? 'selected' : '' }}>Claude 3.5 Sonnet</option>
                             </select>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Anthropic API Key</label>
-                            <input type="password" name="anthropic_api_key" value="{{ $configuring->anthropic_api_key }}" placeholder="sk-ant-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Anthropic API Key</label>
+                            <input type="password" name="anthropic_api_key" value="{{ $configuring->anthropic_api_key }}" placeholder="sk-ant-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-xs">
                         </div>
 
                         <div x-show="provider === 'grok'" x-transition style="display: none;">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Modelo do Grok</label>
-                            <select name="model" :disabled="provider !== 'grok'" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm mb-4">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Modelo do Grok</label>
+                            <select name="model" :disabled="provider !== 'grok'" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs mb-4">
                                 <option value="grok-2-mini" {{ $configuring->model == 'grok-2-mini' ? 'selected' : '' }}>Grok 2 Mini</option>
                                 <option value="grok-2" {{ $configuring->model == 'grok-2' ? 'selected' : '' }}>Grok 2</option>
                             </select>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">xAI API Key</label>
-                            <input type="password" name="grok_api_key" value="{{ $configuring->grok_api_key }}" placeholder="xai-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">xAI API Key</label>
+                            <input type="password" name="grok_api_key" value="{{ $configuring->grok_api_key }}" placeholder="xai-..." class="w-full border border-gray-300 rounded-lg p-2.5 text-xs">
                         </div>
                     </div>
 
@@ -397,7 +414,6 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-green-500"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>
                                 Canal: WhatsApp
                                 
-                                <!-- BOTÃO FERRAMENTA DESIGN FLAT -->
                                 <button type="button" x-show="wa_provider !== ''" x-cloak x-on:click="showWebhookModal = true" class="ml-1 bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 px-2 py-1 rounded-md transition text-xs font-medium flex items-center gap-1 shadow-sm" title="Diagnóstico e Webhook">
                                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.27 1.06-.12 1.451l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.27-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.149-.894z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                                     <span>Webhook</span>
@@ -489,6 +505,66 @@
                     </div>
                 </div>
 
+                <!-- MODAL DE CAMPOS DE QUALIFICAÇÃO / LEAD -->
+                <div x-show="showLeadModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4" x-transition>
+                    <div x-on:click.away="showLeadModal = false" class="bg-white rounded-xl shadow-2xl max-w-3xl w-full flex flex-col relative border border-slate-200 max-h-[85vh]">
+                        
+                        <div class="flex justify-between items-center border-b border-slate-100 p-5 shrink-0">
+                            <div class="flex items-center gap-3">
+                                <span class="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
+                                </span>
+                                <div>
+                                    <h3 class="text-base font-bold text-slate-800">Campos de Qualificação (Variáveis)</h3>
+                                    <p class="text-xs text-slate-500 font-medium mt-0.5">Defina os dados que a IA deve capturar para abrir chamados (OS Ticket).</p>
+                                </div>
+                            </div>
+                            <button type="button" x-on:click="showLeadModal = false" class="text-slate-400 hover:text-slate-600 p-2 rounded-lg hover:bg-slate-100 transition">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+
+                        <div class="p-5 overflow-y-auto bg-slate-50 flex-1">
+                            <div class="space-y-3">
+                                <template x-for="(field, index) in leadFields" :key="index">
+                                    <div class="bg-white p-3.5 rounded-lg border border-slate-200 shadow-sm flex items-start gap-3 relative group">
+                                        <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block text-[10px] uppercase tracking-wide font-bold text-slate-500 mb-1">Nome de Exibição (Label)</label>
+                                                <input type="text" x-model="field.label" :name="'lead_fields['+index+'][label]'" placeholder="Ex: Nome Completo" class="w-full border border-slate-200 rounded-md px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] uppercase tracking-wide font-bold text-slate-500 mb-1">Variável Interna (OS Ticket)</label>
+                                                <input type="text" x-model="field.name" :name="'lead_fields['+index+'][name]'" placeholder="Ex: client_name" class="w-full border border-slate-200 bg-slate-50 rounded-md px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                                            </div>
+                                        </div>
+                                        <button type="button" @click="leadFields.splice(index, 1)" class="mt-5 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-md transition" title="Remover Campo">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+                                        </button>
+                                    </div>
+                                </template>
+
+                                <div x-show="leadFields.length === 0" class="text-center py-8 border-2 border-dashed border-slate-200 rounded-xl bg-white">
+                                    <svg class="w-8 h-8 text-slate-300 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                                    <p class="text-xs text-slate-500 font-medium">Nenhum campo dinâmico cadastrado.</p>
+                                </div>
+                            </div>
+                            
+                            <button type="button" @click="leadFields.push({label: '', name: ''})" class="mt-4 w-full border-2 border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 font-semibold py-3 rounded-xl text-xs transition flex items-center justify-center gap-2">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                                Adicionar Novo Campo
+                            </button>
+                        </div>
+
+                        <div class="flex justify-between items-center p-5 border-t border-slate-100 bg-white rounded-b-xl shrink-0">
+                            <p class="text-[10px] text-slate-400 font-medium w-2/3 leading-tight">Dica: O campo "Variável Interna" deve ser o mesmo nome esperado pela API do OS Ticket (sem espaços, ex: cpf_cliente).</p>
+                            <button type="button" x-on:click="showLeadModal = false" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-lg text-xs transition shadow-sm">
+                                Concluído
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- MODAL FLAT DESIGN REDESENHADO -->
                 <div x-show="showWebhookModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4" x-transition>
                     <div x-on:click.away="closeWebhookModal()" class="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 relative border border-slate-200 space-y-5">
@@ -512,7 +588,7 @@
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1.5">URL do Webhook do Assistente</label>
                             <div class="flex items-center gap-2">
-                                <input type="text" readonly id="modalWebhookUrl" value="https://gestor-assistentes-painel-web.nn8oij.easypanel.host/?webhook_id={{ $configuring->id }}" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 font-mono outline-none">
+                                <input type="text" readonly id="modalWebhookUrl" value="{{ request()->schemeAndHttpHost() }}/?webhook_id={{ $configuring->id }}" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 font-mono outline-none">
                                 <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('modalWebhookUrl').value); alert('URL copiada!');" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg text-xs transition shrink-0">Copiar</button>
                             </div>
                         </div>
@@ -690,7 +766,7 @@
                 <div class="flex items-center gap-3">
                     <div class="flex items-center bg-gray-200/80 p-0.5 rounded-lg border border-gray-200">
                         <button type="button" @click="view = 'card'" :class="view === 'card' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'" class="px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1.5">
-                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-currentColor stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
                             Cards
                         </button>
                         <button type="button" @click="view = 'list'" :class="view === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'" class="px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1.5">
