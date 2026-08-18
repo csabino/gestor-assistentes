@@ -325,7 +325,12 @@ class AssistantController extends Controller
                 return response()->json(['status' => 'ignored']);
             }
 
-            $rawSender = $request->input('data.key.remoteJid') 
+            // Mapeamento UaZapi + Evolution + Z-API + Meta
+            $rawSender = $request->input('message.sender_pn')
+                ?? $request->input('message.chatid')
+                ?? $request->input('chat.phone')
+                ?? $request->input('chat.wa_chatid')
+                ?? $request->input('data.key.remoteJid') 
                 ?? $request->input('key.remoteJid') 
                 ?? $request->input('phone')
                 ?? $request->input('from')
@@ -333,13 +338,19 @@ class AssistantController extends Controller
                 ?? 'desconhecido';
 
             $sender = is_array($rawSender) ? ($rawSender['user'] ?? json_encode($rawSender)) : (string)$rawSender;
+            if (str_contains($sender, '@')) {
+                $sender = explode('@', $sender)[0];
+            }
 
-            // Ignora webhooks de mensagens enviadas pela própria API
-            if ($request->input('data.key.fromMe') === true || $request->input('key.fromMe') === true) {
+            // Ignora mensagens enviadas pelo próprio bot
+            if ($request->input('message.fromMe') === true || $request->input('data.key.fromMe') === true || $request->input('key.fromMe') === true) {
                 return response()->json(['status' => 'ignored_from_me']);
             }
 
-            $rawMessage = $request->input('data.message.conversation')
+            // Mapeamento UaZapi + Evolution + Z-API
+            $rawMessage = $request->input('message.content')
+                ?? $request->input('message.text')
+                ?? $request->input('data.message.conversation')
                 ?? $request->input('data.message.extendedTextMessage.text')
                 ?? $request->input('message.conversation')
                 ?? $request->input('message.extendedTextMessage.text')
@@ -350,13 +361,12 @@ class AssistantController extends Controller
 
             $userMessage = is_array($rawMessage) ? ($rawMessage['text'] ?? $rawMessage['body'] ?? '') : (string)$rawMessage;
 
-            // GRAVA O LOG MESMO SE A MENSAGEM FOR VAZIA OU ÁUDIO (Para o Diagnóstico Funcionar Sempre)
             if (empty(trim($userMessage))) {
                 DB::table('webhook_logs')->insert([
                     'assistant_id' => $assistant->id,
                     'sender' => substr($sender, 0, 255),
-                    'user_message' => '[Mensagem Vazia, Áudio ou Imagem]',
-                    'ai_reply' => 'Ignorado (Sistema processa apenas texto no momento)',
+                    'user_message' => '[Mídia / Não Texto]',
+                    'ai_reply' => 'Ignorado (Processamento restrito a texto)',
                     'wa_send_result' => json_encode(['info' => 'Nenhuma resposta enviada']),
                     'raw_snippet' => json_encode($request->all(), JSON_INVALID_UTF8_IGNORE),
                     'timestamp' => now()->toDateTimeString(),
@@ -522,23 +532,29 @@ class AssistantController extends Controller
 
         try {
             $cleanTo = preg_replace('/[^0-9]/', '', $to);
+            $baseUrl = rtrim($assistant->whatsapp_url, '/');
 
-            // Ajuste Inteligente: se a URL do provedor for Z-API ou não tiver '/message/', envia para a raiz do provedor
-            $endpoint = rtrim($assistant->whatsapp_url, '/');
-            if (str_contains($endpoint, 'evolution') || !str_contains($endpoint, '/instances/')) {
-                 $endpoint .= '/message/sendText/' . $assistant->whatsapp_instance;
+            // Formatação UaZapi / Evolution
+            if (str_contains($baseUrl, 'uazapi.com') || $assistant->whatsapp_provider === 'uazapi') {
+                $endpoint = $baseUrl . '/send/text';
+                $payload = [
+                    'number' => $cleanTo,
+                    'text' => $message
+                ];
+            } else {
+                $endpoint = $baseUrl . '/message/sendText/' . $assistant->whatsapp_instance;
+                $payload = [
+                    'number' => $cleanTo,
+                    'phone' => $cleanTo,
+                    'text' => $message
+                ];
             }
 
             $response = Http::withHeaders([
                 'token' => trim($assistant->whatsapp_token),
                 'apikey' => trim($assistant->whatsapp_token),
                 'Content-Type' => 'application/json'
-            ])->post($endpoint, [
-                'number' => $cleanTo,
-                'phone' => $cleanTo, // Adicionado pra garantir Z-API
-                'text' => $message,
-                'message' => $message // Adicionado pra garantir outros provedores
-            ]);
+            ])->post($endpoint, $payload);
 
             return ['success' => $response->successful(), 'error' => $response->failed() ? $response->body() : null];
         } catch (\Throwable $e) {
