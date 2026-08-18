@@ -42,10 +42,25 @@ class AssistantController extends Controller
         }
     }
 
+    private function ensureChatMessagesTableExists()
+    {
+        if (!Schema::hasTable('chat_messages')) {
+            Schema::create('chat_messages', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('assistant_id');
+                $table->string('phone_number')->index();
+                $table->string('role'); // 'user' ou 'assistant'
+                $table->text('content');
+                $table->timestamps();
+            });
+        }
+    }
+
     public function index(Request $request)
     {
         $this->ensureWebhookLogTableExists();
         $this->ensureAssistantColumnsExist();
+        $this->ensureChatMessagesTableExists();
 
         if ($request->has('chat_id')) {
             $assistant = Assistant::findOrFail($request->chat_id);
@@ -183,7 +198,6 @@ class AssistantController extends Controller
             $data['knowledge_files'] = array_values($existingFiles);
         }
 
-        // BURLA A TRAVA DE SEGURANÇA E GRAVA TUDO
         $assistant->forceFill($data)->save();
 
         return redirect('/?configure=' . $assistant->id)->with('success', 'Configurações atualizadas!');
@@ -223,6 +237,26 @@ class AssistantController extends Controller
     private function buildSystemPromptWithKnowledge(Assistant $assistant): string
     {
         $prompt = $assistant->system_prompt ?? '';
+
+        // INJEÇÃO AUTOMÁTICA DOS CAMPOS DE QUALIFICAÇÃO / TRIAGEM
+        $leadFields = is_array($assistant->lead_fields) 
+            ? $assistant->lead_fields 
+            : json_decode($assistant->lead_fields ?? '[]', true);
+
+        if (!empty($leadFields) && is_array($leadFields)) {
+            $prompt .= "\n\n===============================================\n";
+            $prompt .= "DIRETRIZES DE TRIAGEM E COLETA DE DADOS:\n";
+            $prompt .= "Você deve obter cordialmente do usuário as seguintes informações ao longo do atendimento:\n";
+            foreach ($leadFields as $field) {
+                $label = $field['label'] ?? '';
+                $name = $field['name'] ?? '';
+                if ($label) {
+                    $prompt .= "• {$label} (Identificador interno: {$name})\n";
+                }
+            }
+            $prompt .= "Solicite estas informações de forma natural e gradual durante a conversa. Não exija tudo de uma vez de forma robótica.\n";
+            $prompt .= "===============================================\n";
+        }
 
         $prompt .= "\n\n===============================================\n";
         $prompt .= "DIRETRIZES ABSOLUTAS DE CONFINAMENTO DE RESPOSTA:\n";
@@ -379,6 +413,7 @@ class AssistantController extends Controller
     public function webhook(Request $request, $id)
     {
         $this->ensureWebhookLogTableExists();
+        $this->ensureChatMessagesTableExists();
 
         try {
             $assistant = Assistant::find($id);
@@ -401,6 +436,8 @@ class AssistantController extends Controller
             if (str_contains($sender, '@')) {
                 $sender = explode('@', $sender)[0];
             }
+
+            $cleanSender = preg_replace('/[^0-9]/', '', $sender);
 
             if ($request->input('message.fromMe') === true || $request->input('data.key.fromMe') === true || $request->input('key.fromMe') === true) {
                 return response()->json(['status' => 'ignored_from_me']);
@@ -434,10 +471,49 @@ class AssistantController extends Controller
                 return response()->json(['status' => 'no_message']);
             }
 
+            // RESGATE DO CONTEXTO DE ACORDO COM O CONTEXT_LIMIT CONFIGURADO
+            $contextLimit = (int) ($assistant->context_limit ?? 12);
+
+            $historyRecords = DB::table('chat_messages')
+                ->where('assistant_id', $assistant->id)
+                ->where('phone_number', $cleanSender)
+                ->orderBy('id', 'desc')
+                ->limit($contextLimit)
+                ->get()
+                ->reverse();
+
+            $history = [];
+            foreach ($historyRecords as $msg) {
+                $history[] = [
+                    'role' => $msg->role,
+                    'content' => $msg->content
+                ];
+            }
+
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
-            $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, []);
+            $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
 
             $formattedReply = $this->formatTextForWhatsapp($aiReply);
+
+            // SALVA A CONVERSA NA TABELA CHAT_MESSAGES
+            DB::table('chat_messages')->insert([
+                [
+                    'assistant_id' => $assistant->id,
+                    'phone_number' => $cleanSender,
+                    'role' => 'user',
+                    'content' => $userMessage,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+                [
+                    'assistant_id' => $assistant->id,
+                    'phone_number' => $cleanSender,
+                    'role' => 'assistant',
+                    'content' => $aiReply,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            ]);
 
             $waResult = $this->sendWhatsappMessage($assistant, $sender, $formattedReply);
 
