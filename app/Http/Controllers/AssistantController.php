@@ -90,7 +90,6 @@ class AssistantController extends Controller
             }
         }
 
-        // Processamento seguro de upload de documentos
         if ($request->hasFile('documents')) {
             $existingFiles = $assistant->knowledge_files;
             if (!is_array($existingFiles)) {
@@ -117,7 +116,7 @@ class AssistantController extends Controller
                             'content' => $extractedText
                         ];
                     } catch (\Throwable $e) {
-                        Log::error('Erro ao processar anexo ' . $file->getClientOriginalName() . ': ' . $e->getMessage());
+                        Log::error('Erro no anexo ' . $file->getClientOriginalName() . ': ' . $e->getMessage());
                     }
                 }
             }
@@ -250,7 +249,6 @@ class AssistantController extends Controller
             $history = $request->input('history', []);
             if (!is_array($history)) $history = [];
 
-            // Unificado: Lê o System Prompt + Base de Conhecimento
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
             $response = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
 
@@ -300,7 +298,6 @@ class AssistantController extends Controller
                 return response()->json(['status' => 'no_message']);
             }
 
-            // Unificado: Lê o System Prompt + Base de Conhecimento
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
             $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, []);
 

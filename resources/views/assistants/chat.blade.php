@@ -37,6 +37,20 @@
         const sendBtn = document.getElementById('send-btn');
         let conversationHistory = [];
 
+        function parseMarkdownLinks(text) {
+            let safeText = text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+
+            const markdownLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g;
+            safeText = safeText.replace(markdownLinkRegex, function(match, title, url) {
+                return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:text-indigo-800 underline font-semibold break-all">${title}</a>`;
+            });
+
+            return safeText.replace(/\n/g, '<br>');
+        }
+
         function appendMessage(role, text) {
             const wrapper = document.createElement('div');
             wrapper.className = role === 'user' ? 'flex justify-end' : 'flex justify-start';
@@ -44,9 +58,14 @@
             const bubble = document.createElement('div');
             bubble.className = role === 'user' 
                 ? 'bg-indigo-600 text-white p-3 rounded-lg max-w-[80%] shadow-sm' 
-                : 'bg-white text-slate-700 p-3 rounded-lg max-w-[80%] border border-gray-200 shadow-sm';
+                : 'bg-white text-slate-700 p-3 rounded-lg max-w-[80%] border border-gray-200 shadow-sm leading-relaxed';
 
-            bubble.innerText = text;
+            if (role === 'assistant') {
+                bubble.innerHTML = parseMarkdownLinks(text);
+            } else {
+                bubble.innerText = text;
+            }
+
             wrapper.appendChild(bubble);
             chatMessages.appendChild(wrapper);
             chatMessages.scrollTop = chatMessages.scrollHeight;
