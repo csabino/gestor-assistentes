@@ -116,7 +116,7 @@ class AssistantController extends Controller
                             'content' => $extractedText
                         ];
                     } catch (\Throwable $e) {
-                        Log::error('Erro no anexo ' . $file->getClientOriginalName() . ': ' . $e->getMessage());
+                        Log::error('Erro ao processar anexo ' . $file->getClientOriginalName() . ': ' . $e->getMessage());
                     }
                 }
             }
@@ -168,6 +168,7 @@ class AssistantController extends Controller
                 $name = $file['name'] ?? 'Arquivo';
                 $content = $file['content'] ?? '';
 
+                // Tenta releitura dinâmica caso o texto tenha ficado em branco no upload
                 if (empty($content) && !empty($file['path']) && Storage::exists($file['path'])) {
                     $content = $this->extractTextFromFile(Storage::path($file['path']), $name);
                 }
@@ -203,22 +204,54 @@ class AssistantController extends Controller
             } elseif ($ext === 'pdf') {
                 $raw = @file_get_contents($filePath);
                 if ($raw) {
-                    preg_match_all('/BT[\s\S]*?ET/s', $raw, $matches);
-                    $extracted = '';
-                    if (!empty($matches[0])) {
-                        foreach ($matches[0] as $match) {
-                            preg_match_all('/\((.*?)\)/s', $match, $txtMatches);
-                            if (!empty($txtMatches[1])) {
-                                foreach ($txtMatches[1] as $m) {
-                                    if (strlen($m) > 1 && ctype_print($m)) $extracted .= $m . ' ';
-                                }
+                    // Descompacta fluxos comprimidos de PDF (FlateDecode / zlib)
+                    preg_match_all('/stream[\r\n]+([\s\S]*?)[\r\n]+endstream/m', $raw, $streams);
+                    $extractedText = '';
+
+                    foreach ($streams[1] ?? [] as $stream) {
+                        $uncompressed = @gzuncompress($stream);
+                        if (!$uncompressed) {
+                            $uncompressed = @gzinflate($stream);
+                        }
+                        $data = $uncompressed ? $uncompressed : $stream;
+
+                        // Captura blocos de texto (Tj e TJ)
+                        preg_match_all('/\((.*?)\)\s*Tj/s', $data, $tjSingle);
+                        foreach ($tjSingle[1] ?? [] as $t) {
+                            if (strlen($t) > 0) $extractedText .= $t . ' ';
+                        }
+
+                        preg_match_all('/\[(.*?)\]\s*TJ/s', $data, $tjArray);
+                        foreach ($tjArray[1] ?? [] as $arr) {
+                            preg_match_all('/\((.*?)\)/s', $arr, $m);
+                            foreach ($m[1] ?? [] as $t) {
+                                if (strlen($t) > 0) $extractedText .= $t;
+                            }
+                            $extractedText .= ' ';
+                        }
+
+                        // Captura blocos BT...ET
+                        preg_match_all('/BT[\s\S]*?ET/s', $data, $btMatches);
+                        foreach ($btMatches[0] ?? [] as $bt) {
+                            preg_match_all('/\((.*?)\)/s', $bt, $txtMatches);
+                            foreach ($txtMatches[1] ?? [] as $m) {
+                                if (strlen($m) > 1 && ctype_print($m)) $extractedText .= $m . ' ';
                             }
                         }
                     }
-                    $text = trim($extracted);
+
+                    $text = trim($extractedText);
+
+                    // Fallback para PDFs não compactados
                     if (empty($text)) {
-                        $text = preg_replace('/[^\x20-\x7E\x0A\x0D]/', '', $raw);
-                        $text = substr($text, 0, 10000);
+                        preg_match_all('/\((.*?)\)/s', $raw, $plainMatches);
+                        $fallback = '';
+                        foreach ($plainMatches[1] ?? [] as $pm) {
+                            if (strlen($pm) > 2 && ctype_print($pm)) {
+                                $fallback .= $pm . ' ';
+                            }
+                        }
+                        $text = trim($fallback);
                     }
                 }
             }
