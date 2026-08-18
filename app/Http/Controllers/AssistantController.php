@@ -325,7 +325,6 @@ class AssistantController extends Controller
                 return response()->json(['status' => 'ignored']);
             }
 
-            // Mapeamento UaZapi + Evolution + Z-API + Meta
             $rawSender = $request->input('message.sender_pn')
                 ?? $request->input('message.chatid')
                 ?? $request->input('chat.phone')
@@ -342,12 +341,10 @@ class AssistantController extends Controller
                 $sender = explode('@', $sender)[0];
             }
 
-            // Ignora mensagens enviadas pelo próprio bot
             if ($request->input('message.fromMe') === true || $request->input('data.key.fromMe') === true || $request->input('key.fromMe') === true) {
                 return response()->json(['status' => 'ignored_from_me']);
             }
 
-            // Mapeamento UaZapi + Evolution + Z-API
             $rawMessage = $request->input('message.content')
                 ?? $request->input('message.text')
                 ?? $request->input('data.message.conversation')
@@ -533,14 +530,25 @@ class AssistantController extends Controller
         try {
             $cleanTo = preg_replace('/[^0-9]/', '', $to);
             $baseUrl = rtrim($assistant->whatsapp_url, '/');
+            $token = trim($assistant->whatsapp_token);
 
-            // Formatação UaZapi / Evolution
             if (str_contains($baseUrl, 'uazapi.com') || $assistant->whatsapp_provider === 'uazapi') {
                 $endpoint = $baseUrl . '/send/text';
+                
                 $payload = [
+                    'token' => $token,
                     'number' => $cleanTo,
                     'text' => $message
                 ];
+
+                $response = Http::withHeaders([
+                    'token' => $token,
+                    'Client-Token' => $token,
+                    'client-token' => $token,
+                    'apikey' => $token,
+                    'Content-Type' => 'application/json'
+                ])->post($endpoint . '?token=' . urlencode($token), $payload);
+
             } else {
                 $endpoint = $baseUrl . '/message/sendText/' . $assistant->whatsapp_instance;
                 $payload = [
@@ -548,13 +556,13 @@ class AssistantController extends Controller
                     'phone' => $cleanTo,
                     'text' => $message
                 ];
-            }
 
-            $response = Http::withHeaders([
-                'token' => trim($assistant->whatsapp_token),
-                'apikey' => trim($assistant->whatsapp_token),
-                'Content-Type' => 'application/json'
-            ])->post($endpoint, $payload);
+                $response = Http::withHeaders([
+                    'token' => $token,
+                    'apikey' => $token,
+                    'Content-Type' => 'application/json'
+                ])->post($endpoint, $payload);
+            }
 
             return ['success' => $response->successful(), 'error' => $response->failed() ? $response->body() : null];
         } catch (\Throwable $e) {
