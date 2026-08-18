@@ -315,6 +315,32 @@ class AssistantController extends Controller
         }
     }
 
+    private function formatTextForWhatsapp(string $text): string
+    {
+        if (empty($text)) return '';
+
+        // 1. Converte links Markdown [Texto](URL) para visual limpo com seta
+        $text = preg_replace_callback('/\[([^\]]+)\]\(([^)]+)\)/', function ($matches) {
+            $label = trim($matches[1]);
+            $url = trim($matches[2]);
+            return "{$label}:\n👉 {$url}";
+        }, $text);
+
+        // 2. Converte Títulos (### Título) para Negrito do WhatsApp (*Título*)
+        $text = preg_replace('/^#{1,6}\s*(.+)$/m', '*$1*', $text);
+
+        // 3. Converte Negrito de Markdown (**texto**) para Negrito do WhatsApp (*texto*)
+        $text = preg_replace('/\*\*(.*?)\*\*/s', '*$1*', $text);
+
+        // 4. Padroniza marcadores de listas (* ou -) para bolinhas do WhatsApp (•)
+        $text = preg_replace('/^\s*[\*\-]\s+/m', '• ', $text);
+
+        // 5. Remove excesso de quebras de linha (no máximo 2 seguidas)
+        $text = preg_replace("/\n{3,}/", "\n\n", $text);
+
+        return trim($text);
+    }
+
     public function webhook(Request $request, $id)
     {
         $this->ensureWebhookLogTableExists();
@@ -376,13 +402,16 @@ class AssistantController extends Controller
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
             $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, []);
 
-            $waResult = $this->sendWhatsappMessage($assistant, $sender, $aiReply);
+            // APLICA O TRATAMENTO EXCLUSIVO DO WHATSAPP AQUI
+            $formattedReply = $this->formatTextForWhatsapp($aiReply);
+
+            $waResult = $this->sendWhatsappMessage($assistant, $sender, $formattedReply);
 
             DB::table('webhook_logs')->insert([
                 'assistant_id' => $assistant->id,
                 'sender' => substr($sender, 0, 255),
                 'user_message' => $userMessage,
-                'ai_reply' => $aiReply,
+                'ai_reply' => $formattedReply,
                 'wa_send_result' => json_encode($waResult, JSON_INVALID_UTF8_IGNORE),
                 'raw_snippet' => json_encode($request->all(), JSON_INVALID_UTF8_IGNORE),
                 'timestamp' => now()->toDateTimeString(),
@@ -390,7 +419,7 @@ class AssistantController extends Controller
                 'updated_at' => now(),
             ]);
 
-            return response()->json(['status' => 'success', 'reply' => $aiReply]);
+            return response()->json(['status' => 'success', 'reply' => $formattedReply]);
         } catch (\Throwable $e) {
             DB::table('webhook_logs')->insert([
                 'assistant_id' => $id,
