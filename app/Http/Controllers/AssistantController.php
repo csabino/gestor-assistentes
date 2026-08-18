@@ -30,7 +30,6 @@ class AssistantController extends Controller
         }
     }
 
-    // Cria as novas colunas na tabela assistants (se não existirem)
     private function ensureAssistantColumnsExist()
     {
         if (Schema::hasTable('assistants')) {
@@ -83,7 +82,6 @@ class AssistantController extends Controller
         if ($request->has('configure')) {
             $configuring = Assistant::find($request->configure);
             if ($configuring) {
-                // Decodifica JSON dos campos dinâmicos para a View usar
                 if (is_string($configuring->lead_fields)) {
                     $configuring->lead_fields = json_decode($configuring->lead_fields, true);
                 }
@@ -107,14 +105,16 @@ class AssistantController extends Controller
     private function store(Request $request)
     {
         $request->validate(['name' => 'required|string|max:255']);
-        $assistant = Assistant::create([
+        $assistant = new Assistant();
+        $assistant->forceFill([
             'name' => $request->name,
             'provider' => 'openai',
             'model' => 'gpt-4o-mini',
             'context_limit' => 12,
             'system_prompt' => 'Você é um assistente virtual prestativo.',
             'is_active' => true,
-        ]);
+        ])->save();
+        
         return redirect('/?configure=' . $assistant->id)->with('success', 'Assistente criado com sucesso!');
     }
 
@@ -127,18 +127,18 @@ class AssistantController extends Controller
             'whatsapp_provider', 'whatsapp_url', 'whatsapp_instance', 'whatsapp_token', 'whatsapp_verify_token'
         ]);
 
-        // Trata os campos de qualificação dinâmicos
         if ($request->has('lead_fields')) {
             $fields = $request->input('lead_fields');
             $cleanFields = [];
-            foreach ($fields as $field) {
-                if (!empty($field['name']) && !empty($field['label'])) {
-                    $cleanFields[] = $field;
+            if (is_array($fields)) {
+                foreach ($fields as $field) {
+                    if (!empty($field['name']) && !empty($field['label'])) {
+                        $cleanFields[] = $field;
+                    }
                 }
             }
             $data['lead_fields'] = json_encode($cleanFields, JSON_UNESCAPED_UNICODE);
         } else {
-            // Se veio do form principal e não tem campos, zera.
             if ($request->has('system_prompt')) {
                 $data['lead_fields'] = json_encode([]);
             }
@@ -183,14 +183,17 @@ class AssistantController extends Controller
             $data['knowledge_files'] = array_values($existingFiles);
         }
 
-        $assistant->update($data);
+        // BURLA A TRAVA DE SEGURANÇA E GRAVA TUDO
+        $assistant->forceFill($data)->save();
+
         return redirect('/?configure=' . $assistant->id)->with('success', 'Configurações atualizadas!');
     }
 
     private function toggleActive(Request $request)
     {
         $assistant = Assistant::findOrFail($request->assistant_id);
-        $assistant->update(['is_active' => !$assistant->is_active]);
+        $assistant->is_active = !$assistant->is_active;
+        $assistant->save();
         return redirect()->back()->with('success', 'Status alterado!');
     }
 
@@ -208,7 +211,7 @@ class AssistantController extends Controller
                     Storage::delete($files[$index]['path']);
                 }
                 array_splice($files, $index, 1);
-                $assistant->update(['knowledge_files' => array_values($files)]);
+                $assistant->forceFill(['knowledge_files' => array_values($files)])->save();
             }
             return redirect('/?configure=' . $assistant->id)->with('success', 'Arquivo removido.');
         }
