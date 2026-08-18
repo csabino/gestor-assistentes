@@ -3,147 +3,104 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat com {{ $assistant->name }}</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234F46E5' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z'/></svg>">
+    <title>Chat - {{ $assistant->name }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <style>
-        [x-cloak] { display: none !important; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-    </style>
 </head>
-<body class="bg-gray-100 flex flex-col h-screen font-sans" x-data="chatComponent()">
+<body class="bg-slate-900 text-white min-h-screen flex flex-col">
+    <div class="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
+        <h1 class="text-xl font-bold text-indigo-400">Chat com {{ $assistant->name }}</h1>
+        <a href="/" class="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm transition">Voltar ao Painel</a>
+    </div>
 
-    <header class="bg-white shadow-sm px-6 py-3 flex items-center justify-between shrink-0 z-10 border-b border-gray-200">
-        <div class="flex items-center gap-3">
-            <div class="relative">
-                <div class="w-9 h-9 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-base border border-indigo-200">
-                    {{ strtoupper(substr($assistant->name, 0, 1)) }}
-                </div>
-                <div class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></div>
-            </div>
-            <div>
-                <h1 class="font-bold text-gray-800 text-sm leading-tight">{{ $assistant->name }}</h1>
-                <p class="text-[11px] text-green-600 font-medium leading-tight">Online • Assistente Virtual</p>
-            </div>
+    <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-4 max-w-4xl mx-auto w-full">
+        <div class="bg-slate-800 p-3 rounded-lg max-w-[80%] border border-slate-700">
+            <p class="text-slate-300">Olá! Como posso ajudar você hoje?</p>
         </div>
-        <span class="text-xs bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full font-bold border border-indigo-100">
-            {{ ucfirst($assistant->provider ?? 'IA') }}
-        </span>
-    </header>
+    </div>
 
-    <main class="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-gray-50/50" x-ref="chatBox">
-        <template x-for="msg in messages" :key="msg.id">
-            <div class="flex flex-col" :class="msg.role === 'user' ? 'items-end' : 'items-start'">
-                <div class="max-w-[80%] px-4 py-2.5 rounded-2xl text-sm shadow-sm leading-relaxed break-words [word-break:break-word]"
-                     :class="msg.role === 'user' ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white text-gray-800 border border-gray-200 rounded-bl-none'"
-                     x-html="formatMessage(msg.content, msg.role)">
-                </div>
-                <span class="text-[10px] text-gray-400 mt-1 px-1" x-text="msg.role === 'user' ? 'Você' : assistantName"></span>
-            </div>
-        </template>
-
-        <div x-show="isTyping" x-cloak class="flex items-start">
-            <div class="bg-white border border-gray-200 px-4 py-3 rounded-2xl rounded-bl-none shadow-sm flex gap-1">
-                <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
-                <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-                <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
-            </div>
-        </div>
-    </main>
-
-    <footer class="bg-white px-6 py-3 border-t border-gray-200 shrink-0">
-        <form @submit.prevent="sendMessage()" class="flex items-center gap-3">
-            <input type="text" x-model="newMessage" :disabled="isTyping" placeholder="Digite sua mensagem..." 
-                class="flex-1 bg-gray-100 border-transparent focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 rounded-full px-4 py-2 text-sm transition outline-none disabled:opacity-50">
-            
-            <button type="submit" :disabled="newMessage.trim() === '' || isTyping" class="h-9 px-5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-bold text-xs rounded-full flex items-center justify-center transition shadow-sm shrink-0 gap-1.5 cursor-pointer disabled:cursor-not-allowed">
-                <span>Enviar</span>
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>
-            </button>
+    <div class="p-4 bg-slate-800 border-t border-slate-700">
+        <form id="chat-form" class="max-w-4xl mx-auto flex gap-2">
+            <input type="text" id="chat-input" placeholder="Digite sua mensagem..." required
+                class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-indigo-500 text-white">
+            <button type="submit" id="send-btn"
+                class="bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded-lg font-semibold transition">Enviar</button>
         </form>
-    </footer>
+    </div>
 
     <script>
-        function chatComponent() {
-            return {
-                newMessage: '',
-                isTyping: false,
-                assistantId: {{ $assistant->id }},
-                assistantName: {!! json_encode($assistant->name) !!},
-                providerName: {!! json_encode(ucfirst($assistant->provider ?? 'IA')) !!},
-                messages: [
-                    { id: 1, role: 'assistant', content: 'Olá! Sou ' + {!! json_encode($assistant->name) !!} + '. Como posso te ajudar hoje?' }
-                ],
-                formatMessage(content, role) {
-                    if (!content) return '';
-                    
-                    let esc = content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                    const linkColor = role === 'user' ? 'text-indigo-100 underline font-semibold' : 'text-indigo-600 font-bold underline hover:text-indigo-800';
-                    
-                    esc = esc.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, `<a href="$2" target="_blank" rel="noopener noreferrer" class="${linkColor}">$1</a>`);
-                    esc = esc.replace(/(^|[^"'])(https?:\/\/[^\s<]+)/g, `$1<a href="$2" target="_blank" rel="noopener noreferrer" class="${linkColor}">$2</a>`);
-                    esc = esc.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-                    esc = esc.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
-                    esc = esc.replace(/\n/g, '<br>');
-                    
-                    return esc;
-                },
-                async sendMessage() {
-                    if(this.newMessage.trim() === '' || this.isTyping) return;
-                    
-                    const text = this.newMessage;
-                    this.messages.push({ id: Date.now(), role: 'user', content: text });
-                    this.newMessage = '';
-                    this.scrollToBottom();
-                    
-                    this.isTyping = true;
-                    
-                    // Monta o histórico completo para a IA ter memória da conversa
-                    const history = this.messages.map(m => ({
-                        role: m.role,
-                        content: m.content
-                    }));
-                    
-                    try {
-                        const response = await fetch('/', {
-                            method: 'POST',
-                            headers: { 
-                                'Content-Type': 'application/json', 
-                                'X-CSRF-TOKEN': '{{ csrf_token() }}' 
-                            },
-                            body: JSON.stringify({ 
-                                action: 'chat_message', 
-                                assistant_id: this.assistantId, 
-                                message: text,
-                                history: history
-                            })
-                        });
+        const assistantId = "{{ $assistant->id }}";
+        const chatMessages = document.getElementById('chat-messages');
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+        const sendBtn = document.getElementById('send-btn');
+        let conversationHistory = [];
 
-                        const data = await response.json();
-                        this.isTyping = false;
-                        
-                        if(data.success) {
-                            this.messages.push({ id: Date.now(), role: 'assistant', content: data.reply });
-                        } else {
-                            this.messages.push({ id: Date.now(), role: 'assistant', content: '⚠️ ' + (data.reply || 'Erro ao processar mensagem.') });
-                        }
-                    } catch(e) {
-                        this.isTyping = false;
-                        this.messages.push({ id: Date.now(), role: 'assistant', content: '⚠️ Erro de comunicação com o servidor.' });
-                    } finally {
-                        this.scrollToBottom();
-                    }
-                },
-                scrollToBottom() {
-                    this.$nextTick(() => {
-                        const container = this.$refs.chatBox;
-                        if(container) container.scrollTop = container.scrollHeight;
-                    });
-                }
-            }
+        function appendMessage(role, text) {
+            const wrapper = document.createElement('div');
+            wrapper.className = role === 'user' ? 'flex justify-end' : 'flex justify-start';
+
+            const bubble = document.createElement('div');
+            bubble.className = role === 'user' 
+                ? 'bg-indigo-600 text-white p-3 rounded-lg max-w-[80%]' 
+                : 'bg-slate-800 text-slate-200 p-3 rounded-lg max-w-[80%] border border-slate-700';
+
+            bubble.innerText = text;
+            wrapper.appendChild(bubble);
+            chatMessages.appendChild(wrapper);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
+
+        chatForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const messageText = chatInput.value.trim();
+            if (!messageText) return;
+
+            appendMessage('user', messageText);
+            chatInput.value = '';
+            chatInput.disabled = true;
+            sendBtn.disabled = true;
+
+            try {
+                const response = await fetch('/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        action: 'chat',
+                        assistant_id: assistantId,
+                        message: messageText,
+                        history: conversationHistory
+                    })
+                });
+
+                const rawText = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(rawText);
+                } catch (e) {
+                    throw new Error(`Resposta não é JSON (HTTP ${response.status}): ${rawText.substring(0, 200)}`);
+                }
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${data.reply || data.message || JSON.stringify(data)}`);
+                }
+
+                const reply = data.reply || 'Sem resposta da IA.';
+                appendMessage('assistant', reply);
+                
+                conversationHistory.push({ role: 'user', content: messageText });
+                conversationHistory.push({ role: 'assistant', content: reply });
+
+            } catch (error) {
+                appendMessage('assistant', `⚠️ Erro na requisição: ${error.message}`);
+            } finally {
+                chatInput.disabled = false;
+                sendBtn.disabled = false;
+                chatInput.focus();
+            }
+        });
     </script>
 </body>
 </html>
