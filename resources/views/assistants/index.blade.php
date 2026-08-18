@@ -146,6 +146,7 @@
                     testing: false,
                     testResult: null,
                     showWaModal: false,
+                    showWebhookModal: false,
                     waLoading: false,
                     waResult: null,
                     pollAttempts: 0,
@@ -390,6 +391,9 @@
                             <div class="flex items-center gap-1.5">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-green-500"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>
                                 Canal: WhatsApp
+                                <button type="button" x-show="wa_provider !== ''" x-cloak x-on:click="showWebhookModal = true" class="text-slate-500 hover:text-indigo-600 bg-gray-100 hover:bg-indigo-50 p-1 rounded-md transition text-xs flex items-center gap-1 border border-gray-200 ml-1" title="Diagnóstico e Webhook">
+                                    🛠️ <span class="text-[10px] font-semibold text-gray-600">Webhook</span>
+                                </button>
                             </div>
                             
                             <div class="flex items-center gap-1.5" x-show="wa_provider !== ''" x-cloak>
@@ -469,25 +473,42 @@
                         </div>
 
                         <div x-show="wa_provider !== ''" x-transition class="mt-auto border-t border-gray-100 pt-3 mt-4 space-y-3">
-                            <div>
-                                <label class="block text-[9px] uppercase font-bold tracking-wider text-gray-500 mb-1">Webhook de Retorno</label>
-                                <div class="flex items-center gap-1.5">
-                                    <input type="text" readonly id="webhookUrl" value="https://gestor-assistentes-painel-web.nn8oij.easypanel.host/?webhook_id={{ $configuring->id }}" class="w-full bg-gray-50 border border-gray-200 rounded-md p-1.5 text-[10px] text-gray-500 font-mono outline-none shadow-inner">
-                                    <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('webhookUrl').value); alert('Webhook copiado!');" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1.5 rounded-md transition text-[10px] font-bold shrink-0 shadow-sm">Copiar</button>
-                                </div>
+                            <button type="button" x-on:click="startWaConnection()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" /></svg>
+                                Conectar / QR Code
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MODAL DO WEBHOOK E DIAGNÓSTICO -->
+                <div x-show="showWebhookModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4" x-transition>
+                    <div x-on:click.away="showWebhookModal = false" class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 relative border border-gray-100 space-y-4">
+                        <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                            <h3 class="text-base font-bold text-gray-800 flex items-center gap-2">
+                                🛠️ Webhook de Retorno & Diagnóstico
+                            </h3>
+                            <button type="button" x-on:click="showWebhookModal = false" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+
+                        <!-- URL DO WEBHOOK -->
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">URL do Webhook (Cole no seu Provedor de WhatsApp)</label>
+                            <div class="flex items-center gap-2">
+                                <input type="text" readonly id="modalWebhookUrl" value="{{ request()->schemeAndHttpHost() }}/webhook/whatsapp/{{ $configuring->id }}" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs text-gray-700 font-mono outline-none shadow-inner">
+                                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('modalWebhookUrl').value); alert('URL do Webhook copiada!');" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg text-xs transition shrink-0 shadow-sm">Copiar</button>
                             </div>
+                        </div>
 
-                            <!-- PAINEL DE RAIO-X DO WEBHOOK -->
-                            <div class="bg-gray-900 text-gray-100 p-3 rounded-lg text-[10px] font-mono shadow-inner border border-gray-800">
-                                <div class="flex items-center justify-between border-b border-gray-800 pb-1 mb-2">
-                                    <span class="font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1">
-                                        🔍 Diagnóstico do Webhook
-                                    </span>
-                                    <button type="button" onclick="window.location.reload();" class="text-gray-400 hover:text-white underline text-[9px]">
-                                        Atualizar
-                                    </button>
-                                </div>
-
+                        <!-- RAIO-X DO WEBHOOK -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="block text-xs font-semibold text-gray-700">🔍 Diagnóstico do Webhook</label>
+                                <button type="button" onclick="window.location.reload();" class="text-indigo-600 hover:underline text-xs">Atualizar</button>
+                            </div>
+                            <div class="bg-gray-900 text-gray-100 p-3 rounded-lg text-[11px] font-mono shadow-inner border border-gray-800 max-h-72 overflow-y-auto">
                                 @if($lastWebhook)
                                     <div class="space-y-1">
                                         <p><span class="text-gray-500">Horário:</span> <span class="text-gray-300">{{ $lastWebhook['timestamp'] ?? '-' }}</span></p>
@@ -515,30 +536,32 @@
 
                                         @if(isset($lastWebhook['wa_send_result']['error']))
                                             <p class="text-red-400 bg-red-950/50 p-1 rounded mt-1 border border-red-900/50 break-words">
-                                                UaZapi: {{ $lastWebhook['wa_send_result']['error'] }}
+                                                WhatsApp API: {{ $lastWebhook['wa_send_result']['error'] }}
                                             </p>
                                         @endif
 
                                         @if(isset($lastWebhook['raw_snippet']))
-                                            <div class="mt-2 pt-2 border-t border-gray-800 text-[9px] text-gray-400">
+                                            <div class="mt-2 pt-2 border-t border-gray-800 text-[10px] text-gray-400">
                                                 <p class="font-bold text-gray-300 mb-1">Payload JSON Recebido:</p>
-                                                <p class="bg-black/60 p-1 rounded font-mono break-words text-gray-300 text-[8px]">{{ $lastWebhook['raw_snippet'] }}</p>
+                                                <p class="bg-black/60 p-1.5 rounded font-mono break-words text-gray-300 text-[9px]">{{ $lastWebhook['raw_snippet'] }}</p>
                                             </div>
                                         @endif
                                     </div>
                                 @else
-                                    <p class="text-gray-500 italic py-1">⏳ Nenhum webhook recebido ainda. Envie um "Oi" no WhatsApp para testar.</p>
+                                    <p class="text-gray-500 italic py-2 text-center">⏳ Nenhum webhook recebido ainda. Envie um "Oi" no WhatsApp para testar.</p>
                                 @endif
                             </div>
-                            
-                            <button type="button" x-on:click="startWaConnection()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow-sm">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c0 .621.504 1.125 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" /></svg>
-                                Conectar / QR Code
+                        </div>
+
+                        <div class="flex justify-end pt-2">
+                            <button type="button" x-on:click="showWebhookModal = false" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold px-5 py-2 rounded-lg text-xs transition">
+                                Fechar
                             </button>
                         </div>
                     </div>
                 </div>
 
+                <!-- MODAL DO QR CODE -->
                 <div x-show="showWaModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4" x-transition>
                     <div x-on:click.away="showWaModal = false" class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center relative border border-gray-100">
                         
