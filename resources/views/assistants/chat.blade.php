@@ -6,24 +6,26 @@
     <title>Chat - {{ $assistant->name }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-900 text-white min-h-screen flex flex-col">
-    <div class="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
-        <h1 class="text-xl font-bold text-indigo-400">Chat com {{ $assistant->name }}</h1>
-        <a href="/" class="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm transition">Voltar ao Painel</a>
+<body class="bg-gray-100 text-slate-800 min-h-screen flex flex-col">
+    <div class="p-4 bg-white border-b border-gray-200 shadow-sm flex justify-between items-center">
+        <h1 class="text-xl font-bold text-indigo-600">Chat com {{ $assistant->name }}</h1>
+        <a href="/" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm font-medium transition text-gray-700">Voltar ao Painel</a>
     </div>
 
     <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-4 max-w-4xl mx-auto w-full">
-        <div class="bg-slate-800 p-3 rounded-lg max-w-[80%] border border-slate-700">
-            <p class="text-slate-300">Olá! Como posso ajudar você hoje?</p>
+        <div class="flex justify-start">
+            <div class="bg-white text-slate-700 p-3 rounded-lg max-w-[80%] border border-gray-200 shadow-sm">
+                <p>Olá! Como posso ajudar você hoje?</p>
+            </div>
         </div>
     </div>
 
-    <div class="p-4 bg-slate-800 border-t border-slate-700">
+    <div class="p-4 bg-white border-t border-gray-200">
         <form id="chat-form" class="max-w-4xl mx-auto flex gap-2">
             <input type="text" id="chat-input" placeholder="Digite sua mensagem..." required
-                class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-indigo-500 text-white">
+                class="flex-1 bg-gray-50 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800">
             <button type="submit" id="send-btn"
-                class="bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded-lg font-semibold transition">Enviar</button>
+                class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-semibold transition">Enviar</button>
         </form>
     </div>
 
@@ -41,8 +43,8 @@
 
             const bubble = document.createElement('div');
             bubble.className = role === 'user' 
-                ? 'bg-indigo-600 text-white p-3 rounded-lg max-w-[80%]' 
-                : 'bg-slate-800 text-slate-200 p-3 rounded-lg max-w-[80%] border border-slate-700';
+                ? 'bg-indigo-600 text-white p-3 rounded-lg max-w-[80%] shadow-sm' 
+                : 'bg-white text-slate-700 p-3 rounded-lg max-w-[80%] border border-gray-200 shadow-sm';
 
             bubble.innerText = text;
             wrapper.appendChild(bubble);
@@ -80,11 +82,11 @@
                 try {
                     data = JSON.parse(rawText);
                 } catch (e) {
-                    throw new Error(`Resposta não é JSON (HTTP ${response.status}): ${rawText.substring(0, 200)}`);
+                    throw new Error(`Resposta inválida do servidor (HTTP ${response.status})`);
                 }
 
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${data.reply || data.message || JSON.stringify(data)}`);
+                    throw new Error(data.reply || data.message || `Erro HTTP ${response.status}`);
                 }
 
                 const reply = data.reply || 'Sem resposta da IA.';
@@ -94,7 +96,7 @@
                 conversationHistory.push({ role: 'assistant', content: reply });
 
             } catch (error) {
-                appendMessage('assistant', `⚠️ Erro na requisição: ${error.message}`);
+                appendMessage('assistant', `⚠️ Erro: ${error.message}`);
             } finally {
                 chatInput.disabled = false;
                 sendBtn.disabled = false;
