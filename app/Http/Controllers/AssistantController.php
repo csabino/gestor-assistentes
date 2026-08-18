@@ -9,11 +9,31 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Schema\Blueprint;
 
 class AssistantController extends Controller
 {
+    private function ensureWebhookLogTableExists()
+    {
+        if (!Schema::hasTable('webhook_logs')) {
+            Schema::create('webhook_logs', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('assistant_id');
+                $table->string('sender')->nullable();
+                $table->text('user_message')->nullable();
+                $table->text('ai_reply')->nullable();
+                $table->longText('wa_send_result')->nullable();
+                $table->longText('raw_snippet')->nullable();
+                $table->string('timestamp')->nullable();
+                $table->timestamps();
+            });
+        }
+    }
+
     public function index(Request $request)
     {
+        $this->ensureWebhookLogTableExists();
+
         if ($request->has('chat_id')) {
             $assistant = Assistant::findOrFail($request->chat_id);
             return view('assistants.chat', compact('assistant'));
@@ -48,7 +68,7 @@ class AssistantController extends Controller
 
         if ($request->has('configure')) {
             $configuring = Assistant::find($request->configure);
-            if ($configuring && Schema::hasTable('webhook_logs')) {
+            if ($configuring) {
                 $log = DB::table('webhook_logs')->where('assistant_id', $configuring->id)->latest('id')->first();
                 if ($log) {
                     $lastWebhook = (array) $log;
@@ -116,7 +136,7 @@ class AssistantController extends Controller
                             'content' => $extractedText
                         ];
                     } catch (\Throwable $e) {
-                        Log::error('Erro ao processar anexo ' . $file->getClientOriginalName() . ': ' . $e->getMessage());
+                        Log::error('Erro no anexo ' . $file->getClientOriginalName() . ': ' . $e->getMessage());
                     }
                 }
             }
@@ -161,12 +181,11 @@ class AssistantController extends Controller
     {
         $prompt = $assistant->system_prompt ?? '';
 
-        // GUARDRAIL DE CONFINAMENTO EXTRITO
         $prompt .= "\n\n===============================================\n";
         $prompt .= "DIRETRIZES ABSOLUTAS DE CONFINAMENTO DE RESPOSTA:\n";
         $prompt .= "1. Você deve responder APENAS utilizando as informações contidas neste System Prompt e na Base de Conhecimento abaixo.\n";
-        $prompt .= "2. É ESTRITAMENTE PROIBIDO realizar buscas externas, acessar a internet ou utilizar conhecimento prévio geral para responder perguntas de cunho corporativo/comercial que não estejam explicitamente documentadas aqui.\n";
-        $prompt .= "3. Se o usuário perguntar algo que NÃO esteja no prompt nem na Base de Conhecimento, informe educadamente que não possui essa informação no momento e ofereça o encaminhamento para um especialista da InHouse.\n";
+        $prompt .= "2. É ESTRITAMENTE PROIBIDO realizar buscas externas, acessar a internet ou utilizar conhecimento prévio geral para responder perguntas corporativas que não estejam documentadas aqui.\n";
+        $prompt .= "3. Se o usuário perguntar algo que NÃO esteja no prompt nem na Base de Conhecimento, informe educadamente que não possui essa informação.\n";
         $prompt .= "4. Cumpra rigorosamente a REGRA OBRIGATÓRIA DE LINKS: todos os links devem vir formatados em Markdown no padrão [Texto da Palavra](URL_COMPLETA).\n";
         $prompt .= "===============================================\n";
 
@@ -298,41 +317,52 @@ class AssistantController extends Controller
 
     public function webhook(Request $request, $id)
     {
+        $this->ensureWebhookLogTableExists();
+
         try {
             $assistant = Assistant::find($id);
             if (!$assistant || !$assistant->is_active) {
                 return response()->json(['status' => 'ignored']);
             }
 
-            $rawSender = $request->input('sender') 
-                ?? $request->input('phone') 
-                ?? $request->input('data.key.remoteJid') 
+            $rawSender = $request->input('data.key.remoteJid') 
                 ?? $request->input('key.remoteJid') 
-                ?? $request->input('data.phone') 
+                ?? $request->input('phone')
+                ?? $request->input('from')
+                ?? $request->input('sender') 
                 ?? 'desconhecido';
 
-            if (is_array($rawSender)) {
-                $sender = $rawSender['user'] ?? $rawSender['number'] ?? json_encode($rawSender);
-            } else {
-                $sender = (string)$rawSender;
+            $sender = is_array($rawSender) ? ($rawSender['user'] ?? json_encode($rawSender)) : (string)$rawSender;
+
+            // Ignora webhooks de mensagens enviadas pela própria API
+            if ($request->input('data.key.fromMe') === true || $request->input('key.fromMe') === true) {
+                return response()->json(['status' => 'ignored_from_me']);
             }
 
-            $rawMessage = $request->input('message')
-                ?? $request->input('text')
-                ?? $request->input('body')
-                ?? $request->input('data.message.conversation')
+            $rawMessage = $request->input('data.message.conversation')
                 ?? $request->input('data.message.extendedTextMessage.text')
                 ?? $request->input('message.conversation')
                 ?? $request->input('message.extendedTextMessage.text')
+                ?? $request->input('text.message')
+                ?? $request->input('text')
+                ?? $request->input('body')
                 ?? '';
 
-            if (is_array($rawMessage)) {
-                $userMessage = $rawMessage['conversation'] ?? $rawMessage['text'] ?? $rawMessage['body'] ?? '';
-            } else {
-                $userMessage = (string)$rawMessage;
-            }
+            $userMessage = is_array($rawMessage) ? ($rawMessage['text'] ?? $rawMessage['body'] ?? '') : (string)$rawMessage;
 
-            if (empty($userMessage)) {
+            // GRAVA O LOG MESMO SE A MENSAGEM FOR VAZIA OU ÁUDIO (Para o Diagnóstico Funcionar Sempre)
+            if (empty(trim($userMessage))) {
+                DB::table('webhook_logs')->insert([
+                    'assistant_id' => $assistant->id,
+                    'sender' => substr($sender, 0, 255),
+                    'user_message' => '[Mensagem Vazia, Áudio ou Imagem]',
+                    'ai_reply' => 'Ignorado (Sistema processa apenas texto no momento)',
+                    'wa_send_result' => json_encode(['info' => 'Nenhuma resposta enviada']),
+                    'raw_snippet' => json_encode($request->all(), JSON_INVALID_UTF8_IGNORE),
+                    'timestamp' => now()->toDateTimeString(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
                 return response()->json(['status' => 'no_message']);
             }
 
@@ -341,37 +371,31 @@ class AssistantController extends Controller
 
             $waResult = $this->sendWhatsappMessage($assistant, $sender, $aiReply);
 
-            if (Schema::hasTable('webhook_logs')) {
-                DB::table('webhook_logs')->insert([
-                    'assistant_id' => $assistant->id,
-                    'sender' => substr($sender, 0, 255),
-                    'user_message' => $userMessage,
-                    'ai_reply' => $aiReply,
-                    'wa_send_result' => json_encode($waResult, JSON_INVALID_UTF8_IGNORE),
-                    'raw_snippet' => json_encode($request->all(), JSON_INVALID_UTF8_IGNORE),
-                    'timestamp' => now()->toDateTimeString(),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-            }
+            DB::table('webhook_logs')->insert([
+                'assistant_id' => $assistant->id,
+                'sender' => substr($sender, 0, 255),
+                'user_message' => $userMessage,
+                'ai_reply' => $aiReply,
+                'wa_send_result' => json_encode($waResult, JSON_INVALID_UTF8_IGNORE),
+                'raw_snippet' => json_encode($request->all(), JSON_INVALID_UTF8_IGNORE),
+                'timestamp' => now()->toDateTimeString(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
 
             return response()->json(['status' => 'success', 'reply' => $aiReply]);
         } catch (\Throwable $e) {
-            try {
-                if (Schema::hasTable('webhook_logs')) {
-                    DB::table('webhook_logs')->insert([
-                        'assistant_id' => $id,
-                        'sender' => 'Erro',
-                        'user_message' => 'Erro Webhook',
-                        'ai_reply' => 'Falha: ' . $e->getMessage(),
-                        'wa_send_result' => json_encode(['error' => $e->getMessage()]),
-                        'raw_snippet' => json_encode($request->all()),
-                        'timestamp' => now()->toDateTimeString(),
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                }
-            } catch (\Throwable $err) {}
+            DB::table('webhook_logs')->insert([
+                'assistant_id' => $id,
+                'sender' => 'Erro Interno',
+                'user_message' => 'Falha Crítica',
+                'ai_reply' => 'Erro: ' . $e->getMessage(),
+                'wa_send_result' => json_encode(['error' => $e->getMessage()]),
+                'raw_snippet' => json_encode($request->all(), JSON_INVALID_UTF8_IGNORE),
+                'timestamp' => now()->toDateTimeString(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 200);
         }
     }
@@ -397,10 +421,7 @@ class AssistantController extends Controller
                 'messages' => $messages,
             ]);
 
-            if ($res->failed()) {
-                return 'Erro na API OpenAI (' . $res->status() . '): ' . json_encode($res->json());
-            }
-
+            if ($res->failed()) return 'Erro na API OpenAI: ' . json_encode($res->json());
             return $res->json('choices.0.message.content') ?? 'Resposta vazia da OpenAI.';
         }
 
@@ -413,10 +434,7 @@ class AssistantController extends Controller
                 'contents' => [['parts' => [['text' => $userMessage]]]]
             ]);
 
-            if ($res->failed()) {
-                return 'Erro na API Gemini (' . $res->status() . '): ' . json_encode($res->json());
-            }
-
+            if ($res->failed()) return 'Erro na API Gemini: ' . json_encode($res->json());
             return $res->json('candidates.0.content.parts.0.text') ?? 'Resposta vazia do Gemini.';
         }
 
@@ -435,10 +453,7 @@ class AssistantController extends Controller
                 'messages' => [['role' => 'user', 'content' => $userMessage]]
             ]);
 
-            if ($res->failed()) {
-                return 'Erro na API Anthropic (' . $res->status() . '): ' . json_encode($res->json());
-            }
-
+            if ($res->failed()) return 'Erro na API Anthropic: ' . json_encode($res->json());
             return $res->json('content.0.text') ?? 'Resposta vazia da Anthropic.';
         }
 
@@ -459,10 +474,7 @@ class AssistantController extends Controller
                 'messages' => $messages
             ]);
 
-            if ($res->failed()) {
-                return 'Erro na API Grok (' . $res->status() . '): ' . json_encode($res->json());
-            }
-
+            if ($res->failed()) return 'Erro na API Grok: ' . json_encode($res->json());
             return $res->json('choices.0.message.content') ?? 'Resposta vazia do Grok.';
         }
 
@@ -511,13 +523,21 @@ class AssistantController extends Controller
         try {
             $cleanTo = preg_replace('/[^0-9]/', '', $to);
 
-            $endpoint = rtrim($assistant->whatsapp_url, '/') . '/message/sendText/' . $assistant->whatsapp_instance;
+            // Ajuste Inteligente: se a URL do provedor for Z-API ou não tiver '/message/', envia para a raiz do provedor
+            $endpoint = rtrim($assistant->whatsapp_url, '/');
+            if (str_contains($endpoint, 'evolution') || !str_contains($endpoint, '/instances/')) {
+                 $endpoint .= '/message/sendText/' . $assistant->whatsapp_instance;
+            }
+
             $response = Http::withHeaders([
                 'token' => trim($assistant->whatsapp_token),
+                'apikey' => trim($assistant->whatsapp_token),
                 'Content-Type' => 'application/json'
             ])->post($endpoint, [
                 'number' => $cleanTo,
-                'text' => $message
+                'phone' => $cleanTo, // Adicionado pra garantir Z-API
+                'text' => $message,
+                'message' => $message // Adicionado pra garantir outros provedores
             ]);
 
             return ['success' => $response->successful(), 'error' => $response->failed() ? $response->body() : null];
