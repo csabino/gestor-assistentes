@@ -8,13 +8,22 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\File;
 
 class AssistantController extends Controller
 {
     public function index(Request $request)
     {
-        // Limpeza silenciosa de erros de arquivo
+        if ($request->has('debug_log')) {
+            $logPath = storage_path('logs/laravel.log');
+            if (!File::exists($logPath)) {
+                return response('<h2 style="font-family:sans-serif;padding:20px;">Nenhum log encontrado em storage/logs/laravel.log</h2>', 200);
+            }
+            $logContent = file($logPath);
+            $lastLines = array_slice($logContent, -150);
+            return response('<pre style="background:#111;color:#0f0;padding:20px;white-space:pre-wrap;font-size:12px;overflow-x:auto;">' . htmlspecialchars(implode("", $lastLines)) . '</pre>', 200);
+        }
+
         try { DB::statement('UPDATE assistants SET knowledge_files = NULL'); } catch (\Throwable $e) {}
 
         if ($request->has('chat_id')) {
@@ -134,7 +143,9 @@ class AssistantController extends Controller
     {
         try {
             $assistant = Assistant::find($request->assistant_id);
-            if (!$assistant) return response()->json(['reply' => 'Assistente não encontrado.']);
+            if (!$assistant) {
+                return response()->json(['reply' => '⚠️ Assistente ID ' . $request->assistant_id . ' não foi encontrado no banco.']);
+            }
 
             $userMessage = (string)$request->input('message');
             $history = $request->input('history', []);
@@ -145,7 +156,9 @@ class AssistantController extends Controller
 
             return response()->json(['reply' => $response]);
         } catch (\Throwable $e) {
-            return response()->json(['reply' => '⚠️ Erro interno da IA: ' . $e->getMessage()]);
+            return response()->json([
+                'reply' => '⚠️ ERRO DETECTADO NO SERVIDOR: ' . $e->getMessage() . ' no arquivo ' . basename($e->getFile()) . ' linha ' . $e->getLine()
+            ], 200);
         }
     }
 
@@ -186,20 +199,7 @@ class AssistantController extends Controller
 
             return response()->json(['status' => 'success', 'reply' => $aiReply]);
         } catch (\Throwable $e) {
-            try {
-                if (Schema::hasTable('webhook_logs')) {
-                    DB::table('webhook_logs')->insert([
-                        'assistant_id' => $id,
-                        'sender' => 'Erro',
-                        'user_message' => 'Erro',
-                        'ai_reply' => 'Falha Crítica',
-                        'wa_send_result' => json_encode(['error' => $e->getMessage()]),
-                        'raw_snippet' => json_encode($request->all()),
-                        'timestamp' => now()->toDateTimeString()
-                    ]);
-                }
-            } catch (\Throwable $err) {}
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()]);
+            return response()->json(['status' => 'error', 'message' => $e->getMessage() . ' na linha ' . $e->getLine()], 200);
         }
     }
 
@@ -224,7 +224,11 @@ class AssistantController extends Controller
                 'messages' => $messages,
             ]);
 
-            return $res->json('choices.0.message.content') ?? 'Erro ao consultar OpenAI.';
+            if ($res->failed()) {
+                return 'Erro na API OpenAI (' . $res->status() . '): ' . json_encode($res->json());
+            }
+
+            return $res->json('choices.0.message.content') ?? 'Resposta vazia da OpenAI.';
         }
 
         if ($provider === 'gemini') {
@@ -236,7 +240,11 @@ class AssistantController extends Controller
                 'contents' => [['parts' => [['text' => $userMessage]]]]
             ]);
 
-            return $res->json('candidates.0.content.parts.0.text') ?? 'Erro ao consultar Gemini.';
+            if ($res->failed()) {
+                return 'Erro na API Gemini (' . $res->status() . '): ' . json_encode($res->json());
+            }
+
+            return $res->json('candidates.0.content.parts.0.text') ?? 'Resposta vazia do Gemini.';
         }
 
         if ($provider === 'anthropic') {
@@ -254,7 +262,11 @@ class AssistantController extends Controller
                 'messages' => [['role' => 'user', 'content' => $userMessage]]
             ]);
 
-            return $res->json('content.0.text') ?? 'Erro ao consultar Anthropic.';
+            if ($res->failed()) {
+                return 'Erro na API Anthropic (' . $res->status() . '): ' . json_encode($res->json());
+            }
+
+            return $res->json('content.0.text') ?? 'Resposta vazia da Anthropic.';
         }
 
         if ($provider === 'grok') {
@@ -274,7 +286,11 @@ class AssistantController extends Controller
                 'messages' => $messages
             ]);
 
-            return $res->json('choices.0.message.content') ?? 'Erro ao consultar xAI Grok.';
+            if ($res->failed()) {
+                return 'Erro na API Grok (' . $res->status() . '): ' . json_encode($res->json());
+            }
+
+            return $res->json('choices.0.message.content') ?? 'Resposta vazia do Grok.';
         }
 
         return 'Provedor de IA não configurado.';
