@@ -9,6 +9,12 @@ Route::match(['get', 'post'], '/webhook/whatsapp/{id}', [AssistantController::cl
     ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
 
 Route::match(['get', 'post', 'patch', 'put', 'delete'], '/', function (\Illuminate\Http\Request $request) {
+    
+    // INTERCEPTA A SUA URL ORIGINAL DO WEBHOOK E MANDA PARA A IA
+    if ($request->has('webhook_id')) {
+        return app(AssistantController::class)->webhook($request, $request->input('webhook_id'));
+    }
+
     if ($request->input('view') === 'equipe') return app(AgentController::class)->handle($request);
     if ($request->input('view') === 'agenda') return app(CalendarController::class)->handle($request);
     return app(AssistantController::class)->index($request);

@@ -146,7 +146,7 @@
                     testing: false,
                     testResult: null,
                     showWaModal: false,
-                    showWebhookModal: false,
+                    showWebhookModal: new URLSearchParams(window.location.search).get('modal') === 'webhook',
                     waLoading: false,
                     waResult: null,
                     pollAttempts: 0,
@@ -260,6 +260,11 @@
                         } finally {
                             this.waLoading = false;
                         }
+                    },
+
+                    closeWebhookModal() {
+                        this.showWebhookModal = false;
+                        window.history.replaceState(null, '', '/?configure={{ $configuring->id }}');
                     }
                 }"
                 x-init="checkWaStatusSilent()">
@@ -483,12 +488,12 @@
 
                 <!-- MODAL DO WEBHOOK E DIAGNÓSTICO -->
                 <div x-show="showWebhookModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4" x-transition>
-                    <div x-on:click.away="showWebhookModal = false" class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 relative border border-gray-100 space-y-4">
+                    <div x-on:click.away="closeWebhookModal()" class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 relative border border-gray-100 space-y-4">
                         <div class="flex justify-between items-center border-b border-gray-100 pb-3">
                             <h3 class="text-base font-bold text-gray-800 flex items-center gap-2">
                                 🛠️ Webhook de Retorno & Diagnóstico
                             </h3>
-                            <button type="button" x-on:click="showWebhookModal = false" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg">
+                            <button type="button" x-on:click="closeWebhookModal()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg">
                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
@@ -497,7 +502,8 @@
                         <div>
                             <label class="block text-xs font-semibold text-gray-700 mb-1">URL do Webhook (Cole no seu Provedor de WhatsApp)</label>
                             <div class="flex items-center gap-2">
-                                <input type="text" readonly id="modalWebhookUrl" value="{{ request()->schemeAndHttpHost() }}/webhook/whatsapp/{{ $configuring->id }}" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs text-gray-700 font-mono outline-none shadow-inner">
+                                <!-- URL ORIGINAL DO USUÁRIO RESTAURADA AQUI -->
+                                <input type="text" readonly id="modalWebhookUrl" value="https://gestor-assistentes-painel-web.nn8oij.easypanel.host/?webhook_id={{ $configuring->id }}" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs text-gray-700 font-mono outline-none shadow-inner">
                                 <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('modalWebhookUrl').value); alert('URL do Webhook copiada!');" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg text-xs transition shrink-0 shadow-sm">Copiar</button>
                             </div>
                         </div>
@@ -506,7 +512,8 @@
                         <div>
                             <div class="flex items-center justify-between mb-1">
                                 <label class="block text-xs font-semibold text-gray-700">🔍 Diagnóstico do Webhook</label>
-                                <button type="button" onclick="window.location.reload();" class="text-indigo-600 hover:underline text-xs">Atualizar</button>
+                                <!-- BOTAO ATUALIZAR MANTENDO O MODAL ABERTO -->
+                                <button type="button" onclick="window.location.href='/?configure={{ $configuring->id }}&modal=webhook'" class="text-indigo-600 hover:underline text-xs">Atualizar</button>
                             </div>
                             <div class="bg-gray-900 text-gray-100 p-3 rounded-lg text-[11px] font-mono shadow-inner border border-gray-800 max-h-72 overflow-y-auto">
                                 @if($lastWebhook)
@@ -554,7 +561,7 @@
                         </div>
 
                         <div class="flex justify-end pt-2">
-                            <button type="button" x-on:click="showWebhookModal = false" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold px-5 py-2 rounded-lg text-xs transition">
+                            <button type="button" x-on:click="closeWebhookModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold px-5 py-2 rounded-lg text-xs transition">
                                 Fechar
                             </button>
                         </div>
