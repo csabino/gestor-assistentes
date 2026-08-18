@@ -8,12 +8,13 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 
 class AssistantController extends Controller
 {
     public function index(Request $request)
     {
-        // Limpa a sujeira do banco automaticamente silenciosamente
+        // Limpeza silenciosa de erros de arquivo
         try { DB::statement('UPDATE assistants SET knowledge_files = NULL'); } catch (\Throwable $e) {}
 
         if ($request->has('chat_id')) {
@@ -87,7 +88,6 @@ class AssistantController extends Controller
             'whatsapp_provider', 'whatsapp_url', 'whatsapp_instance', 'whatsapp_token', 'whatsapp_verify_token'
         ]);
 
-        // Apenas salva o arquivo fisicamente, não tenta ler nada
         if ($request->hasFile('documents')) {
             $existingFiles = $assistant->knowledge_files ?? [];
             foreach ($request->file('documents') as $file) {
@@ -213,7 +213,9 @@ class AssistantController extends Controller
 
             $messages = [['role' => 'system', 'content' => $systemPrompt]];
             foreach ($history as $msg) {
-                $messages[] = ['role' => $msg['role'], 'content' => $msg['content']];
+                if (isset($msg['role']) && isset($msg['content'])) {
+                    $messages[] = ['role' => $msg['role'], 'content' => $msg['content']];
+                }
             }
             $messages[] = ['role' => 'user', 'content' => $userMessage];
 
@@ -235,6 +237,44 @@ class AssistantController extends Controller
             ]);
 
             return $res->json('candidates.0.content.parts.0.text') ?? 'Erro ao consultar Gemini.';
+        }
+
+        if ($provider === 'anthropic') {
+            $key = $assistant->anthropic_api_key;
+            if (!$key) return 'Erro: Chave API do Claude não configurada.';
+
+            $res = Http::withHeaders([
+                'x-api-key' => $key,
+                'anthropic-version' => '2023-06-01',
+                'content-type' => 'application/json'
+            ])->post('https://api.anthropic.com/v1/messages', [
+                'model' => $assistant->model ?? 'claude-3-haiku-20240307',
+                'system' => $systemPrompt,
+                'max_tokens' => 1024,
+                'messages' => [['role' => 'user', 'content' => $userMessage]]
+            ]);
+
+            return $res->json('content.0.text') ?? 'Erro ao consultar Anthropic.';
+        }
+
+        if ($provider === 'grok') {
+            $key = $assistant->grok_api_key;
+            if (!$key) return 'Erro: Chave API do Grok não configurada.';
+
+            $messages = [['role' => 'system', 'content' => $systemPrompt]];
+            foreach ($history as $msg) {
+                if (isset($msg['role']) && isset($msg['content'])) {
+                    $messages[] = ['role' => $msg['role'], 'content' => $msg['content']];
+                }
+            }
+            $messages[] = ['role' => 'user', 'content' => $userMessage];
+
+            $res = Http::withToken($key)->post('https://api.x.ai/v1/chat/completions', [
+                'model' => $assistant->model ?? 'grok-2-mini',
+                'messages' => $messages
+            ]);
+
+            return $res->json('choices.0.message.content') ?? 'Erro ao consultar xAI Grok.';
         }
 
         return 'Provedor de IA não configurado.';
