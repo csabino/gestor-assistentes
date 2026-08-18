@@ -27,7 +27,7 @@
     <main id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 max-w-4xl mx-auto w-full">
         <div class="flex justify-start">
             <div class="bg-white text-slate-700 p-3 rounded-lg max-w-[80%] border border-gray-200 shadow-sm chat-content">
-                <p>Olá! Como posso ajudar você hoje?</p>
+                <p>Olá! 😊<br>Seja muito bem-vindo(a) à InHouse.<br>Sou a Íngrid, Assistente Virtual da InHouse Contact Center & Technology.<br>Estou aqui para ajudar você com informações sobre nossas soluções, vagas de emprego e cadastrar fornecedores.<br>Como posso ajudar você hoje?</p>
             </div>
         </div>
     </main>

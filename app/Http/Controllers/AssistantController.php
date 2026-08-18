@@ -160,15 +160,24 @@ class AssistantController extends Controller
     private function buildSystemPromptWithKnowledge(Assistant $assistant): string
     {
         $prompt = $assistant->system_prompt ?? '';
+
+        // GUARDRAIL DE CONFINAMENTO EXTRITO
+        $prompt .= "\n\n===============================================\n";
+        $prompt .= "DIRETRIZES ABSOLUTAS DE CONFINAMENTO DE RESPOSTA:\n";
+        $prompt .= "1. Você deve responder APENAS utilizando as informações contidas neste System Prompt e na Base de Conhecimento abaixo.\n";
+        $prompt .= "2. É ESTRITAMENTE PROIBIDO realizar buscas externas, acessar a internet ou utilizar conhecimento prévio geral para responder perguntas de cunho corporativo/comercial que não estejam explicitamente documentadas aqui.\n";
+        $prompt .= "3. Se o usuário perguntar algo que NÃO esteja no prompt nem na Base de Conhecimento, informe educadamente que não possui essa informação no momento e ofereça o encaminhamento para um especialista da InHouse.\n";
+        $prompt .= "4. Cumpra rigorosamente a REGRA OBRIGATÓRIA DE LINKS: todos os links devem vir formatados em Markdown no padrão [Texto da Palavra](URL_COMPLETA).\n";
+        $prompt .= "===============================================\n";
+
         $files = $assistant->knowledge_files;
 
         if (is_array($files) && !empty($files)) {
-            $prompt .= "\n\n### BASE DE CONHECIMENTO (DOCUMENTOS ANEXADOS) ###\n";
+            $prompt .= "\n### BASE DE CONHECIMENTO OFICIAL (DOCUMENTOS ANEXADOS) ###\n";
             foreach ($files as $file) {
                 $name = $file['name'] ?? 'Arquivo';
                 $content = $file['content'] ?? '';
 
-                // Tenta releitura dinâmica caso o texto tenha ficado em branco no upload
                 if (empty($content) && !empty($file['path']) && Storage::exists($file['path'])) {
                     $content = $this->extractTextFromFile(Storage::path($file['path']), $name);
                 }
@@ -204,7 +213,6 @@ class AssistantController extends Controller
             } elseif ($ext === 'pdf') {
                 $raw = @file_get_contents($filePath);
                 if ($raw) {
-                    // Descompacta fluxos comprimidos de PDF (FlateDecode / zlib)
                     preg_match_all('/stream[\r\n]+([\s\S]*?)[\r\n]+endstream/m', $raw, $streams);
                     $extractedText = '';
 
@@ -215,7 +223,6 @@ class AssistantController extends Controller
                         }
                         $data = $uncompressed ? $uncompressed : $stream;
 
-                        // Captura blocos de texto (Tj e TJ)
                         preg_match_all('/\((.*?)\)\s*Tj/s', $data, $tjSingle);
                         foreach ($tjSingle[1] ?? [] as $t) {
                             if (strlen($t) > 0) $extractedText .= $t . ' ';
@@ -230,7 +237,6 @@ class AssistantController extends Controller
                             $extractedText .= ' ';
                         }
 
-                        // Captura blocos BT...ET
                         preg_match_all('/BT[\s\S]*?ET/s', $data, $btMatches);
                         foreach ($btMatches[0] ?? [] as $bt) {
                             preg_match_all('/\((.*?)\)/s', $bt, $txtMatches);
@@ -242,7 +248,6 @@ class AssistantController extends Controller
 
                     $text = trim($extractedText);
 
-                    // Fallback para PDFs não compactados
                     if (empty($text)) {
                         preg_match_all('/\((.*?)\)/s', $raw, $plainMatches);
                         $fallback = '';
