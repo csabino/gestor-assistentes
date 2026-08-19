@@ -760,11 +760,11 @@
                 <div class="flex items-center gap-3">
                     <div class="flex items-center bg-gray-200/80 p-0.5 rounded-lg border border-gray-200">
                         <button type="button" @click="view = 'card'" :class="view === 'card' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'" class="px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1.5">
-                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-currentColor stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
                             Cards
                         </button>
                         <button type="button" @click="view = 'list'" :class="view === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'" class="px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1.5">
-                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-currentColor stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M3.75 4.5h16.5" /></svg>
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M3.75 4.5h16.5" /></svg>
                             Lista
                         </button>
                     </div>
@@ -790,7 +790,6 @@
                             <div class="flex items-center gap-1.5 truncate">
                                 <h3 class="font-bold text-gray-800 truncate text-lg">{{ $assistant->name }}</h3>
                                 
-                                <!-- ⚙️ ÍCONE DE CONFIGURAR NO TOPO -->
                                 <a href="/?configure={{ $assistant->id }}" title="Configurar" onclick="sessionStorage.removeItem('scrollpos_config_{{ $assistant->id }}');" class="text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 p-1.5 rounded-full transition border border-gray-200 hover:border-indigo-200 flex items-center justify-center shrink-0">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg>
                                 </a>
@@ -814,7 +813,6 @@
                         </div>
                         
                         <div class="flex items-center justify-between border-t border-gray-100 pt-5 gap-2 mt-2">
-                            <!-- 👁️ NOVO BOTÃO DE CONVERSAS COM O ÍCONE DE OLHO -->
                             <a href="/?conversations_id={{ $assistant->id }}" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-2 px-2 rounded-lg text-xs transition flex-1 flex items-center justify-center gap-1.5">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.573 16.49 16.638 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                                 Conversas
@@ -938,6 +936,10 @@
                             </div>
                             <div class="divide-y divide-slate-100">
                                 @forelse($conversationThreads as $thread)
+                                    @php
+                                        $threadDateObj = \Carbon\Carbon::parse($thread->last_activity)->locale('pt_BR');
+                                        $threadDisplayDate = $threadDateObj->format('d/m/Y H:i');
+                                    @endphp
                                     <a href="/?conversations_id={{ $conversationsAssistant->id }}&phone={{ $thread->phone_number }}" 
                                         class="p-4 block transition hover:bg-white flex items-center justify-between {{ $activePhone === $thread->phone_number ? 'bg-white border-l-4 border-indigo-600 shadow-sm' : '' }}">
                                         <div>
@@ -945,7 +947,7 @@
                                                 <svg class="w-3.5 h-3.5 text-emerald-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12.012 2c-5.508 0-9.988 4.479-9.988 9.988 0 2.228.734 4.285 1.973 5.947l-1.997 5.992 6.136-1.954c1.558.91 3.376 1.42 5.302 1.42 5.508 0 9.988-4.479 9.988-9.988s-4.48-9.988-9.988-9.988z"/></svg>
                                                 +{{ $thread->phone_number }}
                                             </p>
-                                            <span class="text-[10px] text-slate-400 font-medium block mt-1">Última fala: {{ $thread->last_activity }}</span>
+                                            <span class="text-[10px] text-slate-400 font-medium block mt-1">Última fala: {{ $threadDisplayDate }}</span>
                                         </div>
                                         <span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full font-bold border border-slate-200">{{ $thread->total_messages }} msgs</span>
                                     </a>
@@ -958,29 +960,52 @@
                         <!-- HISTÓRICO DE MENSAGENS NA DIREITA -->
                         <div class="w-2/3 bg-slate-100 flex flex-col justify-between overflow-hidden">
                             @if($activePhone && count($activeThreadMessages) > 0)
-                                <div class="p-3 bg-white border-b border-slate-200 flex justify-between items-center text-xs font-semibold text-slate-700 shrink-0">
+                                <div class="p-3 bg-white border-b border-slate-200 flex justify-between items-center text-xs font-semibold text-slate-700 shrink-0 shadow-sm z-10 relative">
                                     <span>Conversa com <strong>+{{ $activePhone }}</strong></span>
                                     <span class="text-slate-400 text-[11px]">{{ count($activeThreadMessages) }} interações</span>
                                 </div>
 
-                                <div class="p-4 overflow-y-auto space-y-3 flex-1">
+                                <!-- CONTAINER DAS MENSAGENS COM AUTO-SCROLL ALPINE.JS -->
+                                <div x-data x-ref="chatBox" x-init="$nextTick(() => { $refs.chatBox.scrollTop = $refs.chatBox.scrollHeight; })" class="p-4 overflow-y-auto space-y-3 flex-1 scroll-smooth">
+                                    
+                                    @php $lastDate = null; @endphp
+
                                     @foreach($activeThreadMessages as $msg)
+                                        @php
+                                            $carbonDate = \Carbon\Carbon::parse($msg->created_at)->locale('pt_BR');
+                                            $currentDate = $carbonDate->format('Y-m-d');
+                                            $displayDate = ucfirst($carbonDate->translatedFormat('l, d \d\e F \d\e Y'));
+                                            $displayTime = $carbonDate->format('H:i:s');
+                                        @endphp
+
+                                        <!-- ETIQUETA DIVISORA DE DATA -->
+                                        @if($currentDate !== $lastDate)
+                                            <div class="flex justify-center my-5">
+                                                <span class="bg-slate-200 text-slate-600 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg border border-slate-300 shadow-sm">
+                                                    {{ $displayDate }}
+                                                </span>
+                                            </div>
+                                            @php $lastDate = $currentDate; @endphp
+                                        @endif
+
+                                        <!-- BALÃO DE MENSAGEM -->
                                         @if($msg->role === 'user')
                                             <div class="flex justify-end">
-                                                <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-none p-3 max-w-md text-xs shadow-sm">
-                                                    <p class="whitespace-pre-line">{{ $msg->content }}</p>
-                                                    <span class="text-[9px] text-indigo-200 block text-right mt-1 font-mono">{{ $msg->created_at }}</span>
+                                                <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-none p-3 max-w-md text-xs shadow-sm relative group">
+                                                    <p class="whitespace-pre-line leading-relaxed">{{ $msg->content }}</p>
+                                                    <span class="text-[9.5px] text-indigo-200 block text-right mt-1.5 font-medium tracking-wide">{{ $displayTime }}</span>
                                                 </div>
                                             </div>
                                         @else
                                             <div class="flex justify-start">
-                                                <div class="bg-white text-slate-800 border border-slate-200 rounded-2xl rounded-tl-none p-3 max-w-md text-xs shadow-sm">
-                                                    <p class="whitespace-pre-line">{{ $msg->content }}</p>
-                                                    <span class="text-[9px] text-slate-400 block text-left mt-1 font-mono">{{ $msg->created_at }}</span>
+                                                <div class="bg-white text-slate-800 border border-slate-200 rounded-2xl rounded-tl-none p-3 max-w-md text-xs shadow-sm relative group">
+                                                    <p class="whitespace-pre-line leading-relaxed">{{ $msg->content }}</p>
+                                                    <span class="text-[9.5px] text-slate-400 block text-left mt-1.5 font-medium tracking-wide">{{ $displayTime }}</span>
                                                 </div>
                                             </div>
                                         @endif
                                     @endforeach
+
                                 </div>
                             @else
                                 <div class="flex-1 flex flex-col items-center justify-center text-slate-400 text-xs p-8">
@@ -992,7 +1017,7 @@
                         </div>
                     </div>
 
-                    <div class="p-3 border-t border-slate-100 bg-white flex justify-end shrink-0">
+                    <div class="p-3 border-t border-slate-100 bg-white flex justify-end shrink-0 z-10 relative">
                         <a href="/" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-5 py-2 rounded-lg text-xs transition">
                             Fechar
                         </a>
