@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Database\Schema\Blueprint;
+use Carbon\Carbon;
 
 class AssistantController extends Controller
 {
@@ -203,22 +204,24 @@ class AssistantController extends Controller
 
     private function storeAgent(Request $request)
     {
+        $request->validate([
+            'department_id' => 'required|integer',
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255',
+        ]);
+
         $departmentId = $request->input('department_id');
-        $email = strtolower(trim($request->input('email', '')));
-        $name = trim($request->input('name', ''));
+        $email = strtolower(trim($request->input('email')));
+        $name = trim($request->input('name'));
 
-        if (!$departmentId || !$email || !$name) {
-            return redirect('/?view=equipe')->with('error', 'Preencha todos os campos do agente.');
-        }
-
-        // Validação estrita por departamento e e-mail sanitizado
-        $existsInDepartment = DB::table('department_members')
+        // Validação rigorosa via contagem direta no banco
+        $count = DB::table('department_members')
             ->where('department_id', $departmentId)
-            ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
-            ->exists();
+            ->where('email', $email)
+            ->count();
 
-        if ($existsInDepartment) {
-            return redirect('/?view=equipe')->with('error', 'Este e-mail já está cadastrado como agente neste mesmo departamento!');
+        if ($count > 0) {
+            return redirect('/?view=equipe')->with('error', "Operação bloqueada: O e-mail '{$email}' já está cadastrado na equipe deste departamento.");
         }
 
         DB::table('department_members')->insert([
@@ -229,7 +232,7 @@ class AssistantController extends Controller
             'updated_at' => now(),
         ]);
 
-        return redirect('/?view=equipe')->with('success', 'Agente cadastrado no departamento com sucesso!');
+        return redirect('/?view=equipe')->with('success', "Agente {$name} adicionado com sucesso!");
     }
 
     private function store(Request $request)
