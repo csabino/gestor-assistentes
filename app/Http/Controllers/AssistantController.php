@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Database\Schema\Blueprint;
-use Carbon\Carbon;
 
 class AssistantController extends Controller
 {
@@ -62,18 +61,36 @@ class AssistantController extends Controller
         }
     }
 
+    private function ensureDepartmentTablesExist()
+    {
+        if (!Schema::hasTable('department_members')) {
+            Schema::create('department_members', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('department_id')->nullable();
+                $table->string('name');
+                $table->string('email');
+                $table->timestamps();
+            });
+        }
+    }
+
     public function index(Request $request)
     {
         $this->configureTimezone();
         $this->ensureWebhookLogTableExists();
         $this->ensureAssistantColumnsExist();
         $this->ensureChatMessagesTableExists();
+        $this->ensureDepartmentTablesExist();
 
         $currentView = $request->input('view', 'robots');
 
         if ($request->has('chat_id')) {
             $assistant = Assistant::findOrFail($request->chat_id);
             return view('assistants.chat', compact('assistant'));
+        }
+
+        if ($request->isMethod('post') && $request->input('action') === 'store_agent') {
+            return $this->storeAgent($request);
         }
 
         if ($request->isMethod('post') && $request->input('action') === 'chat') {
@@ -155,6 +172,34 @@ class AssistantController extends Controller
             'assistants', 'configuring', 'lastWebhook',
             'conversationsAssistant', 'conversationThreads', 'activeThreadMessages', 'activePhone', 'currentView'
         ));
+    }
+
+    private function storeAgent(Request $request)
+    {
+        $request->validate([
+            'department_id' => 'required',
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255',
+        ]);
+
+        $existsInDepartment = DB::table('department_members')
+            ->where('department_id', $request->department_id)
+            ->where('email', trim(strtolower($request->email)))
+            ->exists();
+
+        if ($existsInDepartment) {
+            return redirect()->back()->with('error', 'Este e-mail já está cadastrado como agente neste mesmo departamento.');
+        }
+
+        DB::table('department_members')->insert([
+            'department_id' => $request->department_id,
+            'name' => trim($request->name),
+            'email' => trim(strtolower($request->email)),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return redirect()->back()->with('success', 'Agente cadastrado no departamento com sucesso!');
     }
 
     private function store(Request $request)
