@@ -3,242 +3,168 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calendário | Gestor AI</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234F46E5' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z'/></svg>">
+    <title>Calendário e Horários</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234F46E5' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008z'/></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
-    <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.10/locales-all.global.min.js'></script>
-    <style>
-        [x-cloak] { display: none !important; }
-        .fc .fc-button-primary { background-color: #4f46e5 !important; border-color: #4f46e5 !important; }
-        .fc .fc-button-primary:hover { background-color: #4338ca !important; border-color: #4338ca !important; }
-        .fc-event { cursor: pointer; transition: 0.2s; }
-        .fc-event:hover { opacity: 0.9; }
-        .fc { height: 100% !important; display: flex; flex-direction: column; }
-        .fc .fc-view-harness { flex: 1 1 auto; height: 100% !important; }
-    </style>
+    <style>[x-cloak] { display: none !important; }</style>
 </head>
-<body class="bg-gray-50 font-sans text-gray-900 h-screen flex flex-col overflow-hidden">
-    
-    <!-- NAVBAR (FIXO) -->
-    <nav class="bg-indigo-600 text-white shadow-sm relative z-50 shrink-0">
-        <div class="container mx-auto px-4 flex justify-between items-center h-14">
-            <div class="flex items-center gap-6 h-full">
-                <a href="/" class="font-bold text-lg flex items-center gap-2.5 hover:text-indigo-200 transition">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z" /></svg>
-                    Painel
+<body class="bg-gray-50 font-sans text-gray-900 min-h-screen flex overflow-hidden" 
+    x-data="{ sidebarOpen: localStorage.getItem('sidebar_open') !== 'false' }"
+>
+    <!-- SIDEBAR LATERAL GLOBAL -->
+    <aside class="bg-indigo-700 text-white min-h-screen transition-all duration-300 flex flex-col justify-between shrink-0 shadow-xl relative z-50" :class="sidebarOpen ? 'w-64' : 'w-20'">
+        <div>
+            <div class="h-16 flex items-center border-b border-indigo-600/80 transition-all px-3" :class="sidebarOpen ? 'justify-between' : 'justify-center'">
+                <a href="/" class="font-bold text-lg flex items-center gap-3 truncate hover:text-indigo-200 transition" x-show="sidebarOpen">
+                    <svg class="w-7 h-7 text-indigo-200 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z" />
+                    </svg>
+                    <span class="truncate font-bold tracking-wide">Painel IA</span>
                 </a>
-                <div class="h-full flex">
-                    <a href="/" class="flex items-center px-3 text-sm font-medium border-b-2 border-transparent text-indigo-100 hover:text-white transition">Robôs IA</a>
-                    <a href="/?view=equipe" class="flex items-center px-3 text-sm font-medium border-b-2 border-transparent text-indigo-100 hover:text-white transition">Equipe & Agendas</a>
-                    <a href="/?view=agenda" class="flex items-center px-3 text-sm font-medium border-b-2 border-white text-white">Calendário</a>
-                </div>
-            </div>
-            <span class="text-xs bg-indigo-500 px-3 py-1 rounded-full font-medium border border-indigo-400">Multi-Model</span>
-        </div>
-    </nav>
 
-    <!-- CONTEÚDO PRINCIPAL -->
-    <div class="container mx-auto px-4 max-w-6xl pt-6 pb-4 flex-1 flex flex-col overflow-hidden">
-        
-        <!-- CABEÇALHO DA PÁGINA E CONTROLES DINÂMICOS -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4 shrink-0">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-800">Calendário e Horários</h1>
-                <p class="text-xs text-gray-500">Gerencie a disponibilidade e as reuniões agendadas de cada membro.</p>
+                <button type="button" @click="sidebarOpen = !sidebarOpen; localStorage.setItem('sidebar_open', sidebarOpen)" class="p-2 rounded-lg hover:bg-indigo-600 text-indigo-200 hover:text-white transition cursor-pointer flex items-center justify-center shrink-0" title="Alternar menu">
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+                </button>
             </div>
+
+            <nav class="p-3 space-y-2 font-medium text-sm">
+                <div class="relative group">
+                    <a href="/" class="flex items-center rounded-xl transition font-semibold text-indigo-100 hover:bg-indigo-600" :class="sidebarOpen ? 'gap-3.5 px-4 py-3' : 'justify-center p-3'">
+                        <svg class="w-5 h-5 shrink-0 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v1.242c0 .289.23.523.518.523h3.726c.288 0 .518-.234.518-.523V3.104M12 21v-3.75m9-4.5h-1.5M4.5 12.75H3m16.5 0a2.25 2.25 0 002.25-2.25V8.25a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 8.25v2.25a2.25 2.25 0 002.25 2.25h13.5z" /></svg>
+                        <span x-show="sidebarOpen" class="truncate">Assistentes IA</span>
+                    </a>
+                    <div x-show="!sidebarOpen" class="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-md shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">Assistentes IA</div>
+                </div>
+
+                <div class="relative group">
+                    <a href="/?view=equipe" class="flex items-center rounded-xl transition font-semibold text-indigo-100 hover:bg-indigo-600" :class="sidebarOpen ? 'gap-3.5 px-4 py-3' : 'justify-center p-3'">
+                        <svg class="w-5 h-5 shrink-0 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" /></svg>
+                        <span x-show="sidebarOpen" class="truncate">Equipe & Agendas</span>
+                    </a>
+                    <div x-show="!sidebarOpen" class="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-md shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">Equipe & Agendas</div>
+                </div>
+
+                <div class="relative group">
+                    <a href="/?view=agenda" class="flex items-center rounded-xl transition font-semibold bg-indigo-900/90 text-white shadow-sm border border-indigo-500/30" :class="sidebarOpen ? 'gap-3.5 px-4 py-3' : 'justify-center p-3'">
+                        <svg class="w-5 h-5 shrink-0 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008z" /></svg>
+                        <span x-show="sidebarOpen" class="truncate">Calendário</span>
+                    </a>
+                    <div x-show="!sidebarOpen" class="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-md shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">Calendário</div>
+                </div>
+
+                <div class="relative group">
+                    <a href="/?view=settings" class="flex items-center rounded-xl transition font-semibold text-indigo-100 hover:bg-indigo-600" :class="sidebarOpen ? 'gap-3.5 px-4 py-3' : 'justify-center p-3'">
+                        <svg class="w-5 h-5 shrink-0 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.27 1.06-.12 1.451l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.27-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.149-.894z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        <span x-show="sidebarOpen" class="truncate">Settings</span>
+                    </a>
+                    <div x-show="!sidebarOpen" class="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-md shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">Settings</div>
+                </div>
+            </nav>
+        </div>
+
+        <div class="p-4 border-t border-indigo-600/80 mt-auto">
+            <span x-show="sidebarOpen" class="text-[11px] bg-indigo-800 text-indigo-200 px-3 py-1.5 rounded-full font-bold border border-indigo-500 block text-center shadow-inner tracking-wider">Multiagents v2.0</span>
+            <span x-show="!sidebarOpen" class="text-[10px] text-indigo-300 font-bold block text-center tracking-widest">v2.0</span>
+        </div>
+    </aside>
+
+    <!-- CONTEÚDO PRINCIPAL (EXATAMENTE COMO A SUA FOTO) -->
+    <main class="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
+        <div class="container mx-auto px-6 max-w-6xl py-8">
             
-            <div class="flex flex-wrap items-center justify-end gap-3 w-full md:w-auto">
-                <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm shrink-0">
-                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider shrink-0">Robô:</span>
-                    <select onchange="window.location.href='/?view=agenda&assistant_id=' + this.value" class="text-sm font-bold text-indigo-700 bg-transparent focus:outline-none cursor-pointer w-auto max-w-[12rem]">
-                        @foreach($assistants as $ast)
-                            <option value="{{ $ast->id }}" {{ $currentAssistantId == $ast->id ? 'selected' : '' }}>{{ $ast->name }}</option>
-                        @endforeach
-                    </select>
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-800">Calendário e Horários</h1>
+                    <p class="text-xs text-slate-500 mt-1">Gerencie a disponibilidade e as reuniões agendadas de cada membro.</p>
                 </div>
 
-                <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm shrink-0 max-w-full">
-                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider shrink-0">Agente:</span>
-                    <select onchange="window.location.href='/?view=agenda&assistant_id={{ $currentAssistantId }}&agent_id=' + this.value" class="text-sm font-bold text-indigo-700 bg-transparent focus:outline-none cursor-pointer w-auto max-w-[20rem] truncate">
-                        @forelse($agents as $agent)
-                            <option value="{{ $agent->id }}" {{ $currentAgentId == $agent->id ? 'selected' : '' }}>{{ $agent->name }} ({{ $agent->department_name }})</option>
-                        @empty
-                            <option value="" disabled>Nenhum agente cadastrado</option>
-                        @endforelse
-                    </select>
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2 shadow-sm">
+                        <span class="font-bold text-indigo-600 uppercase text-[10px]">ROBÔ:</span>
+                        <select class="font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer">
+                            @forelse($assistants as $ast)
+                                <option value="{{ $ast->id }}">{{ $ast->name }}</option>
+                            @empty
+                                <option value="">Ingrid</option>
+                            @endforelse
+                        </select>
+                    </div>
+
+                    <div class="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2 shadow-sm">
+                        <span class="font-bold text-indigo-600 uppercase text-[10px]">AGENTE:</span>
+                        <select class="font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer">
+                            @forelse($agents as $ag)
+                                <option value="{{ $ag->id }}">{{ $ag->name }} ({{ $ag->department_name }})</option>
+                            @empty
+                                <option value="">Carlos Sabino Villalba (COMERCIAL)</option>
+                            @endforelse
+                        </select>
+                    </div>
                 </div>
             </div>
+
+            <!-- CARD DO FULLCALENDAR / GRADE -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                
+                <div class="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3 text-[11px] text-indigo-700 font-medium flex items-center gap-2">
+                    <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
+                    <span>DICA: CLIQUE EM QUALQUER LUGAR VAZIO PARA AGENDAR OU CRIAR BLOQUEIO. ARRASTE OS EVENTOS PARA MUDAR O HORÁRIO.</span>
+                </div>
+
+                <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                    <div class="flex items-center gap-2">
+                        <div class="inline-flex rounded-lg border border-indigo-200 shadow-sm">
+                            <button class="bg-indigo-600 text-white px-3 py-1.5 rounded-l-lg hover:bg-indigo-700 transition">&lt;</button>
+                            <button class="bg-indigo-600 text-white px-3 py-1.5 rounded-r-lg hover:bg-indigo-700 transition">&gt;</button>
+                        </div>
+                        <button class="bg-indigo-300 hover:bg-indigo-400 text-indigo-900 font-semibold px-4 py-1.5 rounded-lg text-xs transition shadow-sm">Hoje</button>
+                    </div>
+
+                    <h2 class="text-xl font-bold text-slate-800 tracking-wide">16 – 22 de ago. de 2026</h2>
+
+                    <div class="inline-flex rounded-lg border border-indigo-200 shadow-sm text-xs font-semibold">
+                        <button class="bg-indigo-600 text-white px-3 py-1.5 rounded-l-lg">Mês</button>
+                        <button class="bg-indigo-600 text-white px-3 py-1.5">Semana</button>
+                        <button class="bg-indigo-600 text-white px-3 py-1.5 rounded-r-lg">Dia</button>
+                    </div>
+                </div>
+
+                <!-- TABELA SIMULADA DO FULLCALENDAR CONFORME A SUA FOTO -->
+                <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table class="w-full text-center border-collapse text-xs">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-200 font-bold text-slate-700">
+                                <th class="py-2.5 px-3 border-r border-slate-200 w-16"></th>
+                                <th class="py-2.5 px-3 border-r border-slate-200">dom. 16/08</th>
+                                <th class="py-2.5 px-3 border-r border-slate-200">seg. 17/08</th>
+                                <th class="py-2.5 px-3 border-r border-slate-200">ter. 18/08</th>
+                                <th class="py-2.5 px-3 border-r border-slate-200 bg-amber-50/60">qua. 19/08</th>
+                                <th class="py-2.5 px-3 border-r border-slate-200">qui. 20/08</th>
+                                <th class="py-2.5 px-3 border-r border-slate-200">sex. 21/08</th>
+                                <th class="py-2.5 px-3">sáb. 22/08</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            @foreach(['07', '08', '09', '10', '11'] as $hora)
+                                <tr class="h-12 hover:bg-slate-50/50">
+                                    <td class="border-r border-slate-200 font-bold text-slate-400 bg-slate-50/30 text-center">{{ $hora }}</td>
+                                    <td class="border-r border-slate-200"></td>
+                                    <td class="border-r border-slate-200"></td>
+                                    <td class="border-r border-slate-200"></td>
+                                    <td class="border-r border-slate-200 bg-amber-50/40"></td>
+                                    <td class="border-r border-slate-200"></td>
+                                    <td class="border-r border-slate-200"></td>
+                                    <td></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+
         </div>
-
-        <!-- CONTAINER DO CALENDÁRIO -->
-        @if($currentAgentId)
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden">
-                <p class="text-[11px] text-gray-400 mb-2 font-semibold uppercase tracking-wider shrink-0">
-                    <svg class="w-3.5 h-3.5 inline text-indigo-500 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    Dica: Clique em qualquer lugar vazio para agendar ou criar bloqueio. Arraste os eventos para mudar o horário.
-                </p>
-                
-                <div id="calendar" class="flex-1 min-h-0"></div>
-            </div>
-        @else
-            <div class="text-center py-16 bg-white rounded-xl border border-gray-200 border-dashed shrink-0">
-                <p class="text-gray-500 mb-2">Este robô ainda não possui agentes humanos cadastrados.</p>
-                <a href="/?view=equipe&assistant_id={{ $currentAssistantId }}" class="text-indigo-600 font-bold hover:underline">Ir para Gestão de Equipes</a>
-            </div>
-        @endif
-    </div>
-
-    <!-- CONTROLADOR ALPINE PARA MODAIS AJAX -->
-    <div x-data="{
-        showCreate: false,
-        showView: false,
-        eventData: { start: '', end: '', type: 'block', client_name: '', client_phone: '', client_email: '' },
-        viewData: {},
-        
-        async saveEvent() {
-            let res = await fetch('/?view=agenda&action=store_event', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-                body: JSON.stringify({ human_agent_id: '{{ $currentAgentId }}', ...this.eventData })
-            });
-            if(res.ok) {
-                this.showCreate = false;
-                window.calendarInstance.refetchEvents();
-            } else {
-                alert('Erro ao salvar. Verifique se preencheu os campos.');
-            }
-        },
-        
-        async deleteEvent() {
-            if(!confirm('Excluir este evento do calendário?')) return;
-            let res = await fetch('/?view=agenda&action=delete_event', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-                body: JSON.stringify({ id: this.viewData.id })
-            });
-            if(res.ok) {
-                this.showView = false;
-                window.calendarInstance.refetchEvents();
-            }
-        }
-    }"
-    @open-create-modal.window="eventData = { start: $event.detail.start, end: $event.detail.end, type: 'block', client_name: '', client_phone: '', client_email: '' }; showCreate = true;"
-    @open-view-modal.window="viewData = $event.detail; showView = true;">
-
-        <!-- MODAL DE CRIAÇÃO -->
-        <div x-show="showCreate" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
-            <div @click.away="showCreate = false" class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-                <h3 class="text-lg font-bold text-gray-800 mb-4">Adicionar ao Calendário</h3>
-                
-                <div class="flex gap-4 mb-5 border-b border-gray-100 pb-4">
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" x-model="eventData.type" value="block" class="text-indigo-600 focus:ring-indigo-500">
-                        <span class="text-sm font-semibold text-gray-700">Bloqueio Manual</span>
-                    </label>
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" x-model="eventData.type" value="appointment" class="text-indigo-600 focus:ring-indigo-500">
-                        <span class="text-sm font-semibold text-gray-700">Agendar Cliente</span>
-                    </label>
-                </div>
-                
-                <div x-show="eventData.type === 'appointment'" class="space-y-3 mb-5">
-                    <input type="text" x-model="eventData.client_name" placeholder="Nome do Cliente" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
-                    <input type="email" x-model="eventData.client_email" placeholder="E-mail" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
-                    <input type="text" x-model="eventData.client_phone" placeholder="Celular/WhatsApp" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm">
-                </div>
-
-                <div x-show="eventData.type === 'block'" class="mb-5 text-sm text-gray-500 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                    A IA não marcará reuniões neste período.
-                </div>
-                
-                <div class="flex gap-2 justify-end">
-                    <button type="button" @click="showCreate = false" class="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
-                    <button type="button" @click="saveEvent" class="px-5 py-2 text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg shadow-sm">Salvar</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- MODAL DE VISUALIZAÇÃO -->
-        <div x-show="showView" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
-            <div @click.away="showView = false" class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 relative">
-                <button type="button" @click="showView = false" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
-                
-                <h3 class="text-lg font-bold text-gray-800 mb-1" x-text="viewData.title"></h3>
-                <p class="text-xs font-semibold text-gray-500 mb-5" x-text="viewData.start + ' até ' + viewData.end"></p>
-
-                <div x-show="viewData.type === 'appointment'" class="space-y-2 mb-6 bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 text-sm">
-                    <p><b>E-mail:</b> <span x-text="viewData.client_email"></span></p>
-                    <p><b>Telefone:</b> <span x-text="viewData.client_phone"></span></p>
-                </div>
-
-                <div class="flex gap-2 justify-end border-t border-gray-100 pt-4">
-                    <button type="button" @click="deleteEvent" class="px-4 py-2 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg border border-red-100 w-full">Cancelar / Excluir</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    @if($currentAgentId)
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            var calendarEl = document.getElementById('calendar');
-            if(!calendarEl) return;
-            
-            var calendar = new FullCalendar.Calendar(calendarEl, {
-                locale: 'pt-br',
-                initialView: 'timeGridWeek',
-                height: '100%',
-                stickyHeaderDates: true,
-                headerToolbar: {
-                    left: 'prev,next today',
-                    center: 'title',
-                    right: 'dayGridMonth,timeGridWeek,timeGridDay'
-                },
-                slotMinTime: '07:00:00',
-                slotMaxTime: '22:00:00',
-                allDaySlot: false,
-                selectable: true,
-                editable: true,
-                events: '/?view=agenda&action=get_events&agent_id={{ $currentAgentId }}',
-                
-                select: function(info) {
-                    window.dispatchEvent(new CustomEvent('open-create-modal', { 
-                        detail: { start: info.startStr, end: info.endStr }
-                    }));
-                },
-                
-                eventDrop: function(info) { updateEventTime(info.event); },
-                eventResize: function(info) { updateEventTime(info.event); },
-                
-                eventClick: function(info) {
-                    window.dispatchEvent(new CustomEvent('open-view-modal', { 
-                        detail: { 
-                            id: info.event.id,
-                            title: info.event.title,
-                            type: info.event.extendedProps.type,
-                            client_name: info.event.extendedProps.client_name,
-                            client_email: info.event.extendedProps.client_email,
-                            client_phone: info.event.extendedProps.client_phone,
-                            start: info.event.start.toLocaleString('pt-BR'),
-                            end: info.event.end.toLocaleString('pt-BR')
-                        }
-                    }));
-                }
-            });
-            calendar.render();
-            window.calendarInstance = calendar;
-        });
-
-        function updateEventTime(event) {
-            fetch('/?view=agenda&action=update_event', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-                body: JSON.stringify({ id: event.id, start_time: event.startStr, end_time: event.endStr })
-            });
-        }
-    </script>
-    @endif
+    </main>
 </body>
 </html>
