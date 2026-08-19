@@ -14,12 +14,20 @@
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         [x-cloak] { display: none !important; }
+        
         /* Ajustes do FullCalendar para casar com Tailwind */
         .fc-theme-standard td, .fc-theme-standard th { border-color: #e2e8f0; }
         .fc-col-header-cell { background-color: #f8fafc; padding: 0.5rem 0; font-weight: 700; color: #334155; text-transform: uppercase; font-size: 0.75rem; }
         .fc-timegrid-slot-label { font-size: 0.75rem; color: #94a3b8; font-weight: 600; }
         .fc .fc-timegrid-slot-minor { border-top-style: dashed; }
         .fc-event { cursor: pointer; }
+        
+        /* Destaque para o Dia de Hoje (Fundo azul suave) */
+        .fc .fc-day-today { background-color: #eef2ff !important; }
+        
+        /* Customizando a linha do horário atual (Vermelha) */
+        .fc-theme-standard .fc-timegrid-now-indicator-line { border-color: #ef4444; border-width: 2px; }
+        .fc-theme-standard .fc-timegrid-now-indicator-arrow { border-color: #ef4444; border-width: 6px; margin-top: -6px; }
     </style>
 </head>
 <body class="bg-gray-50 font-sans text-gray-900 min-h-screen flex overflow-hidden" 
@@ -91,14 +99,11 @@
                     <p class="text-xs text-slate-500 mt-1">Gerencie a disponibilidade e as reuniões agendadas de cada membro.</p>
                 </div>
 
-                <!-- FORMULÁRIO DINÂMICO COM RESET DE AGENTE (ONCHANGE) -->
                 <form id="calendarFilter" method="GET" action="/" class="flex flex-wrap items-center gap-3">
                     <input type="hidden" name="view" value="agenda">
                     
-                    <!-- STATUS -->
                     <div class="flex items-center gap-2 border-r border-slate-200 pr-3">
                         <span class="font-bold text-indigo-600 uppercase text-[10px] tracking-wide">Status:</span>
-                        <!-- Ao mudar o status: limpa o assistente e força o agente a voltar para 'all' -->
                         <select name="status" onchange="document.querySelector('[name=assistant_id]').value=''; document.querySelector('[name=agent_id]').value='all'; this.form.submit()" class="font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer text-xs">
                             <option value="ativo" {{ $statusFilter == 'ativo' ? 'selected' : '' }}>Ativos</option>
                             <option value="inativo" {{ $statusFilter == 'inativo' ? 'selected' : '' }}>Inativos</option>
@@ -106,10 +111,8 @@
                         </select>
                     </div>
 
-                    <!-- ASSISTENTE IA -->
                     <div class="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2 shadow-sm">
                         <span class="font-bold text-indigo-600 uppercase text-[10px]">Assistente IA:</span>
-                        <!-- Ao mudar o assistente: força o agente a voltar para 'all' -->
                         <select name="assistant_id" onchange="document.querySelector('[name=agent_id]').value='all'; this.form.submit()" class="font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer">
                             @forelse($assistants as $ast)
                                 <option value="{{ $ast->id }}" {{ $currentAssistantId == $ast->id ? 'selected' : '' }}>{{ $ast->name }}</option>
@@ -119,7 +122,6 @@
                         </select>
                     </div>
 
-                    <!-- AGENTE -->
                     <div class="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2 shadow-sm">
                         <span class="font-bold text-indigo-600 uppercase text-[10px]">AGENTE:</span>
                         <select name="agent_id" onchange="this.form.submit()" class="font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer max-w-[200px] truncate">
@@ -132,7 +134,6 @@
                 </form>
             </div>
 
-            <!-- CARD DO FULLCALENDAR / GRADE -->
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col flex-1 min-h-0">
 
                 <!-- CONTROLES DO FULLCALENDAR CONSTRUÍDOS EM TAILWIND -->
@@ -146,7 +147,7 @@
                     </div>
 
                     <!-- Título Dinâmico do Calendário -->
-                    <h2 id="cal-title" class="text-xl font-bold text-slate-800 tracking-wide">Carregando...</h2>
+                    <h2 id="cal-title" class="text-xl font-bold text-slate-800 tracking-wide capitalize">Carregando...</h2>
 
                     <div class="inline-flex rounded-lg border border-indigo-200 shadow-sm text-xs font-semibold">
                         <button id="btn-month" class="bg-indigo-600 text-white px-3 py-1.5 rounded-l-lg transition">Mês</button>
@@ -155,7 +156,7 @@
                     </div>
                 </div>
 
-                <!-- CONTAINER DO FULLCALENDAR (ELE VAI CRIAR O SCROLL INTERNO AQUI) -->
+                <!-- CONTAINER DO FULLCALENDAR -->
                 <div class="flex-1 min-h-0 relative">
                     <div id="calendar" class="h-full"></div>
                 </div>
@@ -181,9 +182,14 @@
                 slotMaxTime: '24:00:00',
                 editable: true,
                 selectable: true,
+                
+                // FEATURE: Indicador de horário atual (Linha Vermelha)
+                nowIndicator: true, 
+                scrollTimeReset: false,
+                
                 events: '/?action=get_events&agent_id=' + agentId,
 
-                // Atualiza o título e os botões da nossa barra customizada
+                // Atualiza o título e faz o scroll automático
                 datesSet: function(info) {
                     document.getElementById('cal-title').innerText = info.view.title;
                     
@@ -195,6 +201,23 @@
                     if (info.view.type === 'dayGridMonth') document.getElementById('btn-month').classList.add('bg-indigo-800', 'bg-indigo-600');
                     if (info.view.type === 'timeGridWeek') document.getElementById('btn-week').classList.add('bg-indigo-800', 'bg-indigo-600');
                     if (info.view.type === 'timeGridDay') document.getElementById('btn-day').classList.add('bg-indigo-800', 'bg-indigo-600');
+
+                    // Lógica de Scroll e Centralização Dinâmica
+                    setTimeout(() => {
+                        if (info.view.type === 'dayGridMonth') {
+                            // Rola a visão mensal para deixar o dia atual visível no centro
+                            const todayEl = document.querySelector('.fc-day-today');
+                            if (todayEl) {
+                                todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                        } else {
+                            // Rola a visão semanal/diária para o horário de agora (Dando margem de 1h)
+                            const now = new Date();
+                            now.setHours(now.getHours() - 1); // 1 hora pra cima
+                            const timeStr = now.getHours().toString().padStart(2, '0') + ':00:00';
+                            calendar.scrollToTime(timeStr);
+                        }
+                    }, 50);
                 },
 
                 select: function(info) {
