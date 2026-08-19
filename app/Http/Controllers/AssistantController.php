@@ -199,29 +199,26 @@ class AssistantController extends Controller
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        return redirect('/?view=equipe')->with('success', 'Departamento criado!');
+        return redirect('/?view=equipe')->with('success', 'Departamento criado com sucesso!');
     }
 
     private function storeAgent(Request $request)
     {
-        $request->validate([
-            'department_id' => 'required|integer',
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
-        ]);
+        $departmentId = (int) $request->input('department_id');
+        $email = strtolower(trim((string)$request->input('email')));
+        $name = trim((string)$request->input('name'));
 
-        $departmentId = $request->input('department_id');
-        $email = strtolower(trim($request->input('email')));
-        $name = trim($request->input('name'));
+        if (!$departmentId || !$email || !$name) {
+            return redirect('/?view=equipe')->with('error', 'Preencha todos os campos do agente.');
+        }
 
-        // Validação rigorosa via contagem direta no banco
-        $count = DB::table('department_members')
+        $duplicate = DB::table('department_members')
             ->where('department_id', $departmentId)
-            ->where('email', $email)
-            ->count();
+            ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+            ->first();
 
-        if ($count > 0) {
-            return redirect('/?view=equipe')->with('error', "Operação bloqueada: O e-mail '{$email}' já está cadastrado na equipe deste departamento.");
+        if ($duplicate) {
+            return redirect('/?view=equipe')->with('error', "Operação Bloqueada: O e-mail '{$email}' já está cadastrado para o agente '{$duplicate->name}' neste departamento.");
         }
 
         DB::table('department_members')->insert([
@@ -232,7 +229,7 @@ class AssistantController extends Controller
             'updated_at' => now(),
         ]);
 
-        return redirect('/?view=equipe')->with('success', "Agente {$name} adicionado com sucesso!");
+        return redirect('/?view=equipe')->with('success', "Agente '{$name}' adicionado com sucesso!");
     }
 
     private function store(Request $request)
