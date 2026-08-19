@@ -2,124 +2,75 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Assistant;
-use App\Models\Department;
-use App\Models\HumanAgent;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AgentController extends Controller
 {
-    public function handle(Request $request)
+    private function configureTimezone()
     {
-        $action = $request->input('action');
-
-        if ($action === 'store_department') return $this->storeDepartment($request);
-        if ($action === 'update_department') return $this->updateDepartment($request);
-        if ($action === 'delete_department') return $this->destroyDepartment($request);
-        
-        if ($action === 'store_agent') return $this->storeAgent($request);
-        if ($action === 'update_agent') return $this->updateAgent($request);
-        if ($action === 'delete_agent') return $this->destroyAgent($request);
-
-        return $this->index($request);
+        date_default_timezone_set('America/Sao_Paulo');
     }
 
-    public function index(Request $request)
+    public function handle(Request $request)
     {
-        $assistants = Assistant::orderBy('name', 'asc')->get();
+        $this->configureTimezone();
 
-        if ($assistants->count() === 0) {
-            return redirect('/')->with('error', 'Crie pelo menos um assistente/robô antes de configurar as equipes!');
+        if ($request->isMethod('post') && $request->input('action') === 'store_agent') {
+            return $this->storeAgent($request);
         }
 
-        $currentAssistantId = $request->input('assistant_id', session('last_equipe_ast_id', $assistants->first()->id));
-
-        if (!$assistants->contains('id', $currentAssistantId)) {
-            $currentAssistantId = $assistants->first()->id;
+        if ($request->isMethod('post') && $request->input('action') === 'store_department') {
+            return $this->storeDepartment($request);
         }
 
-        session(['last_equipe_ast_id' => $currentAssistantId]);
+        $departments = DB::table('departments')->get();
+        $agents = DB::table('department_members')->get();
+        $assistants = DB::table('assistants')->get();
+        $currentView = 'equipe';
 
-        $departments = Department::with(['agents' => function($query) {
-            $query->orderBy('name', 'asc');
-        }])
-        ->where('assistant_id', $currentAssistantId)
-        ->orderBy('name', 'asc')
-        ->get();
-
-        return view('agents.index', compact('departments', 'assistants', 'currentAssistantId'));
+        return view('agents.index', compact('departments', 'agents', 'assistants', 'currentView'));
     }
 
     private function storeDepartment(Request $request)
     {
-        $request->validate([
-            'assistant_id' => 'required|exists:assistants,id',
-            'name' => 'required|string|max:255'
+        $request->validate(['name' => 'required|string|max:255']);
+        DB::table('departments')->insert([
+            'name' => trim($request->name),
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
-        
-        Department::create([
-            'assistant_id' => $request->assistant_id,
-            'name' => $request->name,
-            'description' => $request->description
-        ]);
-
-        return redirect()->back()->with('success', 'Departamento criado com sucesso!');
-    }
-
-    private function updateDepartment(Request $request)
-    {
-        $request->validate([
-            'department_id' => 'required|exists:departments,id',
-            'name' => 'required|string|max:255'
-        ]);
-
-        $dept = Department::findOrFail($request->department_id);
-        $dept->update([
-            'name' => $request->name,
-            'description' => $request->description
-        ]);
-
-        return redirect()->back()->with('success', 'Departamento atualizado com sucesso!');
-    }
-
-    private function destroyDepartment(Request $request)
-    {
-        Department::findOrFail($request->department_id)->delete();
-        return redirect()->back()->with('success', 'Departamento e seus agentes foram removidos!');
+        return redirect('/?view=equipe')->with('success', 'Departamento criado com sucesso!');
     }
 
     private function storeAgent(Request $request)
     {
-        $request->validate([
-            'department_id' => 'required|exists:departments,id',
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
-            'phone' => 'required|string|max:50'
+        $departmentId = (int) $request->input('department_id');
+        $email = strtolower(trim((string)$request->input('email')));
+        $name = trim((string)$request->input('name'));
+
+        if (!$departmentId || !$email || !$name) {
+            return redirect('/?view=equipe')->with('error', 'Preencha todos os campos do agente.');
+        }
+
+        // TRAVA RÍGIDA DE E-MAIL NO MESMO DEPARTAMENTO
+        $duplicate = DB::table('department_members')
+            ->where('department_id', $departmentId)
+            ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+            ->first();
+
+        if ($duplicate) {
+            return redirect('/?view=equipe')->with('error', "Bloqueado: O e-mail '{$email}' já está cadastrado para o agente '{$duplicate->name}' neste departamento.");
+        }
+
+        DB::table('department_members')->insert([
+            'department_id' => $departmentId,
+            'name' => $name,
+            'email' => $email,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
-        HumanAgent::create($request->only('department_id', 'name', 'email', 'phone'));
-
-        return redirect()->back()->with('success', 'Agente adicionado com sucesso!');
-    }
-
-    private function updateAgent(Request $request)
-    {
-        $request->validate([
-            'agent_id' => 'required|exists:human_agents,id',
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
-            'phone' => 'required|string|max:50'
-        ]);
-
-        $agent = HumanAgent::findOrFail($request->agent_id);
-        $agent->update($request->only('name', 'email', 'phone'));
-
-        return redirect()->back()->with('success', 'Dados do agente atualizados com sucesso!');
-    }
-
-    private function destroyAgent(Request $request)
-    {
-        HumanAgent::findOrFail($request->agent_id)->delete();
-        return redirect()->back()->with('success', 'Agente removido da equipe!');
+        return redirect('/?view=equipe')->with('success', "Agente '{$name}' adicionado com sucesso!");
     }
 }
