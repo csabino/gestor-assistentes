@@ -80,9 +80,13 @@
                 </a>
                 
                 <div class="h-full flex">
-                    <a href="/" class="flex items-center px-3 text-sm font-medium border-b-2 border-white text-white">Robôs IA</a>
-                    <a href="/?view=equipe" class="flex items-center px-3 text-sm font-medium border-b-2 border-transparent text-indigo-100 hover:text-white hover:border-indigo-300 transition">Equipe & Agendas</a>
-                    <a href="/?view=agenda" class="flex items-center px-3 text-sm font-medium border-b-2 border-transparent text-indigo-100 hover:text-white hover:border-indigo-300 transition">Calendário</a>
+                    <a href="/" class="flex items-center px-3 text-sm font-medium border-b-2 {{ $currentView === 'robots' ? 'border-white text-white' : 'border-transparent text-indigo-100 hover:text-white hover:border-indigo-300' }} transition">Robôs IA</a>
+                    <a href="/?view=equipe" class="flex items-center px-3 text-sm font-medium border-b-2 {{ $currentView === 'equipe' ? 'border-white text-white' : 'border-transparent text-indigo-100 hover:text-white hover:border-indigo-300' }} transition">Equipe & Agendas</a>
+                    <a href="/?view=agenda" class="flex items-center px-3 text-sm font-medium border-b-2 {{ $currentView === 'agenda' ? 'border-white text-white' : 'border-transparent text-indigo-100 hover:text-white hover:border-indigo-300' }} transition">Calendário</a>
+                    <a href="/?view=settings" class="flex items-center px-3 text-sm font-medium border-b-2 {{ $currentView === 'settings' ? 'border-white text-white' : 'border-transparent text-indigo-100 hover:text-white hover:border-indigo-300' }} transition gap-1.5">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.27 1.06-.12 1.451l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.27-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.149-.894z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        Settings
+                    </a>
                 </div>
             </div>
             <span class="text-xs bg-indigo-500 px-3 py-1 rounded-full font-medium border border-indigo-400">Multi-Model</span>
@@ -105,7 +109,35 @@
             </div>
         @endif
 
-        @if($configuring)
+        @if($currentView === 'settings')
+            <!-- TELA DE CONFIGURAÇÕES / SETTINGS -->
+            <div class="mt-8 space-y-6">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        Fuso Horário do Sistema (Timezone)
+                    </h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Fuso Horário Padrão</label>
+                            <input type="text" readonly value="America/Sao_Paulo (UTC-03:00 - Horário de Brasília)" class="w-full bg-slate-50 border border-gray-300 rounded-lg p-2.5 text-xs font-medium text-gray-800 outline-none">
+                        </div>
+                        <p class="text-xs text-gray-500 mt-4 md:mt-0">Todos os registros de logs, mensagens do WhatsApp e agendamentos usam o Horário de Brasília de forma automática.</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 opacity-60">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="font-bold text-gray-800 text-sm mb-1">🔑 Controle de Usuários & Perfis</h3>
+                        <p class="text-xs text-gray-500">Módulo de autenticação e permissões em preparação.</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="font-bold text-gray-800 text-sm mb-1">🎫 Integração OS Ticket</h3>
+                        <p class="text-xs text-gray-500">Configuração de chave de API e endpoints do OS Ticket.</p>
+                    </div>
+                </div>
+            </div>
+        @elseif($configuring)
             
             <div class="sticky top-0 z-40 bg-gray-50/90 backdrop-blur-md py-4 mb-6 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4 -mx-4 px-4 sm:mx-0 sm:px-0 shadow-sm mt-4">
                 <div class="flex items-center gap-4">
@@ -602,8 +634,11 @@
 
                             <div class="bg-slate-900 text-slate-100 p-4 rounded-xl text-[11px] font-mono border border-slate-800 max-h-72 overflow-y-auto space-y-2">
                                 @if($lastWebhook)
+                                    @php
+                                        $whDate = \Carbon\Carbon::parse($lastWebhook['timestamp'] ?? now())->setTimezone('America/Sao_Paulo')->format('d/m/Y H:i:s');
+                                    @endphp
                                     <div class="flex justify-between border-b border-slate-800 pb-2 mb-2">
-                                        <span class="text-slate-400">Data/Hora: {{ $lastWebhook['timestamp'] ?? '-' }}</span>
+                                        <span class="text-slate-400">Data/Hora: {{ $whDate }}</span>
                                         <span class="text-slate-400">Remetente: <strong class="text-slate-200">{{ $lastWebhook['sender'] ?? '-' }}</strong></span>
                                     </div>
                                     <p><span class="text-slate-400">Mensagem:</span> <span class="text-slate-100 font-sans font-medium">"{{ $lastWebhook['user_message'] ?? '-' }}"</span></p>
@@ -856,7 +891,7 @@
                                     <div class="flex items-center gap-1.5">
                                         <span class="font-bold text-gray-800 text-base">{{ $assistant->name }}</span>
                                         
-                                        <a href="/?configure={{ $assistant->id }}" title="Configurar" onclick="sessionStorage.removeItem('scrollpos_config_{{ $assistant->id }}');" class="text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 p-1.5 rounded-full transition border border-gray-200 hover:border-indigo-200 flex items-center justify-center shrink-0">
+                                        <a href="/?configure={{ $assistant->id }}" title="Configurar" onclick="sessionStorageremoveItem('scrollpos_config_{{ $assistant->id }}');" class="text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 p-1.5 rounded-full transition border border-gray-200 hover:border-indigo-200 flex items-center justify-center shrink-0">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg>
                                         </a>
 
@@ -937,7 +972,7 @@
                             <div class="divide-y divide-slate-100">
                                 @forelse($conversationThreads as $thread)
                                     @php
-                                        $threadDateObj = \Carbon\Carbon::parse($thread->last_activity)->locale('pt_BR');
+                                        $threadDateObj = \Carbon\Carbon::parse($thread->last_activity)->setTimezone('America/Sao_Paulo')->locale('pt_BR');
                                         $threadDisplayDate = $threadDateObj->format('d/m/Y H:i');
                                     @endphp
                                     <a href="/?conversations_id={{ $conversationsAssistant->id }}&phone={{ $thread->phone_number }}" 
@@ -965,23 +1000,27 @@
                                     <span class="text-slate-400 text-[11px]">{{ count($activeThreadMessages) }} interações</span>
                                 </div>
 
-                                <!-- CONTAINER DAS MENSAGENS COM AUTO-SCROLL ALPINE.JS -->
+                                <!-- CONTAINER COM SCROLL AUTOMÁTICO PARA A ÚLTIMA MENSAGEM -->
                                 <div x-data x-ref="chatBox" x-init="$nextTick(() => { $refs.chatBox.scrollTop = $refs.chatBox.scrollHeight; })" class="p-4 overflow-y-auto space-y-3 flex-1 scroll-smooth">
                                     
                                     @php $lastDate = null; @endphp
 
                                     @foreach($activeThreadMessages as $msg)
                                         @php
-                                            $carbonDate = \Carbon\Carbon::parse($msg->created_at)->locale('pt_BR');
+                                            $carbonDate = \Carbon\Carbon::parse($msg->created_at)->setTimezone('America/Sao_Paulo')->locale('pt_BR');
                                             $currentDate = $carbonDate->format('Y-m-d');
+                                            
+                                            // ETIQUETA COM DIA DA SEMANA E DATA COMPLETA (EX: Segunda-feira, 18 de Agosto de 2026)
                                             $displayDate = ucfirst($carbonDate->translatedFormat('l, d \d\e F \d\e Y'));
+                                            
+                                            // BALÃO DA MENSAGEM COM HORA:MINUTO:SEGUNDOS (EX: 13:45:22)
                                             $displayTime = $carbonDate->format('H:i:s');
                                         @endphp
 
-                                        <!-- ETIQUETA DIVISORA DE DATA -->
+                                        <!-- ETIQUETA DIVISORA DE DATA ESTILO WHATSAPP -->
                                         @if($currentDate !== $lastDate)
                                             <div class="flex justify-center my-5">
-                                                <span class="bg-slate-200 text-slate-600 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg border border-slate-300 shadow-sm">
+                                                <span class="bg-slate-200 text-slate-600 text-[10px] font-bold tracking-wide px-3 py-1 rounded-lg border border-slate-300 shadow-sm">
                                                     {{ $displayDate }}
                                                 </span>
                                             </div>

@@ -10,9 +10,15 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Database\Schema\Blueprint;
+use Carbon\Carbon;
 
 class AssistantController extends Controller
 {
+    private function configureTimezone()
+    {
+        date_default_timezone_set('America/Sao_Paulo');
+    }
+
     private function ensureWebhookLogTableExists()
     {
         if (!Schema::hasTable('webhook_logs')) {
@@ -58,9 +64,12 @@ class AssistantController extends Controller
 
     public function index(Request $request)
     {
+        $this->configureTimezone();
         $this->ensureWebhookLogTableExists();
         $this->ensureAssistantColumnsExist();
         $this->ensureChatMessagesTableExists();
+
+        $currentView = $request->input('view', 'robots');
 
         if ($request->has('chat_id')) {
             $assistant = Assistant::findOrFail($request->chat_id);
@@ -144,12 +153,13 @@ class AssistantController extends Controller
 
         return view('assistants.index', compact(
             'assistants', 'configuring', 'lastWebhook',
-            'conversationsAssistant', 'conversationThreads', 'activeThreadMessages', 'activePhone'
+            'conversationsAssistant', 'conversationThreads', 'activeThreadMessages', 'activePhone', 'currentView'
         ));
     }
 
     private function store(Request $request)
     {
+        $this->configureTimezone();
         $request->validate(['name' => 'required|string|max:255']);
         $assistant = new Assistant();
         $assistant->forceFill([
@@ -166,6 +176,7 @@ class AssistantController extends Controller
 
     private function update(Request $request)
     {
+        $this->configureTimezone();
         $assistant = Assistant::findOrFail($request->assistant_id);
 
         $data = $request->only([
@@ -403,6 +414,7 @@ class AssistantController extends Controller
 
     private function chat(Request $request)
     {
+        $this->configureTimezone();
         try {
             $assistant = Assistant::find($request->assistant_id);
             if (!$assistant) {
@@ -442,6 +454,7 @@ class AssistantController extends Controller
 
     public function webhook(Request $request, $id)
     {
+        $this->configureTimezone();
         $this->ensureWebhookLogTableExists();
         $this->ensureChatMessagesTableExists();
 
@@ -486,6 +499,8 @@ class AssistantController extends Controller
 
             $userMessage = is_array($rawMessage) ? ($rawMessage['text'] ?? $rawMessage['body'] ?? '') : (string)$rawMessage;
 
+            $nowFormatted = now()->setTimezone('America/Sao_Paulo')->toDateTimeString();
+
             if (empty(trim($userMessage))) {
                 DB::table('webhook_logs')->insert([
                     'assistant_id' => $assistant->id,
@@ -494,9 +509,9 @@ class AssistantController extends Controller
                     'ai_reply' => 'Ignorado (Processamento restrito a texto)',
                     'wa_send_result' => json_encode(['info' => 'Nenhuma resposta enviada']),
                     'raw_snippet' => json_encode($request->all(), JSON_INVALID_UTF8_IGNORE),
-                    'timestamp' => now()->toDateTimeString(),
-                    'created_at' => now(),
-                    'updated_at' => now(),
+                    'timestamp' => $nowFormatted,
+                    'created_at' => $nowFormatted,
+                    'updated_at' => $nowFormatted,
                 ]);
                 return response()->json(['status' => 'no_message']);
             }
@@ -530,16 +545,16 @@ class AssistantController extends Controller
                     'phone_number' => $cleanSender,
                     'role' => 'user',
                     'content' => $userMessage,
-                    'created_at' => now(),
-                    'updated_at' => now(),
+                    'created_at' => $nowFormatted,
+                    'updated_at' => $nowFormatted,
                 ],
                 [
                     'assistant_id' => $assistant->id,
                     'phone_number' => $cleanSender,
                     'role' => 'assistant',
                     'content' => $aiReply,
-                    'created_at' => now(),
-                    'updated_at' => now(),
+                    'created_at' => $nowFormatted,
+                    'updated_at' => $nowFormatted,
                 ]
             ]);
 
@@ -552,13 +567,14 @@ class AssistantController extends Controller
                 'ai_reply' => $formattedReply,
                 'wa_send_result' => json_encode($waResult, JSON_INVALID_UTF8_IGNORE),
                 'raw_snippet' => json_encode($request->all(), JSON_INVALID_UTF8_IGNORE),
-                'timestamp' => now()->toDateTimeString(),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'timestamp' => $nowFormatted,
+                'created_at' => $nowFormatted,
+                'updated_at' => $nowFormatted,
             ]);
 
             return response()->json(['status' => 'success', 'reply' => $formattedReply]);
         } catch (\Throwable $e) {
+            $nowFormatted = now()->setTimezone('America/Sao_Paulo')->toDateTimeString();
             DB::table('webhook_logs')->insert([
                 'assistant_id' => $id,
                 'sender' => 'Erro Interno',
@@ -566,9 +582,9 @@ class AssistantController extends Controller
                 'ai_reply' => 'Erro: ' . $e->getMessage(),
                 'wa_send_result' => json_encode(['error' => $e->getMessage()]),
                 'raw_snippet' => json_encode($request->all(), JSON_INVALID_UTF8_IGNORE),
-                'timestamp' => now()->toDateTimeString(),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'timestamp' => $nowFormatted,
+                'created_at' => $nowFormatted,
+                'updated_at' => $nowFormatted,
             ]);
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 200);
         }
