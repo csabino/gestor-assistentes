@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestão de Equipe & Agentes</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234F46E5' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z'/></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234F46E5' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z'/></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>[x-cloak] { display: none !important; }</style>
@@ -19,7 +19,6 @@
     }"
 >
 
-    <!-- SIDEBAR LATERAL GLOBAL -->
     <aside class="bg-indigo-700 text-white min-h-screen transition-all duration-300 flex flex-col justify-between shrink-0 shadow-xl relative z-50" :class="sidebarOpen ? 'w-64' : 'w-20'">
         <div>
             <div class="h-16 flex items-center border-b border-indigo-600/80 transition-all px-3" :class="sidebarOpen ? 'justify-between' : 'justify-center'">
@@ -41,7 +40,7 @@
                         <svg class="w-5 h-5 shrink-0 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v1.242c0 .289.23.523.518.523h3.726c.288 0 .518-.234.518-.523V3.104M12 21v-3.75m9-4.5h-1.5M4.5 12.75H3m16.5 0a2.25 2.25 0 002.25-2.25V8.25a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 8.25v2.25a2.25 2.25 0 002.25 2.25h13.5z" /></svg>
                         <span x-show="sidebarOpen" class="truncate">Assistentes IA</span>
                     </a>
-                    <div x-show="!sidebarOpen" class="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-md shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">Assistentes IA</div>
+                    <div x-show="!sidebarOpen" class="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-md shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">Assistentes IA</div>
                 </div>
 
                 <div class="relative group">
@@ -49,7 +48,7 @@
                         <svg class="w-5 h-5 shrink-0 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" /></svg>
                         <span x-show="sidebarOpen" class="truncate">Equipe & Agendas</span>
                     </a>
-                    <div x-show="!sidebarOpen" class="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-md shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">Equipe & Agendas</div>
+                    <div x-show="!sidebarOpen" class="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-md shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">Equipe & Agendas</div>
                 </div>
 
                 <div class="relative group">
@@ -57,7 +56,7 @@
                         <svg class="w-5 h-5 shrink-0 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008z" /></svg>
                         <span x-show="sidebarOpen" class="truncate">Calendário</span>
                     </a>
-                    <div x-show="!sidebarOpen" class="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-md shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">Calendário</div>
+                    <div x-show="!sidebarOpen" class="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-md shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">Calendário</div>
                 </div>
 
                 <div class="relative group">
@@ -76,9 +75,8 @@
         </div>
     </aside>
 
-    <!-- CONTEÚDO PRINCIPAL -->
     <main class="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
-        <div class="container mx-auto px-6 max-w-6xl py-8">
+        <div class="container mx-auto px-6 max-w-5xl py-8">
             
             @if(session('success'))
                 <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-lg mb-6 text-sm flex items-center gap-2 shadow-sm">
@@ -102,132 +100,119 @@
                         <p class="text-xs text-gray-500 mt-1">Organize os setores corporativos e os agentes humanos de suporte.</p>
                     </div>
 
-                    <!-- CRIAR DEPARTAMENTO -->
+                    <!-- CRIAR DEPARTAMENTO COM SELEÇÃO DE ASSISTENTE -->
                     <form action="/?view=equipe" method="POST" class="mb-8 bg-gray-50 p-4 rounded-xl border border-gray-200">
                         @csrf
                         <input type="hidden" name="action" value="store_department">
-                        <label class="block text-[11px] font-bold text-gray-700 uppercase tracking-wide mb-2">Novo Departamento</label>
-                        <div class="flex gap-3">
-                            <input type="text" name="name" required placeholder="Ex: Comercial, Tecnologia, Financeiro..." class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-                            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-lg text-xs transition shadow-sm">Criar Departamento</button>
+                        <div class="flex flex-col md:flex-row gap-3 items-end">
+                            <div class="flex-1 w-full">
+                                <label class="block text-[11px] font-bold text-gray-700 uppercase tracking-wide mb-1.5">Novo Departamento</label>
+                                <input type="text" name="name" required placeholder="Ex: Comercial, Tecnologia..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                            </div>
+                            <div class="flex-1 w-full">
+                                <label class="block text-[11px] font-bold text-gray-700 uppercase tracking-wide mb-1.5">Pertence a qual Assistente IA?</label>
+                                <select name="assistant_id" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                                    <option value="">Selecione um assistente...</option>
+                                    @foreach($assistants as $ast)
+                                        <option value="{{ $ast->id }}">{{ $ast->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <button type="submit" class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-lg text-xs transition shadow-sm whitespace-nowrap">Criar Departamento</button>
                         </div>
                     </form>
 
                     <!-- LISTA DE CARDS DE DEPARTAMENTOS -->
                     <div class="space-y-6">
                         @forelse($departments as $dept)
-                            <div class="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-5">
+                            <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col md:flex-row transition hover:border-indigo-200">
                                 
-                                <!-- CABEÇALHO DO DEPARTAMENTO COM AÇÕES DE EDITAR E EXCLUIR -->
-                                <div class="flex justify-between items-center border-b border-gray-100 pb-3">
-                                    <div class="flex items-center gap-3">
-                                        <span class="w-3 h-3 bg-indigo-600 rounded-full"></span>
-                                        <h3 class="font-bold text-gray-800 text-lg">{{ $dept->name }}</h3>
+                                <!-- ESQUERDA: DEPARTAMENTO E CONTROLES -->
+                                <div class="md:w-1/4 bg-gray-50/80 p-5 border-b md:border-b-0 md:border-r border-gray-200 flex flex-col justify-between shrink-0">
+                                    <div>
+                                        <h3 class="font-bold text-gray-800 text-base flex items-center gap-2">
+                                            <span class="w-2.5 h-2.5 bg-indigo-500 rounded-full"></span>
+                                            {{ $dept->name }}
+                                        </h3>
+                                        <p class="text-[10px] text-gray-400 font-bold uppercase mt-2 tracking-wide">Vinculado à: {{ $dept->assistant_name }}</p>
                                     </div>
-
-                                    <div class="flex items-center gap-2">
-                                        <!-- BOTÃO EDITAR DEPARTAMENTO -->
-                                        <button type="button" @click="editDeptData = { id: {{ $dept->id }}, name: '{{ $dept->name }}' }; editDeptModal = true" class="text-gray-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition" title="Editar Departamento">
-                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
-                                        </button>
-
-                                        <!-- BOTÃO EXCLUIR DEPARTAMENTO -->
-                                        <form action="/?view=equipe" method="POST" onsubmit="return confirm('Excluir departamento e todos os seus agentes?');">
-                                            @csrf
-                                            <input type="hidden" name="action" value="delete_department">
-                                            <input type="hidden" name="department_id" value="{{ $dept->id }}">
-                                            <button type="submit" class="text-gray-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition" title="Excluir Departamento">
-                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
-                                            </button>
+                                    <div class="flex items-center gap-1.5 mt-5">
+                                        <button @click="editDeptData = { id: {{ $dept->id }}, name: '{{ $dept->name }}' }; editDeptModal = true" class="text-[10px] font-bold text-indigo-700 bg-indigo-100 hover:bg-indigo-200 px-2.5 py-1.5 rounded transition">Editar</button>
+                                        <form action="/?view=equipe" method="POST" onsubmit="return confirm('Excluir departamento e TODOS os agentes vinculados?');">
+                                            @csrf <input type="hidden" name="action" value="delete_department"><input type="hidden" name="department_id" value="{{ $dept->id }}">
+                                            <button class="text-[10px] font-bold text-red-600 bg-red-100 hover:bg-red-200 px-2.5 py-1.5 rounded transition">Excluir</button>
                                         </form>
                                     </div>
                                 </div>
 
-                                <!-- FORMULÁRIO DE ADIÇÃO DE AGENTE -->
-                                <form action="/?view=equipe" method="POST" class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                    @csrf
-                                    <input type="hidden" name="action" value="store_agent">
-                                    <input type="hidden" name="department_id" value="{{ $dept->id }}">
-                                    <div>
-                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nome do Agente</label>
-                                        <input type="text" name="name" required placeholder="Ex: Carlos Sabino" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs outline-none focus:border-indigo-500">
-                                    </div>
-                                    <div>
-                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">E-mail Corporativo</label>
-                                        <input type="email" name="email" required placeholder="carlos@empresa.com" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs outline-none focus:border-indigo-500">
-                                    </div>
-                                    <div class="flex items-end">
-                                        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-xs transition shadow-sm">
-                                            + Adicionar Agente
-                                        </button>
-                                    </div>
-                                </form>
-
-                                <!-- GRID DE MINI-CARDS DOS AGENTES (O LAYOUT BONITO DE VOLTA) -->
-                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
-                                    @forelse($agents->where('department_id', $dept->id) as $agent)
-                                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between gap-3 hover:border-indigo-200 hover:bg-white transition duration-150 group shadow-sm">
-                                            <div class="flex items-center gap-3 truncate">
-                                                <div class="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center shrink-0 border border-indigo-200 uppercase">
-                                                    {{ substr($agent->name, 0, 1) }}
-                                                </div>
-                                                <div class="truncate">
-                                                    <h4 class="font-bold text-gray-800 text-xs truncate">{{ $agent->name }}</h4>
-                                                    <p class="text-[11px] text-gray-500 font-mono truncate">{{ $agent->email }}</p>
-                                                </div>
-                                            </div>
-
-                                            <div class="flex items-center gap-1 shrink-0 opacity-80 group-hover:opacity-100">
-                                                <!-- EDITAR AGENTE -->
-                                                <button type="button" @click="editAgentData = { id: {{ $agent->id }}, department_id: {{ $dept->id }}, name: '{{ $agent->name }}', email: '{{ $agent->email }}' }; editAgentModal = true" class="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition" title="Editar Agente">
-                                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
-                                                </button>
-
-                                                <!-- EXCLUIR AGENTE -->
-                                                <form action="/?view=equipe" method="POST" onsubmit="return confirm('Remover este agente?');">
-                                                    @csrf
-                                                    <input type="hidden" name="action" value="delete_agent">
-                                                    <input type="hidden" name="agent_id" value="{{ $agent->id }}">
-                                                    <button type="submit" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition" title="Excluir Agente">
-                                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+                                <!-- DIREITA: QUADRADINHOS DOS AGENTES HUMANOS -->
+                                <div class="md:w-3/4 p-5 flex flex-wrap gap-3 content-start">
+                                    @foreach($agents as $agent)
+                                        @if($agent->department_id == $dept->id)
+                                            <div class="bg-white border border-gray-200 rounded-lg p-3 w-44 shadow-sm relative group hover:border-indigo-300 transition">
+                                                <div class="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition flex gap-0.5 bg-white/95 rounded pl-1">
+                                                    <button @click="editAgentData = { id: {{ $agent->id }}, department_id: {{ $dept->id }}, name: '{{ $agent->name }}', email: '{{ $agent->email }}' }; editAgentModal = true" class="text-indigo-500 hover:bg-indigo-50 p-1.5 rounded" title="Editar">
+                                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
                                                     </button>
-                                                </form>
+                                                    <form action="/?view=equipe" method="POST" onsubmit="return confirm('Remover este agente?');">
+                                                        @csrf <input type="hidden" name="action" value="delete_agent"><input type="hidden" name="agent_id" value="{{ $agent->id }}">
+                                                        <button class="text-red-500 hover:bg-red-50 p-1.5 rounded" title="Excluir"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg></button>
+                                                    </form>
+                                                </div>
+                                                <div class="flex items-center gap-3 truncate">
+                                                    <div class="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center shrink-0 border border-indigo-200 uppercase">
+                                                        {{ substr($agent->name, 0, 1) }}
+                                                    </div>
+                                                    <div class="truncate">
+                                                        <h4 class="font-bold text-gray-800 text-xs truncate" title="{{ $agent->name }}">{{ $agent->name }}</h4>
+                                                        <p class="text-[9px] text-gray-500 font-mono truncate mt-0.5" title="{{ $agent->email }}">{{ $agent->email }}</p>
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    @empty
-                                        <div class="col-span-full py-4 text-center text-xs text-gray-400 italic">Nenhum agente neste departamento.</div>
-                                    @endforelse
+                                        @endif
+                                    @endforeach
+                                    
+                                    <!-- ADICIONAR NOVO AGENTE -->
+                                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 w-44 shadow-sm relative transition group">
+                                        <form action="/?view=equipe" method="POST" class="h-full flex flex-col justify-between gap-2">
+                                            @csrf
+                                            <input type="hidden" name="action" value="store_agent">
+                                            <input type="hidden" name="department_id" value="{{ $dept->id }}">
+                                            <input type="text" name="name" required placeholder="Nome do Agente" class="w-full border border-slate-300 rounded text-[10px] px-2 py-1 outline-none focus:border-indigo-500">
+                                            <input type="email" name="email" required placeholder="E-mail" class="w-full border border-slate-300 rounded text-[10px] px-2 py-1 outline-none focus:border-indigo-500">
+                                            <button type="submit" class="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-1 rounded border border-indigo-200 text-[10px] transition">Salvar Agente</button>
+                                        </form>
+                                    </div>
                                 </div>
-
                             </div>
                         @empty
-                            <div class="text-center py-12 text-gray-400">Nenhum departamento cadastrado ainda.</div>
+                            <div class="text-center py-12 text-gray-400">Nenhum departamento cadastrado.</div>
                         @endforelse
                     </div>
                 </div>
             </div>
 
             <!-- MODAL EDITAR DEPARTAMENTO -->
-            <div x-show="editDeptModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-                <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 relative border border-slate-200">
+            <div x-show="editDeptModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4" x-transition>
+                <div @click.away="editDeptModal = false" class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 relative border border-slate-200">
                     <h3 class="text-base font-bold text-gray-800 mb-4">Editar Departamento</h3>
                     <form action="/?view=equipe" method="POST">
                         @csrf
                         <input type="hidden" name="action" value="update_department">
                         <input type="hidden" name="department_id" :value="editDeptData.id">
-                        <label class="block text-xs font-semibold text-gray-700 mb-1">Nome do Departamento</label>
-                        <input type="text" name="name" x-model="editDeptData.name" required class="w-full border border-gray-300 rounded-lg p-2.5 text-xs mb-5 outline-none focus:ring-2 focus:ring-indigo-500">
+                        <label class="block text-[11px] font-bold text-gray-700 uppercase mb-1">Nome do Departamento</label>
+                        <input type="text" name="name" x-model="editDeptData.name" required class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-xs mb-5 outline-none focus:border-indigo-500">
                         <div class="flex justify-end gap-2">
-                            <button type="button" @click="editDeptModal = false" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition">Cancelar</button>
-                            <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">Salvar</button>
+                            <button type="button" @click="editDeptModal = false" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg transition">Cancelar</button>
+                            <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition">Atualizar</button>
                         </div>
                     </form>
                 </div>
             </div>
 
             <!-- MODAL EDITAR AGENTE -->
-            <div x-show="editAgentModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-                <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 relative border border-slate-200">
+            <div x-show="editAgentModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4" x-transition>
+                <div @click.away="editAgentModal = false" class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 relative border border-slate-200">
                     <h3 class="text-base font-bold text-gray-800 mb-4">Editar Agente</h3>
                     <form action="/?view=equipe" method="POST">
                         @csrf
@@ -235,15 +220,15 @@
                         <input type="hidden" name="agent_id" :value="editAgentData.id">
                         <input type="hidden" name="department_id" :value="editAgentData.department_id">
                         
-                        <label class="block text-xs font-semibold text-gray-700 mb-1">Nome do Agente</label>
-                        <input type="text" name="name" x-model="editAgentData.name" required class="w-full border border-gray-300 rounded-lg p-2.5 text-xs mb-3 outline-none focus:ring-2 focus:ring-indigo-500">
+                        <label class="block text-[11px] font-bold text-gray-700 uppercase mb-1">Nome</label>
+                        <input type="text" name="name" x-model="editAgentData.name" required class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-xs mb-3 outline-none focus:border-indigo-500">
 
-                        <label class="block text-xs font-semibold text-gray-700 mb-1">E-mail Corporativo</label>
-                        <input type="email" name="email" x-model="editAgentData.email" required class="w-full border border-gray-300 rounded-lg p-2.5 text-xs mb-5 outline-none focus:ring-2 focus:ring-indigo-500">
+                        <label class="block text-[11px] font-bold text-gray-700 uppercase mb-1">E-mail</label>
+                        <input type="email" name="email" x-model="editAgentData.email" required class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-xs mb-5 outline-none focus:border-indigo-500">
 
                         <div class="flex justify-end gap-2">
-                            <button type="button" @click="editAgentModal = false" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition">Cancelar</button>
-                            <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">Salvar Alterações</button>
+                            <button type="button" @click="editAgentModal = false" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg transition">Cancelar</button>
+                            <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition">Salvar</button>
                         </div>
                     </form>
                 </div>
