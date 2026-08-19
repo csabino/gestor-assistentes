@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestor de Assistentes AI</title>
+    <title>Gestor de Assistentes IA</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234F46E5' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z'/></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -80,7 +80,7 @@
                 </a>
                 
                 <div class="h-full flex">
-                    <a href="/" class="flex items-center px-3 text-sm font-medium border-b-2 {{ $currentView === 'robots' ? 'border-white text-white' : 'border-transparent text-indigo-100 hover:text-white hover:border-indigo-300' }} transition">Robôs IA</a>
+                    <a href="/" class="flex items-center px-3 text-sm font-medium border-b-2 {{ $currentView === 'robots' ? 'border-white text-white' : 'border-transparent text-indigo-100 hover:text-white hover:border-indigo-300' }} transition">Assistentes IA</a>
                     <a href="/?view=equipe" class="flex items-center px-3 text-sm font-medium border-b-2 {{ $currentView === 'equipe' ? 'border-white text-white' : 'border-transparent text-indigo-100 hover:text-white hover:border-indigo-300' }} transition">Equipe & Agendas</a>
                     <a href="/?view=agenda" class="flex items-center px-3 text-sm font-medium border-b-2 {{ $currentView === 'agenda' ? 'border-white text-white' : 'border-transparent text-indigo-100 hover:text-white hover:border-indigo-300' }} transition">Calendário</a>
                     <a href="/?view=settings" class="flex items-center px-3 text-sm font-medium border-b-2 {{ $currentView === 'settings' ? 'border-white text-white' : 'border-transparent text-indigo-100 hover:text-white hover:border-indigo-300' }} transition gap-1.5">
@@ -132,8 +132,8 @@
                         <p class="text-xs text-gray-500">Módulo de autenticação e permissões em preparação.</p>
                     </div>
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h3 class="font-bold text-gray-800 text-sm mb-1">🎫 Integração OS Ticket</h3>
-                        <p class="text-xs text-gray-500">Configuração de chave de API e endpoints do OS Ticket.</p>
+                        <h3 class="font-bold text-gray-800 text-sm mb-1">🎫 Integração InSoft Omni</h3>
+                        <p class="text-xs text-gray-500">Configuração de chave de API e endpoints do InSoft Omni.</p>
                     </div>
                 </div>
             </div>
@@ -548,7 +548,7 @@
                                 </span>
                                 <div>
                                     <h3 class="text-base font-bold text-slate-800">Campos de Qualificação (Variáveis)</h3>
-                                    <p class="text-xs text-slate-500 font-medium mt-0.5">Defina os dados que a IA deve capturar para abrir chamados (OS Ticket).</p>
+                                    <p class="text-xs text-slate-500 font-medium mt-0.5">Defina os dados que a IA deve capturar para abrir chamados (InSoft Omni).</p>
                                 </div>
                             </div>
                             <button type="button" x-on:click="showLeadModal = false" class="text-slate-400 hover:text-slate-600 p-2 rounded-lg hover:bg-slate-100 transition">
@@ -566,7 +566,7 @@
                                                 <input type="text" x-model="field.label" :name="'lead_fields['+index+'][label]'" placeholder="Ex: Nome Completo" class="w-full border border-slate-200 rounded-md px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
                                             </div>
                                             <div>
-                                                <label class="block text-[10px] uppercase tracking-wide font-bold text-slate-500 mb-1">Variável Interna (OS Ticket)</label>
+                                                <label class="block text-[10px] uppercase tracking-wide font-bold text-slate-500 mb-1">Variável Interna (InSoft Omni)</label>
                                                 <input type="text" x-model="field.name" :name="'lead_fields['+index+'][name]'" placeholder="Ex: client_name" class="w-full border border-slate-200 bg-slate-50 rounded-md px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
                                             </div>
                                         </div>
@@ -589,7 +589,7 @@
                         </div>
 
                         <div class="flex justify-between items-center p-5 border-t border-slate-100 bg-white rounded-b-xl shrink-0">
-                            <p class="text-[10px] text-slate-400 font-medium w-2/3 leading-tight">Dica: O campo "Variável Interna" deve ser o mesmo nome esperado pela API do OS Ticket (sem espaços, ex: cpf_cliente).</p>
+                            <p class="text-[10px] text-slate-400 font-medium w-2/3 leading-tight">Dica: O campo "Variável Interna" deve ser o mesmo nome esperado pela API do InSoft Omni (sem espaços, ex: cpf_cliente).</p>
                             <button type="button" x-on:click="showLeadModal = false" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-lg text-xs transition shadow-sm">
                                 Concluído
                             </button>
@@ -891,7 +891,7 @@
                                     <div class="flex items-center gap-1.5">
                                         <span class="font-bold text-gray-800 text-base">{{ $assistant->name }}</span>
                                         
-                                        <a href="/?configure={{ $assistant->id }}" title="Configurar" onclick="sessionStorageremoveItem('scrollpos_config_{{ $assistant->id }}');" class="text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 p-1.5 rounded-full transition border border-gray-200 hover:border-indigo-200 flex items-center justify-center shrink-0">
+                                        <a href="/?configure={{ $assistant->id }}" title="Configurar" onclick="sessionStorage.removeItem('scrollpos_config_{{ $assistant->id }}');" class="text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 p-1.5 rounded-full transition border border-gray-200 hover:border-indigo-200 flex items-center justify-center shrink-0">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg>
                                         </a>
 
@@ -1000,7 +1000,6 @@
                                     <span class="text-slate-400 text-[11px]">{{ count($activeThreadMessages) }} interações</span>
                                 </div>
 
-                                <!-- CONTAINER COM SCROLL AUTOMÁTICO PARA A ÚLTIMA MENSAGEM -->
                                 <div x-data x-ref="chatBox" x-init="$nextTick(() => { $refs.chatBox.scrollTop = $refs.chatBox.scrollHeight; })" class="p-4 overflow-y-auto space-y-3 flex-1 scroll-smooth">
                                     
                                     @php $lastDate = null; @endphp
@@ -1009,15 +1008,10 @@
                                         @php
                                             $carbonDate = \Carbon\Carbon::parse($msg->created_at)->setTimezone('America/Sao_Paulo')->locale('pt_BR');
                                             $currentDate = $carbonDate->format('Y-m-d');
-                                            
-                                            // ETIQUETA COM DIA DA SEMANA E DATA COMPLETA (EX: Segunda-feira, 18 de Agosto de 2026)
                                             $displayDate = ucfirst($carbonDate->translatedFormat('l, d \d\e F \d\e Y'));
-                                            
-                                            // BALÃO DA MENSAGEM COM HORA:MINUTO:SEGUNDOS (EX: 13:45:22)
                                             $displayTime = $carbonDate->format('H:i:s');
                                         @endphp
 
-                                        <!-- ETIQUETA DIVISORA DE DATA ESTILO WHATSAPP -->
                                         @if($currentDate !== $lastDate)
                                             <div class="flex justify-center my-5">
                                                 <span class="bg-slate-200 text-slate-600 text-[10px] font-bold tracking-wide px-3 py-1 rounded-lg border border-slate-300 shadow-sm">
@@ -1027,7 +1021,6 @@
                                             @php $lastDate = $currentDate; @endphp
                                         @endif
 
-                                        <!-- BALÃO DE MENSAGEM -->
                                         @if($msg->role === 'user')
                                             <div class="flex justify-end">
                                                 <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-none p-3 max-w-md text-xs shadow-sm relative group">
