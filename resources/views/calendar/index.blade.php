@@ -79,29 +79,44 @@
                     <p class="text-xs text-slate-500 mt-1">Gerencie a disponibilidade e as reuniões agendadas de cada membro.</p>
                 </div>
 
-                <div class="flex flex-wrap items-center gap-3">
+                <!-- FORMULÁRIO DINÂMICO DOS SELECTS (EFEITO CASCATA) -->
+                <form id="calendarFilter" method="GET" action="/" class="flex flex-wrap items-center gap-3">
+                    <input type="hidden" name="view" value="agenda">
+                    
+                    <!-- STATUS -->
+                    <div class="flex items-center gap-2 border-r border-slate-200 pr-3">
+                        <span class="font-bold text-indigo-600 uppercase text-[10px] tracking-wide">Status:</span>
+                        <select name="status" onchange="document.getElementById('calendarFilter').submit()" class="font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer text-xs">
+                            <option value="ativo" {{ $statusFilter == 'ativo' ? 'selected' : '' }}>Ativos</option>
+                            <option value="inativo" {{ $statusFilter == 'inativo' ? 'selected' : '' }}>Inativos</option>
+                            <option value="todos" {{ $statusFilter == 'todos' ? 'selected' : '' }}>Todos</option>
+                        </select>
+                    </div>
+
+                    <!-- ASSISTENTE IA -->
                     <div class="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2 shadow-sm">
-                        <span class="font-bold text-indigo-600 uppercase text-[10px]">ROBÔ:</span>
-                        <select class="font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer">
+                        <span class="font-bold text-indigo-600 uppercase text-[10px]">Assistente IA:</span>
+                        <select name="assistant_id" onchange="document.getElementById('calendarFilter').submit()" class="font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer">
                             @forelse($assistants as $ast)
-                                <option value="{{ $ast->id }}">{{ $ast->name }}</option>
+                                <option value="{{ $ast->id }}" {{ $currentAssistantId == $ast->id ? 'selected' : '' }}>{{ $ast->name }}</option>
                             @empty
-                                <option value="">Ingrid</option>
+                                <option value="">Nenhum assistente</option>
                             @endforelse
                         </select>
                     </div>
 
+                    <!-- AGENTE -->
                     <div class="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2 shadow-sm">
                         <span class="font-bold text-indigo-600 uppercase text-[10px]">AGENTE:</span>
-                        <select class="font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer">
+                        <select name="agent_id" onchange="document.getElementById('calendarFilter').submit()" class="font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer max-w-[200px] truncate">
                             @forelse($agents as $ag)
-                                <option value="{{ $ag->id }}">{{ $ag->name }} ({{ $ag->department_name }})</option>
+                                <option value="{{ $ag->id }}" {{ $currentAgentId == $ag->id ? 'selected' : '' }}>{{ $ag->name }} ({{ $ag->department_name }})</option>
                             @empty
-                                <option value="">Carlos Sabino Villalba (COMERCIAL)</option>
+                                <option value="">Nenhum agente</option>
                             @endforelse
                         </select>
                     </div>
-                </div>
+                </form>
             </div>
 
             <!-- CARD DO FULLCALENDAR / GRADE -->

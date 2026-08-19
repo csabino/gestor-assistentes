@@ -23,20 +23,34 @@ class CalendarController extends Controller
 
     public function index(Request $request)
     {
-        $assistants = Assistant::with(['departments.agents'])->orderBy('name', 'asc')->get();
+        // 1. Filtro de Status (Padrão: ativo)
+        $statusFilter = $request->input('status', 'ativo');
 
-        if ($assistants->count() === 0) {
-            return redirect('/')->with('error', 'Crie pelo menos um assistente/robô primeiro!');
+        // 2. Busca assistentes com base no status
+        $assistantsQuery = Assistant::with(['departments.agents'])->orderBy('name', 'asc');
+        
+        if ($statusFilter === 'ativo') {
+            $assistantsQuery->where('is_active', 1);
+        } elseif ($statusFilter === 'inativo') {
+            $assistantsQuery->where('is_active', 0);
         }
+        
+        $assistants = $assistantsQuery->get();
 
-        $currentAssistantId = $request->input('assistant_id', session('last_agenda_ast_id', $assistants->first()->id));
-        if (!$assistants->contains('id', $currentAssistantId)) {
-            $currentAssistantId = $assistants->first()->id;
+        // 3. Define o Assistente atual (Cascata)
+        $currentAssistantId = $request->input('assistant_id', session('last_agenda_ast_id'));
+        
+        if (!$currentAssistantId || !$assistants->contains('id', $currentAssistantId)) {
+            $currentAssistantId = $assistants->isNotEmpty() ? $assistants->first()->id : null;
         }
-        session(['last_agenda_ast_id' => $currentAssistantId]);
+        
+        if ($currentAssistantId) {
+            session(['last_agenda_ast_id' => $currentAssistantId]);
+        }
 
         $currentAssistant = $assistants->firstWhere('id', $currentAssistantId);
 
+        // 4. Popula os Agentes baseados no Assistente selecionado
         $agents = collect();
         if ($currentAssistant) {
             foreach ($currentAssistant->departments as $dept) {
@@ -47,6 +61,9 @@ class CalendarController extends Controller
             }
         }
 
+        // Ordena os agentes por nome para ficar bonitinho no combo
+        $agents = $agents->sortBy('name')->values();
+
         $currentAgentId = $request->input('agent_id', session('last_agenda_agent_id'));
         if (!$agents->contains('id', $currentAgentId)) {
             $currentAgentId = $agents->first()->id ?? null;
@@ -55,7 +72,7 @@ class CalendarController extends Controller
             session(['last_agenda_agent_id' => $currentAgentId]);
         }
 
-        return view('calendar.index', compact('assistants', 'currentAssistantId', 'agents', 'currentAgentId'));
+        return view('calendar.index', compact('assistants', 'currentAssistantId', 'agents', 'currentAgentId', 'statusFilter'));
     }
 
     private function getEvents(Request $request)
