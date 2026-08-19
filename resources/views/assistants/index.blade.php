@@ -565,26 +565,22 @@
                     </div>
                 </div>
 
-                <!-- MODAL FLAT DESIGN REDESENHADO -->
+                <!-- MODAL DIAGNÓSTICO DO WEBHOOK -->
                 <div x-show="showWebhookModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4" x-transition>
                     <div x-on:click.away="closeWebhookModal()" class="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 relative border border-slate-200 space-y-5">
                         
-                        <!-- HEADER DO MODAL -->
                         <div class="flex justify-between items-center border-b border-slate-100 pb-3">
                             <div class="flex items-center gap-2">
                                 <span class="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.27 1.06-.12 1.451l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.27-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.149-.894z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                                 </span>
-                                <h3 class="text-sm font-bold text-slate-800">
-                                    Webhook & Diagnóstico do Sistema
-                                </h3>
+                                <h3 class="text-sm font-bold text-slate-800">Webhook & Diagnóstico do Sistema</h3>
                             </div>
                             <button type="button" x-on:click="closeWebhookModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
 
-                        <!-- INPUT URL DO WEBHOOK -->
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1.5">URL do Webhook do Assistente</label>
                             <div class="flex items-center gap-2">
@@ -593,7 +589,6 @@
                             </div>
                         </div>
 
-                        <!-- DIAGNÓSTICO DO WEBHOOK -->
                         <div>
                             <div class="flex items-center justify-between mb-2">
                                 <label class="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
@@ -652,7 +647,6 @@
                             </div>
                         </div>
 
-                        <!-- RODAPÉ DO MODAL -->
                         <div class="flex justify-end pt-2 border-t border-slate-100">
                             <button type="button" x-on:click="closeWebhookModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-4 py-2 rounded-lg text-xs transition">
                                 Fechar
@@ -766,11 +760,11 @@
                 <div class="flex items-center gap-3">
                     <div class="flex items-center bg-gray-200/80 p-0.5 rounded-lg border border-gray-200">
                         <button type="button" @click="view = 'card'" :class="view === 'card' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'" class="px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1.5">
-                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-currentColor stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
                             Cards
                         </button>
                         <button type="button" @click="view = 'list'" :class="view === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'" class="px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1.5">
-                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M3.75 4.5h16.5" /></svg>
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-currentColor stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M3.75 4.5h16.5" /></svg>
                             Lista
                         </button>
                     </div>
@@ -796,7 +790,12 @@
                             <div class="flex items-center gap-1.5 truncate">
                                 <h3 class="font-bold text-gray-800 truncate text-lg">{{ $assistant->name }}</h3>
                                 
-                                <button type="button" title="Testar Chat Público" onclick="openChatPopup({{ $assistant->id }})" class="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-full transition shadow-sm border border-indigo-100 flex items-center justify-center shrink-0">
+                                <!-- ⚙️ ÍCONE DE CONFIGURAR NO TOPO -->
+                                <a href="/?configure={{ $assistant->id }}" title="Configurar" onclick="sessionStorage.removeItem('scrollpos_config_{{ $assistant->id }}');" class="text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 p-1.5 rounded-full transition border border-gray-200 hover:border-indigo-200 flex items-center justify-center shrink-0">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg>
+                                </a>
+
+                                <button type="button" title="Testar Chat Público" onclick="openChatPopup({{ $assistant->id }})" class="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-full transition border border-indigo-100 flex items-center justify-center shrink-0">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.522 1.522 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>
                                 </button>
 
@@ -815,9 +814,10 @@
                         </div>
                         
                         <div class="flex items-center justify-between border-t border-gray-100 pt-5 gap-2 mt-2">
-                            <a href="/?configure={{ $assistant->id }}" onclick="sessionStorage.removeItem('scrollpos_config_{{ $assistant->id }}');" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-2 px-2 rounded-lg text-xs transition flex-1 flex items-center justify-center gap-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg>
-                                Configurar
+                            <!-- 👁️ NOVO BOTÃO DE CONVERSAS COM O ÍCONE DE OLHO -->
+                            <a href="/?conversations_id={{ $assistant->id }}" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-2 px-2 rounded-lg text-xs transition flex-1 flex items-center justify-center gap-1.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.573 16.49 16.638 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                Conversas
                             </a>
                             
                             <a href="/?view=agenda&assistant_id={{ $assistant->id }}" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-2 px-2 rounded-lg text-xs transition flex-1 flex items-center justify-center gap-1">
@@ -858,7 +858,11 @@
                                     <div class="flex items-center gap-1.5">
                                         <span class="font-bold text-gray-800 text-base">{{ $assistant->name }}</span>
                                         
-                                        <button type="button" title="Testar Chat Público" onclick="openChatPopup({{ $assistant->id }})" class="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-full transition shadow-sm border border-indigo-100 flex items-center justify-center shrink-0">
+                                        <a href="/?configure={{ $assistant->id }}" title="Configurar" onclick="sessionStorage.removeItem('scrollpos_config_{{ $assistant->id }}');" class="text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 p-1.5 rounded-full transition border border-gray-200 hover:border-indigo-200 flex items-center justify-center shrink-0">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg>
+                                        </a>
+
+                                        <button type="button" title="Testar Chat Público" onclick="openChatPopup({{ $assistant->id }})" class="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-full transition border border-indigo-100 flex items-center justify-center shrink-0">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.522 1.522 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>
                                         </button>
 
@@ -879,8 +883,9 @@
                                 </td>
 
                                 <td class="py-4 px-5 text-right flex justify-end items-center gap-2 opacity-90 group-hover:opacity-100 transition">
-                                    <a href="/?configure={{ $assistant->id }}" onclick="sessionStorage.removeItem('scrollpos_config_{{ $assistant->id }}');" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-1.5 px-3 rounded-lg text-xs transition flex items-center justify-center gap-1.5">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg> Configurar
+                                    <a href="/?conversations_id={{ $assistant->id }}" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-1.5 px-3 rounded-lg text-xs transition flex items-center justify-center gap-1.5">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.573 16.49 16.638 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                        Conversas
                                     </a>
 
                                     <a href="/?view=agenda&assistant_id={{ $assistant->id }}" class="bg-white border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 text-gray-600 font-bold py-1.5 px-3 rounded-lg text-xs transition flex items-center justify-center gap-1.5">
@@ -903,6 +908,99 @@
                 </table>
             </div>
         @endif
+
+        <!-- MODAL DE HISTÓRICO DE CONVERSAS E LEADS -->
+        @if($conversationsAssistant)
+            <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
+                <div class="bg-white rounded-2xl shadow-2xl max-w-5xl w-full flex flex-col relative border border-slate-200 h-[85vh] overflow-hidden">
+                    
+                    <div class="flex justify-between items-center border-b border-slate-100 p-4 px-6 bg-slate-50 shrink-0">
+                        <div class="flex items-center gap-3">
+                            <span class="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.573 16.49 16.638 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            </span>
+                            <div>
+                                <h3 class="text-base font-bold text-slate-800">Conversas & Histórico — {{ $conversationsAssistant->name }}</h3>
+                                <p class="text-xs text-slate-500 font-medium">Veja os atendimentos e interações capturados pelo WhatsApp.</p>
+                            </div>
+                        </div>
+                        <a href="/" class="text-slate-400 hover:text-slate-600 p-2 rounded-lg hover:bg-slate-200 transition">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </a>
+                    </div>
+
+                    <div class="flex flex-1 overflow-hidden">
+                        
+                        <!-- LISTA DE CONTATOS NA ESQUERDA -->
+                        <div class="w-1/3 border-r border-slate-200 bg-slate-50/50 overflow-y-auto">
+                            <div class="p-3 border-b border-slate-200 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                Atendimentos ({{ count($conversationThreads) }})
+                            </div>
+                            <div class="divide-y divide-slate-100">
+                                @forelse($conversationThreads as $thread)
+                                    <a href="/?conversations_id={{ $conversationsAssistant->id }}&phone={{ $thread->phone_number }}" 
+                                        class="p-4 block transition hover:bg-white flex items-center justify-between {{ $activePhone === $thread->phone_number ? 'bg-white border-l-4 border-indigo-600 shadow-sm' : '' }}">
+                                        <div>
+                                            <p class="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                                                <svg class="w-3.5 h-3.5 text-emerald-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12.012 2c-5.508 0-9.988 4.479-9.988 9.988 0 2.228.734 4.285 1.973 5.947l-1.997 5.992 6.136-1.954c1.558.91 3.376 1.42 5.302 1.42 5.508 0 9.988-4.479 9.988-9.988s-4.48-9.988-9.988-9.988z"/></svg>
+                                                +{{ $thread->phone_number }}
+                                            </p>
+                                            <span class="text-[10px] text-slate-400 font-medium block mt-1">Última fala: {{ $thread->last_activity }}</span>
+                                        </div>
+                                        <span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full font-bold border border-slate-200">{{ $thread->total_messages }} msgs</span>
+                                    </a>
+                                @empty
+                                    <div class="p-8 text-center text-xs text-slate-400">Nenhuma conversa gravada no banco.</div>
+                                @endforelse
+                            </div>
+                        </div>
+
+                        <!-- HISTÓRICO DE MENSAGENS NA DIREITA -->
+                        <div class="w-2/3 bg-slate-100 flex flex-col justify-between overflow-hidden">
+                            @if($activePhone && count($activeThreadMessages) > 0)
+                                <div class="p-3 bg-white border-b border-slate-200 flex justify-between items-center text-xs font-semibold text-slate-700 shrink-0">
+                                    <span>Conversa com <strong>+{{ $activePhone }}</strong></span>
+                                    <span class="text-slate-400 text-[11px]">{{ count($activeThreadMessages) }} interações</span>
+                                </div>
+
+                                <div class="p-4 overflow-y-auto space-y-3 flex-1">
+                                    @foreach($activeThreadMessages as $msg)
+                                        @if($msg->role === 'user')
+                                            <div class="flex justify-end">
+                                                <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-none p-3 max-w-md text-xs shadow-sm">
+                                                    <p class="whitespace-pre-line">{{ $msg->content }}</p>
+                                                    <span class="text-[9px] text-indigo-200 block text-right mt-1 font-mono">{{ $msg->created_at }}</span>
+                                                </div>
+                                            </div>
+                                        @else
+                                            <div class="flex justify-start">
+                                                <div class="bg-white text-slate-800 border border-slate-200 rounded-2xl rounded-tl-none p-3 max-w-md text-xs shadow-sm">
+                                                    <p class="whitespace-pre-line">{{ $msg->content }}</p>
+                                                    <span class="text-[9px] text-slate-400 block text-left mt-1 font-mono">{{ $msg->created_at }}</span>
+                                                </div>
+                                            </div>
+                                        @endif
+                                    @endforeach
+                                </div>
+                            @else
+                                <div class="flex-1 flex flex-col items-center justify-center text-slate-400 text-xs p-8">
+                                    <svg class="w-12 h-12 text-slate-300 mb-2" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>
+                                    Selecione um contato na lista à esquerda para carregar o histórico.
+                                </div>
+                            @endif
+
+                        </div>
+                    </div>
+
+                    <div class="p-3 border-t border-slate-100 bg-white flex justify-end shrink-0">
+                        <a href="/" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-5 py-2 rounded-lg text-xs transition">
+                            Fechar
+                        </a>
+                    </div>
+                </div>
+            </div>
+        @endif
+
     </div>
 </body>
 </html>

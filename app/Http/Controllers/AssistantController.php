@@ -49,7 +49,7 @@ class AssistantController extends Controller
                 $table->id();
                 $table->unsignedBigInteger('assistant_id');
                 $table->string('phone_number')->index();
-                $table->string('role'); // 'user' ou 'assistant'
+                $table->string('role');
                 $table->text('content');
                 $table->timestamps();
             });
@@ -93,6 +93,34 @@ class AssistantController extends Controller
         $assistants = Assistant::orderBy('name', 'asc')->get();
         $configuring = null;
         $lastWebhook = null;
+        $conversationsAssistant = null;
+        $conversationThreads = [];
+        $activeThreadMessages = [];
+        $activePhone = $request->input('phone');
+
+        if ($request->has('conversations_id')) {
+            $conversationsAssistant = Assistant::find($request->conversations_id);
+            if ($conversationsAssistant) {
+                $conversationThreads = DB::table('chat_messages')
+                    ->where('assistant_id', $conversationsAssistant->id)
+                    ->select('phone_number', DB::raw('MAX(created_at) as last_activity'), DB::raw('COUNT(id) as total_messages'))
+                    ->groupBy('phone_number')
+                    ->orderBy('last_activity', 'desc')
+                    ->get();
+
+                if (!$activePhone && count($conversationThreads) > 0) {
+                    $activePhone = $conversationThreads[0]->phone_number;
+                }
+
+                if ($activePhone) {
+                    $activeThreadMessages = DB::table('chat_messages')
+                        ->where('assistant_id', $conversationsAssistant->id)
+                        ->where('phone_number', $activePhone)
+                        ->orderBy('id', 'asc')
+                        ->get();
+                }
+            }
+        }
 
         if ($request->has('configure')) {
             $configuring = Assistant::find($request->configure);
@@ -114,7 +142,10 @@ class AssistantController extends Controller
             }
         }
 
-        return view('assistants.index', compact('assistants', 'configuring', 'lastWebhook'));
+        return view('assistants.index', compact(
+            'assistants', 'configuring', 'lastWebhook',
+            'conversationsAssistant', 'conversationThreads', 'activeThreadMessages', 'activePhone'
+        ));
     }
 
     private function store(Request $request)
@@ -238,7 +269,6 @@ class AssistantController extends Controller
     {
         $prompt = $assistant->system_prompt ?? '';
 
-        // INJEÇÃO AUTOMÁTICA DOS CAMPOS DE QUALIFICAÇÃO / TRIAGEM
         $leadFields = is_array($assistant->lead_fields) 
             ? $assistant->lead_fields 
             : json_decode($assistant->lead_fields ?? '[]', true);
@@ -471,7 +501,6 @@ class AssistantController extends Controller
                 return response()->json(['status' => 'no_message']);
             }
 
-            // RESGATE DO CONTEXTO DE ACORDO COM O CONTEXT_LIMIT CONFIGURADO
             $contextLimit = (int) ($assistant->context_limit ?? 12);
 
             $historyRecords = DB::table('chat_messages')
@@ -495,7 +524,6 @@ class AssistantController extends Controller
 
             $formattedReply = $this->formatTextForWhatsapp($aiReply);
 
-            // SALVA A CONVERSA NA TABELA CHAT_MESSAGES
             DB::table('chat_messages')->insert([
                 [
                     'assistant_id' => $assistant->id,
