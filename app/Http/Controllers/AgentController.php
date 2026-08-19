@@ -27,79 +27,93 @@ class AgentController extends Controller
             if ($action === 'delete_department') return $this->deleteDepartment($request);
         }
 
-        // Traz os departamentos junto com o nome do Assistente a qual pertencem
+        // Busca os assistentes para popular o filtro no topo
+        $assistants = DB::table('assistants')->orderBy('name', 'asc')->get();
+        
+        // Pega o ID do assistente na URL, se não tiver, pega o primeiro da lista
+        $selectedAssistantId = (int) $request->query('assistant_id');
+        if (!$selectedAssistantId && $assistants->isNotEmpty()) {
+            $selectedAssistantId = $assistants->first()->id;
+        }
+
+        // Busca apenas os departamentos DO ASSISTENTE SELECIONADO
         $departments = DB::table('departments')
-            ->join('assistants', 'departments.assistant_id', '=', 'assistants.id')
-            ->select('departments.*', 'assistants.name as assistant_name')
-            ->orderBy('departments.name', 'asc')
+            ->where('assistant_id', $selectedAssistantId)
+            ->orderBy('name', 'asc')
             ->get();
         
-        // Tabela correta de agentes
-        $agents = DB::table('human_agents')->orderBy('name', 'asc')->get();
+        // Busca apenas os agentes que pertencem aos departamentos carregados acima
+        $deptIds = $departments->pluck('id');
+        $agents = DB::table('human_agents')
+            ->whereIn('department_id', $deptIds)
+            ->orderBy('name', 'asc')
+            ->get();
         
-        $assistants = DB::table('assistants')->orderBy('name', 'asc')->get();
         $currentView = 'equipe';
 
-        return view('agents.index', compact('departments', 'agents', 'assistants', 'currentView'));
+        return view('agents.index', compact('departments', 'agents', 'assistants', 'currentView', 'selectedAssistantId'));
     }
 
     private function storeDepartment(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'assistant_id' => 'required|integer' // Obrigatorio pela migration
-        ]);
+        $assistantId = (int)$request->input('assistant_id');
+        $request->validate(['name' => 'required|string|max:255']);
 
         DB::table('departments')->insert([
-            'assistant_id' => $request->assistant_id,
+            'assistant_id' => $assistantId,
             'name' => trim($request->name),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        return redirect('/?view=equipe')->with('success', 'Departamento criado com sucesso!');
+        
+        return redirect('/?view=equipe&assistant_id=' . $assistantId)->with('success', 'Departamento criado com sucesso!');
     }
 
     private function updateDepartment(Request $request)
     {
+        $assistantId = (int)$request->input('assistant_id');
         $request->validate([
             'department_id' => 'required|integer',
             'name' => 'required|string|max:255'
         ]);
+        
         DB::table('departments')->where('id', $request->department_id)->update([
             'name' => trim($request->name),
             'updated_at' => now(),
         ]);
-        return redirect('/?view=equipe')->with('success', 'Departamento atualizado!');
+        
+        return redirect('/?view=equipe&assistant_id=' . $assistantId)->with('success', 'Departamento atualizado!');
     }
 
     private function deleteDepartment(Request $request)
     {
+        $assistantId = (int)$request->input('assistant_id');
         $deptId = (int)$request->input('department_id');
-        // Exclui agentes humanos vinculados primeiro e depois o departamento
+        
         DB::table('human_agents')->where('department_id', $deptId)->delete();
         DB::table('departments')->where('id', $deptId)->delete();
         
-        return redirect('/?view=equipe')->with('success', 'Departamento excluído!');
+        return redirect('/?view=equipe&assistant_id=' . $assistantId)->with('success', 'Departamento excluído!');
     }
 
     private function storeAgent(Request $request)
     {
+        $assistantId = (int)$request->input('assistant_id');
         $departmentId = (int) $request->input('department_id');
         $email = strtolower(trim((string)$request->input('email')));
         $name = trim((string)$request->input('name'));
 
         if (!$departmentId || !$email || !$name) {
-            return redirect('/?view=equipe')->with('error', 'Preencha todos os campos do agente.');
+            return redirect('/?view=equipe&assistant_id=' . $assistantId)->with('error', 'Preencha todos os campos do agente.');
         }
 
-        // TRAVA RIGIDA NA TABELA CORRETA
         $duplicate = DB::table('human_agents')
             ->where('department_id', $departmentId)
             ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
             ->first();
 
         if ($duplicate) {
-            return redirect('/?view=equipe')->with('error', "Bloqueado: O e-mail '{$email}' já está em uso por '{$duplicate->name}' neste departamento.");
+            return redirect('/?view=equipe&assistant_id=' . $assistantId)->with('error', "Bloqueado: O e-mail '{$email}' já está em uso por '{$duplicate->name}' neste departamento.");
         }
 
         DB::table('human_agents')->insert([
@@ -111,11 +125,12 @@ class AgentController extends Controller
             'updated_at' => now(),
         ]);
 
-        return redirect('/?view=equipe')->with('success', "Agente '{$name}' adicionado com sucesso!");
+        return redirect('/?view=equipe&assistant_id=' . $assistantId)->with('success', "Agente '{$name}' adicionado com sucesso!");
     }
 
     private function updateAgent(Request $request)
     {
+        $assistantId = (int)$request->input('assistant_id');
         $agentId = (int)$request->input('agent_id');
         $departmentId = (int)$request->input('department_id');
         $name = trim((string)$request->input('name'));
@@ -128,7 +143,7 @@ class AgentController extends Controller
             ->first();
 
         if ($duplicate) {
-            return redirect('/?view=equipe')->with('error', "Bloqueado: O e-mail '{$email}' já pertence a outro agente neste departamento.");
+            return redirect('/?view=equipe&assistant_id=' . $assistantId)->with('error', "Bloqueado: O e-mail '{$email}' já pertence a outro agente neste departamento.");
         }
 
         DB::table('human_agents')->where('id', $agentId)->update([
@@ -137,13 +152,16 @@ class AgentController extends Controller
             'updated_at' => now(),
         ]);
 
-        return redirect('/?view=equipe')->with('success', "Agente '{$name}' atualizado!");
+        return redirect('/?view=equipe&assistant_id=' . $assistantId)->with('success', "Agente '{$name}' atualizado!");
     }
 
     private function deleteAgent(Request $request)
     {
+        $assistantId = (int)$request->input('assistant_id');
         $agentId = (int)$request->input('agent_id');
+        
         DB::table('human_agents')->where('id', $agentId)->delete();
-        return redirect('/?view=equipe')->with('success', 'Agente excluído com sucesso!');
+        
+        return redirect('/?view=equipe&assistant_id=' . $assistantId)->with('success', 'Agente excluído com sucesso!');
     }
 }
