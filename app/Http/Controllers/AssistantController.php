@@ -63,10 +63,18 @@ class AssistantController extends Controller
 
     private function ensureDepartmentTablesExist()
     {
+        if (!Schema::hasTable('departments')) {
+            Schema::create('departments', function (Blueprint $table) {
+                $table->id();
+                $table->string('name');
+                $table->timestamps();
+            });
+        }
+
         if (!Schema::hasTable('department_members')) {
             Schema::create('department_members', function (Blueprint $table) {
                 $table->id();
-                $table->unsignedBigInteger('department_id')->nullable();
+                $table->unsignedBigInteger('department_id');
                 $table->string('name');
                 $table->string('email');
                 $table->timestamps();
@@ -93,6 +101,10 @@ class AssistantController extends Controller
             return $this->storeAgent($request);
         }
 
+        if ($request->isMethod('post') && $request->input('action') === 'store_department') {
+            return $this->storeDepartment($request);
+        }
+
         if ($request->isMethod('post') && $request->input('action') === 'chat') {
             return $this->chat($request);
         }
@@ -117,6 +129,9 @@ class AssistantController extends Controller
         if ($request->isMethod('delete')) return $this->destroyOrRemoveFile($request);
 
         $assistants = Assistant::orderBy('name', 'asc')->get();
+        $departments = DB::table('departments')->get();
+        $agents = DB::table('department_members')->get();
+
         $configuring = null;
         $lastWebhook = null;
         $conversationsAssistant = null;
@@ -170,36 +185,51 @@ class AssistantController extends Controller
 
         return view('assistants.index', compact(
             'assistants', 'configuring', 'lastWebhook',
-            'conversationsAssistant', 'conversationThreads', 'activeThreadMessages', 'activePhone', 'currentView'
+            'conversationsAssistant', 'conversationThreads', 'activeThreadMessages', 'activePhone', 'currentView',
+            'departments', 'agents'
         ));
+    }
+
+    private function storeDepartment(Request $request)
+    {
+        $request->validate(['name' => 'required|string|max:255']);
+        DB::table('departments')->insert([
+            'name' => trim($request->name),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        return redirect('/?view=equipe')->with('success', 'Departamento criado!');
     }
 
     private function storeAgent(Request $request)
     {
-        $request->validate([
-            'department_id' => 'required',
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
-        ]);
+        $departmentId = $request->input('department_id');
+        $email = strtolower(trim($request->input('email', '')));
+        $name = trim($request->input('name', ''));
 
+        if (!$departmentId || !$email || !$name) {
+            return redirect('/?view=equipe')->with('error', 'Preencha todos os campos do agente.');
+        }
+
+        // Validação estrita por departamento e e-mail sanitizado
         $existsInDepartment = DB::table('department_members')
-            ->where('department_id', $request->department_id)
-            ->where('email', trim(strtolower($request->email)))
+            ->where('department_id', $departmentId)
+            ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
             ->exists();
 
         if ($existsInDepartment) {
-            return redirect()->back()->with('error', 'Este e-mail já está cadastrado como agente neste mesmo departamento.');
+            return redirect('/?view=equipe')->with('error', 'Este e-mail já está cadastrado como agente neste mesmo departamento!');
         }
 
         DB::table('department_members')->insert([
-            'department_id' => $request->department_id,
-            'name' => trim($request->name),
-            'email' => trim(strtolower($request->email)),
+            'department_id' => $departmentId,
+            'name' => $name,
+            'email' => $email,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
-        return redirect()->back()->with('success', 'Agente cadastrado no departamento com sucesso!');
+        return redirect('/?view=equipe')->with('success', 'Agente cadastrado no departamento com sucesso!');
     }
 
     private function store(Request $request)
