@@ -69,11 +69,11 @@
         </div>
     </aside>
 
-    <!-- CONTEÚDO PRINCIPAL (EXATAMENTE COMO A SUA FOTO) -->
-    <main class="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
-        <div class="container mx-auto px-6 max-w-6xl py-8">
+    <!-- O MAIN AGORA TEM OVERFLOW HIDDEN PARA TRAVAR A TELA E O SCROLL FICAR SÓ NA GRADE DE HORÁRIOS -->
+    <main class="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+        <div class="container mx-auto px-6 max-w-6xl py-6 flex flex-col h-full">
             
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 shrink-0">
                 <div>
                     <h1 class="text-2xl font-bold text-slate-800">Calendário e Horários</h1>
                     <p class="text-xs text-slate-500 mt-1">Gerencie a disponibilidade e as reuniões agendadas de cada membro.</p>
@@ -109,25 +109,25 @@
                     <div class="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2 shadow-sm">
                         <span class="font-bold text-indigo-600 uppercase text-[10px]">AGENTE:</span>
                         <select name="agent_id" onchange="document.getElementById('calendarFilter').submit()" class="font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer max-w-[200px] truncate">
-                            @forelse($agents as $ag)
-                                <option value="{{ $ag->id }}" {{ $currentAgentId == $ag->id ? 'selected' : '' }}>{{ $ag->name }} ({{ $ag->department_name }})</option>
-                            @empty
-                                <option value="">Nenhum agente</option>
-                            @endforelse
+                            <!-- A OPÇÃO "TODOS" AGORA É A PRIMEIRA E PADRÃO -->
+                            <option value="all" {{ $currentAgentId === 'all' ? 'selected' : '' }}>Todos os Agentes</option>
+                            @foreach($agents as $ag)
+                                <option value="{{ $ag->id }}" {{ (string)$currentAgentId === (string)$ag->id ? 'selected' : '' }}>{{ $ag->name }} ({{ $ag->department_name }})</option>
+                            @endforeach
                         </select>
                     </div>
                 </form>
             </div>
 
-            <!-- CARD DO FULLCALENDAR / GRADE -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+            <!-- CARD DO FULLCALENDAR / GRADE (FLEX-1 PARA PEGAR O RESTO DA TELA) -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col flex-1 min-h-0">
                 
-                <div class="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3 text-[11px] text-indigo-700 font-medium flex items-center gap-2">
+                <div class="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3 text-[11px] text-indigo-700 font-medium flex items-center gap-2 shrink-0 mb-4">
                     <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
                     <span>DICA: CLIQUE EM QUALQUER LUGAR VAZIO PARA AGENDAR OU CRIAR BLOQUEIO. ARRASTE OS EVENTOS PARA MUDAR O HORÁRIO.</span>
                 </div>
 
-                <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-4 shrink-0 mb-4">
                     <div class="flex items-center gap-2">
                         <div class="inline-flex rounded-lg border border-indigo-200 shadow-sm">
                             <button class="bg-indigo-600 text-white px-3 py-1.5 rounded-l-lg hover:bg-indigo-700 transition">&lt;</button>
@@ -145,32 +145,33 @@
                     </div>
                 </div>
 
-                <!-- TABELA SIMULADA DO FULLCALENDAR CONFORME A SUA FOTO -->
-                <div class="overflow-x-auto border border-slate-200 rounded-xl">
-                    <table class="w-full text-center border-collapse text-xs">
-                        <thead>
-                            <tr class="bg-slate-50 border-b border-slate-200 font-bold text-slate-700">
-                                <th class="py-2.5 px-3 border-r border-slate-200 w-16"></th>
-                                <th class="py-2.5 px-3 border-r border-slate-200">dom. 16/08</th>
-                                <th class="py-2.5 px-3 border-r border-slate-200">seg. 17/08</th>
-                                <th class="py-2.5 px-3 border-r border-slate-200">ter. 18/08</th>
-                                <th class="py-2.5 px-3 border-r border-slate-200 bg-amber-50/60">qua. 19/08</th>
-                                <th class="py-2.5 px-3 border-r border-slate-200">qui. 20/08</th>
-                                <th class="py-2.5 px-3 border-r border-slate-200">sex. 21/08</th>
-                                <th class="py-2.5 px-3">sáb. 22/08</th>
+                <!-- TABELA SIMULADA (COM OVERFLOW-Y-AUTO E CABEÇALHO FIXO) -->
+                <div class="overflow-auto flex-1 min-h-0 border border-slate-200 rounded-xl relative bg-white">
+                    <table class="w-full text-center border-collapse text-xs relative">
+                        <thead class="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_0_0_#e2e8f0]">
+                            <tr class="font-bold text-slate-700">
+                                <th class="py-2.5 px-3 border-r border-slate-200 w-16 bg-slate-50"></th>
+                                <th class="py-2.5 px-3 border-r border-slate-200 bg-slate-50">dom. 16/08</th>
+                                <th class="py-2.5 px-3 border-r border-slate-200 bg-slate-50">seg. 17/08</th>
+                                <th class="py-2.5 px-3 border-r border-slate-200 bg-slate-50">ter. 18/08</th>
+                                <th class="py-2.5 px-3 border-r border-slate-200 bg-amber-50/90 text-amber-800">qua. 19/08</th>
+                                <th class="py-2.5 px-3 border-r border-slate-200 bg-slate-50">qui. 20/08</th>
+                                <th class="py-2.5 px-3 border-r border-slate-200 bg-slate-50">sex. 21/08</th>
+                                <th class="py-2.5 px-3 bg-slate-50">sáb. 22/08</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
-                            @foreach(['07', '08', '09', '10', '11'] as $hora)
-                                <tr class="h-12 hover:bg-slate-50/50">
-                                    <td class="border-r border-slate-200 font-bold text-slate-400 bg-slate-50/30 text-center">{{ $hora }}</td>
-                                    <td class="border-r border-slate-200"></td>
-                                    <td class="border-r border-slate-200"></td>
-                                    <td class="border-r border-slate-200"></td>
-                                    <td class="border-r border-slate-200 bg-amber-50/40"></td>
-                                    <td class="border-r border-slate-200"></td>
-                                    <td class="border-r border-slate-200"></td>
-                                    <td></td>
+                            <!-- Gerando 24 horas para garantir que vai dar scroll -->
+                            @foreach(['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23'] as $hora)
+                                <tr class="h-14 hover:bg-slate-50/50 transition-colors">
+                                    <td class="border-r border-slate-200 font-bold text-slate-400 bg-slate-50/30 text-center">{{ $hora }}:00</td>
+                                    <td class="border-r border-slate-200 border-dashed"></td>
+                                    <td class="border-r border-slate-200 border-dashed"></td>
+                                    <td class="border-r border-slate-200 border-dashed"></td>
+                                    <td class="border-r border-slate-200 border-dashed bg-amber-50/40"></td>
+                                    <td class="border-r border-slate-200 border-dashed"></td>
+                                    <td class="border-r border-slate-200 border-dashed"></td>
+                                    <td class="border-dashed"></td>
                                 </tr>
                             @endforeach
                         </tbody>
