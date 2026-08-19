@@ -5,9 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calendário e Horários</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234F46E5' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008z'/></svg>">
+    
+    <!-- FULLCALENDAR SCRIPTS -->
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/locales-all.global.min.js"></script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <style>[x-cloak] { display: none !important; }</style>
+    <style>
+        [x-cloak] { display: none !important; }
+        /* Ajustes do FullCalendar para casar com Tailwind */
+        .fc-theme-standard td, .fc-theme-standard th { border-color: #e2e8f0; }
+        .fc-col-header-cell { background-color: #f8fafc; padding: 0.5rem 0; font-weight: 700; color: #334155; text-transform: uppercase; font-size: 0.75rem; }
+        .fc-timegrid-slot-label { font-size: 0.75rem; color: #94a3b8; font-weight: 600; }
+        .fc .fc-timegrid-slot-minor { border-top-style: dashed; }
+        .fc-event { cursor: pointer; }
+    </style>
 </head>
 <body class="bg-gray-50 font-sans text-gray-900 min-h-screen flex overflow-hidden" 
     x-data="{ sidebarOpen: localStorage.getItem('sidebar_open') !== 'false' }"
@@ -69,7 +82,6 @@
         </div>
     </aside>
 
-    <!-- O MAIN AGORA TEM OVERFLOW HIDDEN PARA TRAVAR A TELA E O SCROLL FICAR SÓ NA GRADE DE HORÁRIOS -->
     <main class="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <div class="container mx-auto px-6 max-w-6xl py-6 flex flex-col h-full">
             
@@ -79,14 +91,15 @@
                     <p class="text-xs text-slate-500 mt-1">Gerencie a disponibilidade e as reuniões agendadas de cada membro.</p>
                 </div>
 
-                <!-- FORMULÁRIO DINÂMICO DOS SELECTS (EFEITO CASCATA) -->
+                <!-- FORMULÁRIO DINÂMICO COM RESET DE AGENTE (ONCHANGE) -->
                 <form id="calendarFilter" method="GET" action="/" class="flex flex-wrap items-center gap-3">
                     <input type="hidden" name="view" value="agenda">
                     
                     <!-- STATUS -->
                     <div class="flex items-center gap-2 border-r border-slate-200 pr-3">
                         <span class="font-bold text-indigo-600 uppercase text-[10px] tracking-wide">Status:</span>
-                        <select name="status" onchange="document.getElementById('calendarFilter').submit()" class="font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer text-xs">
+                        <!-- Ao mudar o status: limpa o assistente e força o agente a voltar para 'all' -->
+                        <select name="status" onchange="document.querySelector('[name=assistant_id]').value=''; document.querySelector('[name=agent_id]').value='all'; this.form.submit()" class="font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer text-xs">
                             <option value="ativo" {{ $statusFilter == 'ativo' ? 'selected' : '' }}>Ativos</option>
                             <option value="inativo" {{ $statusFilter == 'inativo' ? 'selected' : '' }}>Inativos</option>
                             <option value="todos" {{ $statusFilter == 'todos' ? 'selected' : '' }}>Todos</option>
@@ -96,7 +109,8 @@
                     <!-- ASSISTENTE IA -->
                     <div class="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2 shadow-sm">
                         <span class="font-bold text-indigo-600 uppercase text-[10px]">Assistente IA:</span>
-                        <select name="assistant_id" onchange="document.getElementById('calendarFilter').submit()" class="font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer">
+                        <!-- Ao mudar o assistente: força o agente a voltar para 'all' -->
+                        <select name="assistant_id" onchange="document.querySelector('[name=agent_id]').value='all'; this.form.submit()" class="font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer">
                             @forelse($assistants as $ast)
                                 <option value="{{ $ast->id }}" {{ $currentAssistantId == $ast->id ? 'selected' : '' }}>{{ $ast->name }}</option>
                             @empty
@@ -108,8 +122,7 @@
                     <!-- AGENTE -->
                     <div class="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2 shadow-sm">
                         <span class="font-bold text-indigo-600 uppercase text-[10px]">AGENTE:</span>
-                        <select name="agent_id" onchange="document.getElementById('calendarFilter').submit()" class="font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer max-w-[200px] truncate">
-                            <!-- A OPÇÃO "TODOS" AGORA É A PRIMEIRA E PADRÃO -->
+                        <select name="agent_id" onchange="this.form.submit()" class="font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer max-w-[200px] truncate">
                             <option value="all" {{ $currentAgentId === 'all' ? 'selected' : '' }}>Todos os Agentes</option>
                             @foreach($agents as $ag)
                                 <option value="{{ $ag->id }}" {{ (string)$currentAgentId === (string)$ag->id ? 'selected' : '' }}>{{ $ag->name }} ({{ $ag->department_name }})</option>
@@ -119,68 +132,148 @@
                 </form>
             </div>
 
-            <!-- CARD DO FULLCALENDAR / GRADE (FLEX-1 PARA PEGAR O RESTO DA TELA) -->
+            <!-- CARD DO FULLCALENDAR / GRADE -->
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col flex-1 min-h-0">
-                
-                <div class="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3 text-[11px] text-indigo-700 font-medium flex items-center gap-2 shrink-0 mb-4">
-                    <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
-                    <span>DICA: CLIQUE EM QUALQUER LUGAR VAZIO PARA AGENDAR OU CRIAR BLOQUEIO. ARRASTE OS EVENTOS PARA MUDAR O HORÁRIO.</span>
-                </div>
 
+                <!-- CONTROLES DO FULLCALENDAR CONSTRUÍDOS EM TAILWIND -->
                 <div class="flex items-center justify-between border-b border-slate-100 pb-4 shrink-0 mb-4">
                     <div class="flex items-center gap-2">
                         <div class="inline-flex rounded-lg border border-indigo-200 shadow-sm">
-                            <button class="bg-indigo-600 text-white px-3 py-1.5 rounded-l-lg hover:bg-indigo-700 transition">&lt;</button>
-                            <button class="bg-indigo-600 text-white px-3 py-1.5 rounded-r-lg hover:bg-indigo-700 transition">&gt;</button>
+                            <button id="btn-prev" class="bg-indigo-600 text-white px-3 py-1.5 rounded-l-lg hover:bg-indigo-700 transition">&lt;</button>
+                            <button id="btn-next" class="bg-indigo-600 text-white px-3 py-1.5 rounded-r-lg hover:bg-indigo-700 transition">&gt;</button>
                         </div>
-                        <button class="bg-indigo-300 hover:bg-indigo-400 text-indigo-900 font-semibold px-4 py-1.5 rounded-lg text-xs transition shadow-sm">Hoje</button>
+                        <button id="btn-today" class="bg-indigo-300 hover:bg-indigo-400 text-indigo-900 font-semibold px-4 py-1.5 rounded-lg text-xs transition shadow-sm">Hoje</button>
                     </div>
 
-                    <h2 class="text-xl font-bold text-slate-800 tracking-wide">16 – 22 de ago. de 2026</h2>
+                    <!-- Título Dinâmico do Calendário -->
+                    <h2 id="cal-title" class="text-xl font-bold text-slate-800 tracking-wide">Carregando...</h2>
 
                     <div class="inline-flex rounded-lg border border-indigo-200 shadow-sm text-xs font-semibold">
-                        <button class="bg-indigo-600 text-white px-3 py-1.5 rounded-l-lg">Mês</button>
-                        <button class="bg-indigo-600 text-white px-3 py-1.5">Semana</button>
-                        <button class="bg-indigo-600 text-white px-3 py-1.5 rounded-r-lg">Dia</button>
+                        <button id="btn-month" class="bg-indigo-600 text-white px-3 py-1.5 rounded-l-lg transition">Mês</button>
+                        <button id="btn-week" class="bg-indigo-600 text-white px-3 py-1.5 transition">Semana</button>
+                        <button id="btn-day" class="bg-indigo-600 text-white px-3 py-1.5 rounded-r-lg transition">Dia</button>
                     </div>
                 </div>
 
-                <!-- TABELA SIMULADA (COM OVERFLOW-Y-AUTO E CABEÇALHO FIXO) -->
-                <div class="overflow-auto flex-1 min-h-0 border border-slate-200 rounded-xl relative bg-white">
-                    <table class="w-full text-center border-collapse text-xs relative">
-                        <thead class="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_0_0_#e2e8f0]">
-                            <tr class="font-bold text-slate-700">
-                                <th class="py-2.5 px-3 border-r border-slate-200 w-16 bg-slate-50"></th>
-                                <th class="py-2.5 px-3 border-r border-slate-200 bg-slate-50">dom. 16/08</th>
-                                <th class="py-2.5 px-3 border-r border-slate-200 bg-slate-50">seg. 17/08</th>
-                                <th class="py-2.5 px-3 border-r border-slate-200 bg-slate-50">ter. 18/08</th>
-                                <th class="py-2.5 px-3 border-r border-slate-200 bg-amber-50/90 text-amber-800">qua. 19/08</th>
-                                <th class="py-2.5 px-3 border-r border-slate-200 bg-slate-50">qui. 20/08</th>
-                                <th class="py-2.5 px-3 border-r border-slate-200 bg-slate-50">sex. 21/08</th>
-                                <th class="py-2.5 px-3 bg-slate-50">sáb. 22/08</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100">
-                            <!-- Gerando 24 horas para garantir que vai dar scroll -->
-                            @foreach(['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23'] as $hora)
-                                <tr class="h-14 hover:bg-slate-50/50 transition-colors">
-                                    <td class="border-r border-slate-200 font-bold text-slate-400 bg-slate-50/30 text-center">{{ $hora }}:00</td>
-                                    <td class="border-r border-slate-200 border-dashed"></td>
-                                    <td class="border-r border-slate-200 border-dashed"></td>
-                                    <td class="border-r border-slate-200 border-dashed"></td>
-                                    <td class="border-r border-slate-200 border-dashed bg-amber-50/40"></td>
-                                    <td class="border-r border-slate-200 border-dashed"></td>
-                                    <td class="border-r border-slate-200 border-dashed"></td>
-                                    <td class="border-dashed"></td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+                <!-- CONTAINER DO FULLCALENDAR (ELE VAI CRIAR O SCROLL INTERNO AQUI) -->
+                <div class="flex-1 min-h-0 relative">
+                    <div id="calendar" class="h-full"></div>
                 </div>
 
             </div>
-
         </div>
     </main>
+
+    <!-- SCRIPT DE INICIALIZAÇÃO DO FULLCALENDAR -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const calendarEl = document.getElementById('calendar');
+            const agentId = '{{ $currentAgentId }}';
+            const csrfToken = '{{ csrf_token() }}';
+
+            const calendar = new FullCalendar.Calendar(calendarEl, {
+                locale: 'pt-br',
+                height: '100%',
+                initialView: 'timeGridWeek',
+                headerToolbar: false, // Desliga a barra padrão porque criamos a nossa no HTML
+                allDaySlot: false,
+                slotMinTime: '00:00:00',
+                slotMaxTime: '24:00:00',
+                editable: true,
+                selectable: true,
+                events: '/?action=get_events&agent_id=' + agentId,
+
+                // Atualiza o título e os botões da nossa barra customizada
+                datesSet: function(info) {
+                    document.getElementById('cal-title').innerText = info.view.title;
+                    
+                    document.querySelectorAll('#btn-month, #btn-week, #btn-day').forEach(b => {
+                        b.classList.remove('bg-indigo-800');
+                        b.classList.add('bg-indigo-600');
+                    });
+                    
+                    if (info.view.type === 'dayGridMonth') document.getElementById('btn-month').classList.add('bg-indigo-800', 'bg-indigo-600');
+                    if (info.view.type === 'timeGridWeek') document.getElementById('btn-week').classList.add('bg-indigo-800', 'bg-indigo-600');
+                    if (info.view.type === 'timeGridDay') document.getElementById('btn-day').classList.add('bg-indigo-800', 'bg-indigo-600');
+                },
+
+                select: function(info) {
+                    if (agentId === 'all') {
+                        alert('Selecione um agente específico no filtro acima para poder criar um bloqueio.');
+                        calendar.unselect();
+                        return;
+                    }
+                    if (confirm('Criar BLOQUEIO neste horário?')) {
+                        fetch('/', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                            body: JSON.stringify({
+                                action: 'store_event',
+                                human_agent_id: agentId,
+                                start_time: info.startStr,
+                                end_time: info.endStr,
+                                type: 'block'
+                            })
+                        }).then(r => r.json()).then(data => {
+                            if(data.success) calendar.refetchEvents();
+                            else alert(data.message || 'Erro ao criar bloqueio.');
+                        });
+                    }
+                },
+
+                eventDrop: function(info) {
+                    fetch('/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                        body: JSON.stringify({
+                            action: 'update_event',
+                            id: info.event.id,
+                            start_time: info.event.startStr,
+                            end_time: info.event.endStr
+                        })
+                    }).then(r => r.json()).then(data => {
+                        if(!data.success) info.revert();
+                    });
+                },
+
+                eventResize: function(info) {
+                    fetch('/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                        body: JSON.stringify({
+                            action: 'update_event',
+                            id: info.event.id,
+                            start_time: info.event.startStr,
+                            end_time: info.event.endStr
+                        })
+                    }).then(r => r.json()).then(data => {
+                        if(!data.success) info.revert();
+                    });
+                },
+
+                eventClick: function(info) {
+                    if (confirm('Deseja excluir este evento/bloqueio?')) {
+                        fetch('/', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                            body: JSON.stringify({ action: 'delete_event', id: info.event.id })
+                        }).then(r => r.json()).then(data => {
+                            if(data.success) info.event.remove();
+                        });
+                    }
+                }
+            });
+
+            calendar.render();
+
+            // Interligando nossos botões Tailwind à API do Calendário
+            document.getElementById('btn-prev').addEventListener('click', () => calendar.prev());
+            document.getElementById('btn-next').addEventListener('click', () => calendar.next());
+            document.getElementById('btn-today').addEventListener('click', () => calendar.today());
+            document.getElementById('btn-month').addEventListener('click', () => calendar.changeView('dayGridMonth'));
+            document.getElementById('btn-week').addEventListener('click', () => calendar.changeView('timeGridWeek'));
+            document.getElementById('btn-day').addEventListener('click', () => calendar.changeView('timeGridDay'));
+        });
+    </script>
 </body>
 </html>
