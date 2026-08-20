@@ -6,7 +6,7 @@
     <title>Gestor de Assistentes IA</title>
     
     @if(isset($currentView) && $currentView === 'settings')
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234F46E5' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.27 1.06-.12 1.451l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.27-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.149-.894z'/><path stroke-linecap='round' stroke-linejoin='round' d='M15 12a3 3 0 11-6 0 3 3 0 016 0z'/></svg>">
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234F46E5' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.27 1.06-.12 1.451l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.27-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.149-.894z'/><path stroke-linecap='round' stroke-linejoin='round' d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>">
     @elseif(isset($currentView) && $currentView === 'agenda')
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234F46E5' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008z'/></svg>">
     @elseif(isset($currentView) && $currentView === 'equipe')
@@ -19,7 +19,6 @@
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         [x-cloak] { display: none !important; }
-        /* Ajuste sutil para a barra de rolagem interna */
         .custom-scroll::-webkit-scrollbar { width: 4px; }
         .custom-scroll::-webkit-scrollbar-track { background: transparent; }
         .custom-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
@@ -51,7 +50,6 @@
 
     @if($configuring)
         <script>
-            // Restaura o scroll SOMENTE se houver submissão de formulário
             document.addEventListener("DOMContentLoaded", function() {
                 const key = 'scrollpos_config_{{ $configuring->id }}';
                 const scrollpos = sessionStorage.getItem(key);
@@ -61,7 +59,6 @@
                 }
             });
 
-            // Escuta APENAS os envios de formulário para salvar a posição
             document.addEventListener("submit", function() {
                 sessionStorage.setItem('scrollpos_config_{{ $configuring->id }}', window.scrollY);
             });
@@ -88,7 +85,6 @@
     "
 >
 
-    <!-- SIDEBAR LATERAL GLOBAL -->
     <aside :class="sidebarOpen ? 'w-64' : 'w-20'" class="bg-indigo-700 text-white min-h-screen transition-all duration-300 flex flex-col justify-between shrink-0 shadow-xl relative z-50">
         <div>
             <div class="h-16 flex items-center border-b border-indigo-600/80 transition-all px-3" :class="sidebarOpen ? 'justify-between' : 'justify-center'">
@@ -105,7 +101,6 @@
             </div>
 
             <nav class="p-3 space-y-2 font-medium text-sm">
-                <!-- ASSISTENTES IA -->
                 <div class="relative group">
                     <a href="/" class="flex items-center rounded-xl transition font-semibold {{ $currentView === 'robots' ? 'bg-indigo-900/90 text-white shadow-sm border border-indigo-500/30' : 'text-indigo-100 hover:bg-indigo-600' }}" :class="sidebarOpen ? 'gap-3.5 px-4 py-3' : 'justify-center p-3'">
                         <svg class="w-5 h-5 shrink-0 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v1.242c0 .289.23.523.518.523h3.726c.288 0 .518-.234.518-.523V3.104M12 21v-3.75m9-4.5h-1.5M4.5 12.75H3m16.5 0a2.25 2.25 0 002.25-2.25V8.25a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 8.25v2.25a2.25 2.25 0 002.25 2.25h13.5z" /></svg>
@@ -114,7 +109,6 @@
                     <div x-show="!sidebarOpen" class="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-md shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">Assistentes IA</div>
                 </div>
 
-                <!-- EQUIPE & AGENDAS -->
                 <div class="relative group">
                     <a href="/?view=equipe" class="flex items-center rounded-xl transition font-semibold {{ $currentView === 'equipe' ? 'bg-indigo-900/90 text-white shadow-sm border border-indigo-500/30' : 'text-indigo-100 hover:bg-indigo-600' }}" :class="sidebarOpen ? 'gap-3.5 px-4 py-3' : 'justify-center p-3'">
                         <svg class="w-5 h-5 shrink-0 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" /></svg>
@@ -123,7 +117,6 @@
                     <div x-show="!sidebarOpen" class="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-md shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">Equipe & Agendas</div>
                 </div>
 
-                <!-- CALENDÁRIO -->
                 <div class="relative group">
                     <a href="/?view=agenda" class="flex items-center rounded-xl transition font-semibold {{ $currentView === 'agenda' ? 'bg-indigo-900/90 text-white shadow-sm border border-indigo-500/30' : 'text-indigo-100 hover:bg-indigo-600' }}" :class="sidebarOpen ? 'gap-3.5 px-4 py-3' : 'justify-center p-3'">
                         <svg class="w-5 h-5 shrink-0 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008z" /></svg>
@@ -132,7 +125,6 @@
                     <div x-show="!sidebarOpen" class="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-md shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">Calendário</div>
                 </div>
 
-                <!-- SETTINGS -->
                 <div class="relative group">
                     <a href="/?view=settings" class="flex items-center rounded-xl transition font-semibold {{ $currentView === 'settings' ? 'bg-indigo-900/90 text-white shadow-sm border border-indigo-500/30' : 'text-indigo-100 hover:bg-indigo-600' }}" :class="sidebarOpen ? 'gap-3.5 px-4 py-3' : 'justify-center p-3'">
                         <svg class="w-5 h-5 shrink-0 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.27 1.06-.12 1.451l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.27-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.149-.894z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -168,7 +160,6 @@
             @endif
 
             @if($currentView === 'equipe')
-                <!-- TELA DE GESTÃO DE EQUIPE E DEPARTAMENTOS -->
                 <div class="space-y-6">
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                         <div class="border-b border-gray-100 pb-3 mb-6">
@@ -287,7 +278,6 @@
             @elseif($configuring)
                 <div class="sticky top-0 z-40 bg-gray-50/90 backdrop-blur-md py-4 mb-6 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm -mx-6 px-6">
                     <div class="flex items-center gap-4">
-                        <!-- Sem onclick para limpar a sessão, pois a gente vai limpar dinamicamente -->
                         <a href="/" class="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1.5 text-sm transition bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-100">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg> Voltar
                         </a>
@@ -333,8 +323,13 @@
                         waResult: null,
                         pollAttempts: 0,
                         waStatus: 'checking', 
-                        importingUrl: false,
                         
+                        // NOVAS VARIÁVEIS PARA O CRAWLER JAVASCRIPT
+                        websiteToCrawl: '',
+                        crawling: false,
+                        crawlProgressText: '',
+                        crawlPercent: 0,
+
                         getApiKey() {
                             if (this.provider === 'openai') return document.querySelector('input[name=\'openai_api_key\']').value;
                             if (this.provider === 'gemini') return document.querySelector('input[name=\'gemini_api_key\']').value;
@@ -345,6 +340,55 @@
                         
                         getWaParams() {
                             return { provider: this.wa_provider, url: this.wa_url, instance: this.wa_instance, token: this.wa_token };
+                        },
+
+                        async startCrawler() {
+                            if (!this.websiteToCrawl) return alert('Por favor, digite a URL do site para importar.');
+                            
+                            this.crawling = true;
+                            this.crawlPercent = 5;
+                            this.crawlProgressText = 'Mapeando as páginas internas do site...';
+
+                            try {
+                                const mapRes = await fetch('/', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                                    body: JSON.stringify({ action: 'map_site', website_url: this.websiteToCrawl })
+                                });
+                                const mapData = await mapRes.json();
+                                
+                                if (!mapData.success || !mapData.urls || mapData.urls.length === 0) {
+                                    alert(mapData.message || 'Não foi possível mapear o site. Tente colocar uma URL específica.');
+                                    this.crawling = false;
+                                    return;
+                                }
+
+                                const urls = mapData.urls;
+                                let count = 0;
+                                
+                                for (const url of urls) {
+                                    count++;
+                                    this.crawlPercent = Math.round((count / urls.length) * 100);
+                                    this.crawlProgressText = `Salvando ${count} de ${urls.length}: ${url}`;
+                                    
+                                    await fetch('/', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                                        body: JSON.stringify({ 
+                                            action: 'scrape_single_url', 
+                                            assistant_id: '{{ $configuring->id ?? '' }}', 
+                                            website_url: url 
+                                        })
+                                    });
+                                }
+
+                                this.crawlProgressText = 'Extração concluída! Recarregando...';
+                                window.location.reload();
+
+                            } catch (e) {
+                                alert('Erro de conexão durante a extração.');
+                                this.crawling = false;
+                            }
                         },
 
                         async testConnection() {
@@ -560,7 +604,6 @@
                                     <div class="mb-5 bg-gray-50 p-4 rounded-lg border border-gray-200">
                                         <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Fontes de Conhecimento ({{ count($configuring->knowledge_files) }})</h4>
                                         
-                                        <!-- LISTA COM SCROLL INTERNO PARA MÁXIMO DE 3 ITENS -->
                                         <div class="max-h-[135px] overflow-y-auto pr-1 custom-scroll">
                                             <ul class="space-y-2 text-sm text-gray-700">
                                                 @foreach($configuring->knowledge_files as $index => $file)
@@ -598,13 +641,27 @@
                                 <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
                                     <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">🌐 Importar Site (Extração de Conteúdo)</label>
                                     <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                                        <input type="url" name="website_url" placeholder="https://www.site.com" class="block w-full text-sm border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
-                                        <button type="submit" form="configForm" @click="importingUrl = true" :class="importingUrl ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'" class="text-white text-xs font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-1.5 shrink-0 transition shadow-sm whitespace-nowrap">
-                                            <span x-show="!importingUrl" class="flex items-center gap-1.5"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" /></svg> Extrair Dados</span>
-                                            <span x-show="importingUrl" class="flex items-center gap-1.5"><span class="inline-block animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></span> Lendo site...</span>
+                                        <!-- Note que o botão mudou para type="button" e o input não tem "name=" para evitar envio nativo -->
+                                        <input type="url" x-model="websiteToCrawl" placeholder="https://www.site.com" class="block w-full text-sm border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+                                        
+                                        <button type="button" @click="startCrawler()" :disabled="crawling" :class="crawling ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'" class="text-white text-xs font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-1.5 shrink-0 transition shadow-sm whitespace-nowrap">
+                                            <span x-show="!crawling" class="flex items-center gap-1.5"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" /></svg> Extrair Site</span>
+                                            <span x-show="crawling" class="flex items-center gap-1.5"><span class="inline-block animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></span> Extraindo...</span>
                                         </button>
                                     </div>
-                                    <p class="text-[10px] text-slate-400 mt-1.5 leading-tight">O sistema irá varrer a URL, remover menus/anúncios e extrair apenas o texto útil para a IA.</p>
+
+                                    <!-- BARRA DE PROGRESSO DO CRAWLER -->
+                                    <div x-show="crawling" class="mt-3" x-cloak>
+                                        <div class="flex justify-between items-center mb-1">
+                                            <span class="text-[10px] font-bold text-indigo-600 truncate max-w-[85%]" x-text="crawlProgressText"></span>
+                                            <span class="text-[10px] font-bold text-slate-500" x-text="crawlPercent + '%'"></span>
+                                        </div>
+                                        <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                                            <div class="bg-indigo-600 h-1.5 rounded-full transition-all duration-300" :style="'width: ' + crawlPercent + '%'"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <p x-show="!crawling" class="text-[10px] text-slate-400 mt-1.5 leading-tight">O sistema irá varrer a URL, identificar as páginas internas e extrair o texto útil automaticamente.</p>
                                 </div>
 
                             </div>

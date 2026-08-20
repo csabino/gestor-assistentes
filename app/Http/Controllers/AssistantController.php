@@ -98,31 +98,17 @@ class AssistantController extends Controller
             return view('assistants.chat', compact('assistant'));
         }
 
-        if ($request->isMethod('post') && $request->input('action') === 'store_agent') {
-            return $this->storeAgent($request);
-        }
-
-        if ($request->isMethod('post') && $request->input('action') === 'store_department') {
-            return $this->storeDepartment($request);
-        }
-
-        if ($request->isMethod('post') && $request->input('action') === 'chat') {
-            return $this->chat($request);
-        }
-
-        if ($request->isMethod('post') && $request->input('action') === 'test_ai') {
-            return $this->testAi($request);
-        }
-
-        if ($request->isMethod('post') && $request->input('action') === 'status_whatsapp') {
-            return response()->json(['connected' => true]);
-        }
-        if ($request->isMethod('post') && $request->input('action') === 'test_whatsapp') {
-            return response()->json(['success' => true, 'connected' => true, 'message' => 'WhatsApp ativo.']);
-        }
-        if ($request->isMethod('post') && $request->input('action') === 'disconnect_whatsapp') {
-            return response()->json(['success' => true]);
-        }
+        if ($request->isMethod('post') && $request->input('action') === 'store_agent') return $this->storeAgent($request);
+        if ($request->isMethod('post') && $request->input('action') === 'store_department') return $this->storeDepartment($request);
+        if ($request->isMethod('post') && $request->input('action') === 'chat') return $this->chat($request);
+        if ($request->isMethod('post') && $request->input('action') === 'test_ai') return $this->testAi($request);
+        if ($request->isMethod('post') && $request->input('action') === 'status_whatsapp') return response()->json(['connected' => true]);
+        if ($request->isMethod('post') && $request->input('action') === 'test_whatsapp') return response()->json(['success' => true, 'connected' => true, 'message' => 'WhatsApp ativo.']);
+        if ($request->isMethod('post') && $request->input('action') === 'disconnect_whatsapp') return response()->json(['success' => true]);
+        
+        // NOVAS ROTAS DO SCRAPER SEQUENCIAL
+        if ($request->isMethod('post') && $request->input('action') === 'map_site') return $this->mapSite($request);
+        if ($request->isMethod('post') && $request->input('action') === 'scrape_single_url') return $this->scrapeSingleUrl($request);
 
         if ($request->isMethod('post')) return $this->store($request);
         if ($request->isMethod('put')) return $this->update($request);
@@ -191,6 +177,84 @@ class AssistantController extends Controller
         ));
     }
 
+    private function mapSite(Request $request)
+    {
+        $url = trim($request->input('website_url'));
+        if (!str_starts_with($url, 'http://') && !str_starts_with($url, 'https://')) {
+            $url = 'https://' . $url;
+        }
+
+        $domain = parse_url($url, PHP_URL_HOST);
+        if (!$domain) return response()->json(['success' => false, 'message' => 'URL inválida.']);
+        
+        $domainStr = str_replace('www.', '', $domain);
+
+        $content = $this->fetchContentFromUrl($url);
+        if (!$content) {
+            return response()->json(['success' => false, 'message' => 'Falha ao acessar o site inicial. Ele pode estar bloqueando a extração.']);
+        }
+
+        $links = [$url]; // Garante que a Home será lida
+        preg_match_all('/\[[^\]]*\]\((https?:\/\/[^\)]+)\)/i', $content, $matches);
+
+        if (!empty($matches[1])) {
+            foreach ($matches[1] as $link) {
+                $link = explode('#', $link)[0];
+                $link = rtrim($link, '/');
+                $linkDomain = parse_url($link, PHP_URL_HOST);
+                
+                if ($linkDomain) {
+                    $linkDomainStr = str_replace('www.', '', $linkDomain);
+                    if (str_ends_with($linkDomainStr, $domainStr)) {
+                        if (!preg_match('/\.(jpg|jpeg|png|gif|pdf|zip|rar|mp4|mp3|css|js)$/i', $link)) {
+                            if (!in_array($link, $links)) {
+                                $links[] = $link;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        $links = array_slice($links, 0, 50); // Limita a 50 páginas para proteção
+        return response()->json(['success' => true, 'urls' => array_values($links)]);
+    }
+
+    private function scrapeSingleUrl(Request $request)
+    {
+        $assistant = Assistant::findOrFail($request->assistant_id);
+        $url = trim($request->input('website_url'));
+
+        $content = $this->fetchContentFromUrl($url);
+        
+        if ($content) {
+            $files = is_array($assistant->knowledge_files) ? $assistant->knowledge_files : [];
+            
+            // Verifica se a URL já existe para atualizar ou pular
+            $exists = false;
+            foreach ($files as &$f) {
+                if (($f['name'] ?? '') === '🌐 ' . $url) {
+                    $f['content'] = $content; // Atualiza o conteúdo se já existir
+                    $exists = true;
+                    break;
+                }
+            }
+
+            if (!$exists) {
+                $files[] = [
+                    'name' => '🌐 ' . $url,
+                    'path' => null,
+                    'content' => $content
+                ];
+            }
+            
+            $assistant->forceFill(['knowledge_files' => array_values($files)])->save();
+            return response()->json(['success' => true, 'url' => $url]);
+        }
+
+        return response()->json(['success' => false, 'message' => 'Sem conteúdo na página.']);
+    }
+
     private function storeDepartment(Request $request)
     {
         $request->validate(['name' => 'required|string|max:255']);
@@ -251,7 +315,6 @@ class AssistantController extends Controller
 
     private function update(Request $request)
     {
-        set_time_limit(300); // Garante que o PHP não mate o processo durante o Deep Scraping (5 minutos)
         $this->configureTimezone();
         $assistant = Assistant::findOrFail($request->assistant_id);
 
@@ -289,7 +352,7 @@ class AssistantController extends Controller
         }
         $hasKnowledgeChanges = false;
 
-        // Processamento de Upload de Arquivos Físicos
+        // Processamento de Upload de Arquivos Físicos (PDF, DOCX, TXT)
         if ($request->hasFile('documents')) {
             $uploadedFiles = $request->file('documents');
             if (!is_array($uploadedFiles)) {
@@ -318,35 +381,6 @@ class AssistantController extends Controller
             }
         }
 
-        // NOVO: DEEP SCRAPING COM JINA READER (Varredura de Site Completo)
-        if ($request->filled('website_url')) {
-            $url = trim($request->input('website_url'));
-            
-            // Limpa arquivos velhos com esse domínio para evitar duplicação
-            $domain = parse_url($url, PHP_URL_HOST);
-            if ($domain) {
-                $existingFiles = array_filter($existingFiles, function($f) use ($domain) {
-                    return !str_contains($f['name'] ?? '', $domain);
-                });
-            }
-
-            // O Robô Aranha entra em ação (Pega até 30 páginas internas)
-            $crawledData = $this->crawlSiteWithJina($url, 30);
-
-            if (!empty($crawledData)) {
-                foreach ($crawledData as $scrapedUrl => $webContent) {
-                    $existingFiles[] = [
-                        'name' => '🌐 ' . $scrapedUrl,
-                        'path' => null,
-                        'content' => $webContent
-                    ];
-                }
-                $hasKnowledgeChanges = true;
-            } else {
-                return redirect('/?configure=' . $assistant->id)->with('error', 'Não foi possível extrair conteúdo da URL informada.');
-            }
-        }
-
         if ($hasKnowledgeChanges) {
             $data['knowledge_files'] = array_values($existingFiles);
         }
@@ -356,73 +390,10 @@ class AssistantController extends Controller
         return redirect('/?configure=' . $assistant->id)->with('success', 'Configurações atualizadas!');
     }
 
-    /**
-     * O Robô Aranha (Deep Scraper)
-     * Navega recursivamente na URL principal e coleta todas as subpáginas do mesmo domínio.
-     */
-    private function crawlSiteWithJina(string $baseUrl, int $maxPages = 30): array
-    {
-        if (!str_starts_with($baseUrl, 'http://') && !str_starts_with($baseUrl, 'https://')) {
-            $baseUrl = 'https://' . $baseUrl;
-        }
-
-        $visited = [];
-        $toVisit = [$baseUrl];
-        $results = [];
-
-        $domain = parse_url($baseUrl, PHP_URL_HOST);
-        if (!$domain) return [];
-        $domainStr = str_replace('www.', '', $domain);
-
-        while (!empty($toVisit) && count($results) < $maxPages) {
-            $currentUrl = array_shift($toVisit);
-
-            // Remove âncoras e barras finais para evitar duplicidade
-            $currentUrl = explode('#', $currentUrl)[0];
-            $currentUrl = rtrim($currentUrl, '/');
-
-            if (in_array($currentUrl, $visited)) continue;
-            $visited[] = $currentUrl;
-
-            $content = $this->fetchContentFromUrl($currentUrl);
-
-            if ($content) {
-                // Guarda o texto da página vinculada à URL exata
-                $results[$currentUrl] = $content;
-
-                // Lê o Markdown e extrai todos os links internos: [texto](url)
-                preg_match_all('/\[[^\]]*\]\((https?:\/\/[^\)]+)\)/i', $content, $matches);
-
-                if (!empty($matches[1])) {
-                    foreach ($matches[1] as $link) {
-                        $link = explode('#', $link)[0];
-                        $link = rtrim($link, '/');
-                        $linkDomain = parse_url($link, PHP_URL_HOST);
-
-                        if ($linkDomain) {
-                            $linkDomainStr = str_replace('www.', '', $linkDomain);
-
-                            // Condição: Ser do mesmo site, não ter visitado e não estar na fila
-                            if (str_ends_with($linkDomainStr, $domainStr) && !in_array($link, $visited) && !in_array($link, $toVisit)) {
-                                // Ignora PDFs, Imagens e Mídias (foca apenas em páginas)
-                                if (!preg_match('/\.(jpg|jpeg|png|gif|pdf|zip|rar|mp4|mp3|css|js)$/i', $link)) {
-                                    $toVisit[] = $link;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return $results;
-    }
-
     private function fetchContentFromUrl(string $url): ?string
     {
         try {
-            $response = Http::timeout(30)->get('https://r.jina.ai/' . $url);
-
+            $response = Http::timeout(25)->get('https://r.jina.ai/' . $url);
             if ($response->successful()) {
                 return $this->sanitizeText($response->body());
             }
