@@ -104,9 +104,8 @@ class AssistantController extends Controller
         if ($request->isMethod('post') && $request->input('action') === 'test_ai') return $this->testAi($request);
         if ($request->isMethod('post') && $request->input('action') === 'status_whatsapp') return response()->json(['connected' => true]);
         if ($request->isMethod('post') && $request->input('action') === 'test_whatsapp') return response()->json(['success' => true, 'connected' => true, 'message' => 'WhatsApp ativo.']);
-        if ($request->isMethod('post') && $request->input('action') === 'disconnect_whatsapp') return response()->json(['success' => true]);
+        if ($request->isMethod('post') && $request->input('action') === 'disconnect_whatsapp') return $this->disconnectWhatsapp($request);
         
-        // ROTAS DO CRAWLER/SCRAPER SEQUENCIAL
         if ($request->isMethod('post') && $request->input('action') === 'map_site') return $this->mapSite($request);
         if ($request->isMethod('post') && $request->input('action') === 'scrape_single_url') return $this->scrapeSingleUrl($request);
 
@@ -177,6 +176,35 @@ class AssistantController extends Controller
         ));
     }
 
+    private function disconnectWhatsapp(Request $request)
+    {
+        $provider = $request->input('provider');
+        $baseUrl = rtrim($request->input('url', ''), '/');
+        $instance = trim($request->input('instance', ''));
+        $token = trim($request->input('token', ''));
+
+        if ($baseUrl && $token) {
+            try {
+                if (str_contains($baseUrl, 'uazapi.com') || $provider === 'uazapi') {
+                    Http::withHeaders([
+                        'token' => $token,
+                        'apikey' => $token,
+                        'Content-Type' => 'application/json'
+                    ])->post($baseUrl . '/instance/logout', ['token' => $token]);
+                } else if ($provider === 'evolution' && $instance) {
+                    Http::withHeaders([
+                        'apikey' => $token,
+                        'Content-Type' => 'application/json'
+                    ])->delete($baseUrl . '/instance/logout/' . $instance);
+                }
+            } catch (\Throwable $e) {
+                Log::error("Erro ao desconectar WhatsApp: " . $e->getMessage());
+            }
+        }
+
+        return response()->json(['success' => true, 'message' => 'Desconectado com sucesso.']);
+    }
+
     private function mapSite(Request $request)
     {
         $url = trim($request->input('website_url'));
@@ -199,7 +227,6 @@ class AssistantController extends Controller
 
         if (!empty($matches[1])) {
             foreach ($matches[1] as $link) {
-                // Filtra e remove parâmetros de busca (?) e âncoras (#) para evitar loops infinitos
                 $link = explode('?', $link)[0];
                 $link = explode('#', $link)[0];
                 $link = rtrim($link, '/');
@@ -218,7 +245,6 @@ class AssistantController extends Controller
             }
         }
         
-        // Limite ampliado para 150 páginas por site
         $links = array_slice($links, 0, 150);
         return response()->json(['success' => true, 'urls' => array_values($links)]);
     }
@@ -498,7 +524,6 @@ class AssistantController extends Controller
             }
         }
 
-        // REGRAS NO FINAL ABSOLUTO PARA EVITAR DECAIMENTO DE ATENÇÃO DA IA
         $prompt .= "\n\n===============================================\n";
         $prompt .= "DIRETRIZES ABSOLUTAS E OBRIGATÓRIAS DE RESPOSTA E CITAÇÃO DE URL:\n";
         $prompt .= "1. FIDELIDADE RIGOROSA E EXATA AO TEXTO: Você deve responder utilizando EXATAMENTE os mesmos termos, frases, títulos e explicações presentes nas fontes da Base de Conhecimento acima. NUNCA parafraseie com termos genéricos, NUNCA resuma de forma solta e NUNCA invente explicações.\n";
@@ -555,7 +580,7 @@ class AssistantController extends Controller
         if (!is_string($text) || empty($text)) return '';
         $clean = @mb_convert_encoding($text, 'UTF-8', 'UTF-8');
         $clean = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $clean);
-        return trim(substr($clean, 0, 40000));
+        return trim(substr($clean, 0, 3500));
     }
 
     private function chat(Request $request)
@@ -826,7 +851,7 @@ class AssistantController extends Controller
 
         try {
             if ($provider === 'openai') {
-                $res = Http::withToken($apiKey)->post('https://api.openai.com/v1 climate/chat/completions', [
+                $res = Http::withToken($apiKey)->post('https://api.openai.com/v1/chat/completions', [
                     'model' => 'gpt-4o-mini',
                     'messages' => [['role' => 'user', 'content' => 'Responda OK']]
                 ]);
