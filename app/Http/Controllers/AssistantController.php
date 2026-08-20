@@ -251,6 +251,7 @@ class AssistantController extends Controller
 
     private function update(Request $request)
     {
+        set_time_limit(300); // Garante que o PHP não mate o processo durante o Deep Scraping (5 minutos)
         $this->configureTimezone();
         $assistant = Assistant::findOrFail($request->assistant_id);
 
@@ -317,20 +318,32 @@ class AssistantController extends Controller
             }
         }
 
-        // Processamento de URL via Jina Reader
+        // NOVO: DEEP SCRAPING COM JINA READER (Varredura de Site Completo)
         if ($request->filled('website_url')) {
             $url = trim($request->input('website_url'));
-            $webContent = $this->fetchContentFromUrl($url);
+            
+            // Limpa arquivos velhos com esse domínio para evitar duplicação
+            $domain = parse_url($url, PHP_URL_HOST);
+            if ($domain) {
+                $existingFiles = array_filter($existingFiles, function($f) use ($domain) {
+                    return !str_contains($f['name'] ?? '', $domain);
+                });
+            }
 
-            if ($webContent) {
-                $existingFiles[] = [
-                    'name' => '🌐 ' . $url,
-                    'path' => null,
-                    'content' => $webContent
-                ];
+            // O Robô Aranha entra em ação (Pega até 30 páginas internas)
+            $crawledData = $this->crawlSiteWithJina($url, 30);
+
+            if (!empty($crawledData)) {
+                foreach ($crawledData as $scrapedUrl => $webContent) {
+                    $existingFiles[] = [
+                        'name' => '🌐 ' . $scrapedUrl,
+                        'path' => null,
+                        'content' => $webContent
+                    ];
+                }
                 $hasKnowledgeChanges = true;
             } else {
-                return redirect('/?configure=' . $assistant->id)->with('error', 'Não foi possível extrair o conteúdo da URL informada.');
+                return redirect('/?configure=' . $assistant->id)->with('error', 'Não foi possível extrair conteúdo da URL informada.');
             }
         }
 
@@ -343,17 +356,71 @@ class AssistantController extends Controller
         return redirect('/?configure=' . $assistant->id)->with('success', 'Configurações atualizadas!');
     }
 
+    /**
+     * O Robô Aranha (Deep Scraper)
+     * Navega recursivamente na URL principal e coleta todas as subpáginas do mesmo domínio.
+     */
+    private function crawlSiteWithJina(string $baseUrl, int $maxPages = 30): array
+    {
+        if (!str_starts_with($baseUrl, 'http://') && !str_starts_with($baseUrl, 'https://')) {
+            $baseUrl = 'https://' . $baseUrl;
+        }
+
+        $visited = [];
+        $toVisit = [$baseUrl];
+        $results = [];
+
+        $domain = parse_url($baseUrl, PHP_URL_HOST);
+        if (!$domain) return [];
+        $domainStr = str_replace('www.', '', $domain);
+
+        while (!empty($toVisit) && count($results) < $maxPages) {
+            $currentUrl = array_shift($toVisit);
+
+            // Remove âncoras e barras finais para evitar duplicidade
+            $currentUrl = explode('#', $currentUrl)[0];
+            $currentUrl = rtrim($currentUrl, '/');
+
+            if (in_array($currentUrl, $visited)) continue;
+            $visited[] = $currentUrl;
+
+            $content = $this->fetchContentFromUrl($currentUrl);
+
+            if ($content) {
+                // Guarda o texto da página vinculada à URL exata
+                $results[$currentUrl] = $content;
+
+                // Lê o Markdown e extrai todos os links internos: [texto](url)
+                preg_match_all('/\[[^\]]*\]\((https?:\/\/[^\)]+)\)/i', $content, $matches);
+
+                if (!empty($matches[1])) {
+                    foreach ($matches[1] as $link) {
+                        $link = explode('#', $link)[0];
+                        $link = rtrim($link, '/');
+                        $linkDomain = parse_url($link, PHP_URL_HOST);
+
+                        if ($linkDomain) {
+                            $linkDomainStr = str_replace('www.', '', $linkDomain);
+
+                            // Condição: Ser do mesmo site, não ter visitado e não estar na fila
+                            if (str_ends_with($linkDomainStr, $domainStr) && !in_array($link, $visited) && !in_array($link, $toVisit)) {
+                                // Ignora PDFs, Imagens e Mídias (foca apenas em páginas)
+                                if (!preg_match('/\.(jpg|jpeg|png|gif|pdf|zip|rar|mp4|mp3|css|js)$/i', $link)) {
+                                    $toVisit[] = $link;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return $results;
+    }
+
     private function fetchContentFromUrl(string $url): ?string
     {
         try {
-            if (!str_starts_with($url, 'http://') && !str_starts_with($url, 'https://')) {
-                $url = 'https://' . $url;
-            }
-
-            if (!filter_var($url, FILTER_VALIDATE_URL)) {
-                return null;
-            }
-
             $response = Http::timeout(30)->get('https://r.jina.ai/' . $url);
 
             if ($response->successful()) {
@@ -362,7 +429,6 @@ class AssistantController extends Controller
         } catch (\Throwable $e) {
             Log::error("Erro ao importar URL via Jina Reader ({$url}): " . $e->getMessage());
         }
-
         return null;
     }
 
@@ -421,11 +487,12 @@ class AssistantController extends Controller
         }
 
         $prompt .= "\n\n===============================================\n";
-        $prompt .= "DIRETRIZES ABSOLUTAS DE CONFINAMENTO DE RESPOSTA:\n";
+        $prompt .= "DIRETRIZES ABSOLUTAS DE CONFINAMENTO DE RESPOSTA E CITAÇÕES:\n";
         $prompt .= "1. Você deve responder APENAS utilizando as informações contidas neste System Prompt e na Base de Conhecimento abaixo.\n";
         $prompt .= "2. É ESTRITAMENTE PROIBIDO realizar buscas externas, acessar a internet ou utilizar conhecimento prévio geral para responder perguntas que não estejam documentadas aqui.\n";
         $prompt .= "3. Se o usuário perguntar algo que NÃO esteja no prompt nem na Base de Conhecimento, informe educadamente que não possui essa informação.\n";
         $prompt .= "4. Cumpra rigorosamente a REGRA DE LINKS: todos os links devem vir formatados em Markdown no padrão [Texto da Palavra](URL_COMPLETA).\n";
+        $prompt .= "5. FIDELIDADE AO CONTEÚDO E CITAÇÃO DE SITE: Quando o usuário perguntar sobre um serviço ou produto, responda usando os MESMOS TERMOS E TÍTULOS que constam nos documentos. Se a informação foi tirada de uma fonte que seja um site (começa com '🌐'), coloque em uma nova linha no final da resposta: 'URL Consultada: [LINK EXATO DA PÁGINA]'. Não use a citação de fonte para documentos normais (PDF/Word).\n";
         $prompt .= "===============================================\n";
 
         $files = $assistant->knowledge_files;
@@ -474,7 +541,7 @@ class AssistantController extends Controller
                     $pdf = $parser->parseFile($filePath);
                     $text = $pdf->getText();
                 } else {
-                    Log::error("A biblioteca smalot/pdfparser não está instalada. Execute 'composer require smalot/pdfparser' no terminal.");
+                    Log::error("A biblioteca smalot/pdfparser não está instalada.");
                     $text = "ERRO INTERNO: Falha na extração. Leitor de PDF não instalado.";
                 }
             }
