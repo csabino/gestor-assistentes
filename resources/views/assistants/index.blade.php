@@ -6,7 +6,7 @@
     <title>Gestor de Assistentes IA</title>
     
     @if(isset($currentView) && $currentView === 'settings')
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234F46E5' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.27 1.06-.12 1.451l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.27-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.149-.894z'/><path stroke-linecap='round' stroke-linejoin='round' d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>">
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234F46E5' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.27 1.06-.12 1.451l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.27-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.149-.894z'/><path stroke-linecap='round' stroke-linejoin='round' d='M15 12a3 3 0 11-6 0 3 3 0 016 0z'/></svg>">
     @elseif(isset($currentView) && $currentView === 'agenda')
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234F46E5' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008z'/></svg>">
     @elseif(isset($currentView) && $currentView === 'equipe')
@@ -30,7 +30,6 @@
             const height = 480;
             const left = (window.top.outerWidth / 2) + window.top.screenX - (width / 2);
             const top = (window.top.outerHeight / 2) + window.top.screenY - (height / 2);
-            
             window.open(
                 '/?chat_id=' + id,
                 'chat_' + id,
@@ -50,6 +49,11 @@
 
     @if($configuring)
         <script>
+            // FUNÇÃO DEFINITIVA DE SCROLL
+            function saveScrollPosition() {
+                sessionStorage.setItem('scrollpos_config_{{ $configuring->id }}', window.scrollY);
+            }
+
             document.addEventListener("DOMContentLoaded", function() {
                 const key = 'scrollpos_config_{{ $configuring->id }}';
                 const scrollpos = sessionStorage.getItem(key);
@@ -57,10 +61,6 @@
                     window.scrollTo({ top: parseInt(scrollpos), behavior: 'instant' });
                     sessionStorage.removeItem(key);
                 }
-            });
-
-            document.addEventListener("submit", function() {
-                sessionStorage.setItem('scrollpos_config_{{ $configuring->id }}', window.scrollY);
             });
         </script>
     @endif
@@ -94,7 +94,6 @@
                     </svg>
                     <span class="truncate font-bold tracking-wide">Painel IA</span>
                 </a>
-
                 <button type="button" @click="sidebarOpen = !sidebarOpen; localStorage.setItem('sidebar_open', sidebarOpen)" class="p-2 rounded-lg hover:bg-indigo-600 text-indigo-200 hover:text-white transition cursor-pointer flex items-center justify-center shrink-0" title="Alternar menu">
                     <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
                 </button>
@@ -286,7 +285,7 @@
                     </div>
                     
                     <div class="flex items-center gap-3 w-full md:w-auto">
-                        <form action="/" method="POST" class="flex-1 md:flex-none">
+                        <form action="/" method="POST" class="flex-1 md:flex-none" onsubmit="saveScrollPosition()">
                             @csrf @method('PATCH')
                             <input type="hidden" name="assistant_id" value="{{ $configuring->id }}">
                             <input type="hidden" name="from_config" value="1">
@@ -304,7 +303,7 @@
                     </div>
                 </div>
 
-                <form id="configForm" action="/" method="POST" enctype="multipart/form-data" 
+                <form id="configForm" action="/" method="POST" enctype="multipart/form-data" onsubmit="saveScrollPosition()"
                     x-data="{ 
                         provider: '{{ $configuring->provider ?? 'openai' }}',
                         wa_provider: '{{ $configuring->whatsapp_provider ?? '' }}',
@@ -324,7 +323,6 @@
                         pollAttempts: 0,
                         waStatus: 'checking', 
                         
-                        // NOVAS VARIÁVEIS PARA O CRAWLER JAVASCRIPT
                         websiteToCrawl: '',
                         crawling: false,
                         crawlProgressText: '',
@@ -383,6 +381,7 @@
                                 }
 
                                 this.crawlProgressText = 'Extração concluída! Recarregando...';
+                                saveScrollPosition();
                                 window.location.reload();
 
                             } catch (e) {
@@ -440,6 +439,7 @@
                                 
                                 if (data.success) {
                                     this.waStatus = 'disconnected';
+                                    saveScrollPosition();
                                     window.location.reload(); 
                                 } else {
                                     alert('A API não conseguiu desconectar:\n\n' + (data.message || 'Erro desconhecido.'));
@@ -475,6 +475,7 @@
                                     this.waStatus = 'connected';
                                     setTimeout(() => {
                                         this.showWaModal = false;
+                                        saveScrollPosition();
                                         window.location.reload();
                                     }, 1500);
                                 } else if (data.success && this.pollAttempts < 20 && this.showWaModal) {
@@ -599,25 +600,73 @@
                                 Base de Conhecimento
                             </h2>
                             
-                            <div class="flex-1">
+                            <div class="flex-1" x-data="{ 
+                                selectedFiles: [], 
+                                totalFiles: {{ count($configuring->knowledge_files ?? []) }},
+                                get allSelected() { return this.selectedFiles.length === this.totalFiles && this.totalFiles > 0; },
+                                toggleAll() { 
+                                    if (this.selectedFiles.length === this.totalFiles) {
+                                        this.selectedFiles = [];
+                                    } else {
+                                        this.selectedFiles = Array.from({length: this.totalFiles}, (_, i) => String(i));
+                                    }
+                                },
+                                submitBulkDelete() {
+                                    if(!confirm('Tem certeza que deseja apagar os ' + this.selectedFiles.length + ' itens selecionados?')) return;
+                                    saveScrollPosition();
+                                    const form = document.getElementById('bulkDeleteForm');
+                                    form.innerHTML = '<input type=\'hidden\' name=\'_token\' value=\'{{ csrf_token() }}\'><input type=\'hidden\' name=\'_method\' value=\'DELETE\'><input type=\'hidden\' name=\'assistant_id\' value=\'{{ $configuring->id }}\'>';
+                                    this.selectedFiles.forEach(idx => {
+                                        form.innerHTML += '<input type=\'hidden\' name=\'file_indexes[]\' value=\'' + idx + '\'>';
+                                    });
+                                    form.submit();
+                                }
+                            }">
                                 @if($configuring->knowledge_files && count($configuring->knowledge_files) > 0)
                                     <div class="mb-5 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                                        <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Fontes de Conhecimento ({{ count($configuring->knowledge_files) }})</h4>
+                                        <div class="flex justify-between items-center mb-3 border-b border-gray-200 pb-2">
+                                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Fontes ({{ count($configuring->knowledge_files) }})</h4>
+                                            
+                                            <!-- AÇÕES EM LOTE -->
+                                            <div class="flex items-center gap-3">
+                                                <label class="flex items-center gap-1.5 text-[11px] text-slate-600 cursor-pointer hover:text-indigo-600 transition">
+                                                    <input type="checkbox" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" 
+                                                           :checked="allSelected" @click="toggleAll()">
+                                                    <span class="font-bold">Selecionar Todos</span>
+                                                </label>
+
+                                                <button type="button" x-show="selectedFiles.length > 0" x-transition @click="submitBulkDelete()" class="text-[10px] bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-2 py-1 rounded font-bold flex items-center gap-1 transition shadow-sm">
+                                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+                                                    Apagar (<span x-text="selectedFiles.length"></span>)
+                                                </button>
+                                            </div>
+                                        </div>
                                         
-                                        <div class="max-h-[135px] overflow-y-auto pr-1 custom-scroll">
-                                            <ul class="space-y-2 text-sm text-gray-700">
+                                        <!-- FORMULÁRIO INVISÍVEL P/ BULK DELETE -->
+                                        <form id="bulkDeleteForm" action="/" method="POST" class="hidden"></form>
+
+                                        <!-- LISTA COM SCROLL INTERNO E CHECKBOXES -->
+                                        <div class="max-h-[160px] overflow-y-auto pr-1 custom-scroll">
+                                            <ul class="space-y-1.5 text-sm text-gray-700">
                                                 @foreach($configuring->knowledge_files as $index => $file)
-                                                    <li class="flex items-center justify-between bg-white px-3 py-2 border border-gray-200 rounded-md shadow-sm">
-                                                        <div class="flex items-center gap-2 truncate">
-                                                            @if(str_starts_with($file['name'], '🌐'))
-                                                                <span class="text-blue-500 shrink-0 text-base">🌐</span>
-                                                            @else
-                                                                <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
-                                                            @endif
-                                                            <span class="truncate font-medium">{{ str_replace('🌐 ', '', $file['name']) }}</span>
+                                                    <li class="flex items-center justify-between bg-white px-3 py-1.5 border rounded-md shadow-sm transition"
+                                                        :class="selectedFiles.includes('{{ $index }}') ? 'border-indigo-300 bg-indigo-50/50' : 'border-gray-200'">
+                                                        
+                                                        <div class="flex items-center gap-3 truncate w-full">
+                                                            <input type="checkbox" value="{{ $index }}" x-model="selectedFiles" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0">
+                                                            
+                                                            <div class="flex items-center gap-2 truncate">
+                                                                @if(str_starts_with($file['name'], '🌐'))
+                                                                    <span class="text-blue-500 shrink-0 text-[14px]">🌐</span>
+                                                                @else
+                                                                    <svg class="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                                                                @endif
+                                                                <span class="truncate font-medium text-xs">{{ str_replace('🌐 ', '', $file['name']) }}</span>
+                                                            </div>
                                                         </div>
-                                                        <button type="button" onclick="if(confirm('Remover esta fonte de conhecimento?')) document.getElementById('deleteFileForm_{{ $index }}').submit();" class="text-gray-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition shrink-0">
-                                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                        
+                                                        <button type="button" onclick="if(confirm('Remover esta fonte de conhecimento?')) { saveScrollPosition(); document.getElementById('deleteFileForm_{{ $index }}').submit(); }" class="text-gray-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition shrink-0 ml-2">
+                                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                                                         </button>
                                                     </li>
                                                 @endforeach
@@ -632,7 +681,7 @@
                                     <label class="block text-sm font-semibold text-gray-700 mb-1">Anexar Arquivos (PDF, Word, TXT)</label>
                                     <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                                         <input type="file" name="documents[]" multiple accept=".pdf,.doc,.docx,.txt" class="block w-full text-sm text-gray-500 border border-gray-200 rounded-lg p-1">
-                                        <button type="submit" form="configForm" onclick="this.innerHTML='Salvando...'" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-1.5 shrink-0 transition shadow-sm">
+                                        <button type="submit" form="configForm" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-1.5 shrink-0 transition shadow-sm">
                                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg> Anexar
                                         </button>
                                     </div>
@@ -641,7 +690,6 @@
                                 <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
                                     <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">🌐 Importar Site (Extração de Conteúdo)</label>
                                     <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                                        <!-- Note que o botão mudou para type="button" e o input não tem "name=" para evitar envio nativo -->
                                         <input type="url" x-model="websiteToCrawl" placeholder="https://www.site.com" class="block w-full text-sm border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
                                         
                                         <button type="button" @click="startCrawler()" :disabled="crawling" :class="crawling ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'" class="text-white text-xs font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-1.5 shrink-0 transition shadow-sm whitespace-nowrap">
@@ -650,7 +698,6 @@
                                         </button>
                                     </div>
 
-                                    <!-- BARRA DE PROGRESSO DO CRAWLER -->
                                     <div x-show="crawling" class="mt-3" x-cloak>
                                         <div class="flex justify-between items-center mb-1">
                                             <span class="text-[10px] font-bold text-indigo-600 truncate max-w-[85%]" x-text="crawlProgressText"></span>

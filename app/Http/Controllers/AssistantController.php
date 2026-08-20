@@ -106,7 +106,6 @@ class AssistantController extends Controller
         if ($request->isMethod('post') && $request->input('action') === 'test_whatsapp') return response()->json(['success' => true, 'connected' => true, 'message' => 'WhatsApp ativo.']);
         if ($request->isMethod('post') && $request->input('action') === 'disconnect_whatsapp') return response()->json(['success' => true]);
         
-        // NOVAS ROTAS DO SCRAPER SEQUENCIAL
         if ($request->isMethod('post') && $request->input('action') === 'map_site') return $this->mapSite($request);
         if ($request->isMethod('post') && $request->input('action') === 'scrape_single_url') return $this->scrapeSingleUrl($request);
 
@@ -352,7 +351,7 @@ class AssistantController extends Controller
         }
         $hasKnowledgeChanges = false;
 
-        // Processamento de Upload de Arquivos Físicos (PDF, DOCX, TXT)
+        // Processamento de Upload de Arquivos Físicos
         if ($request->hasFile('documents')) {
             $uploadedFiles = $request->file('documents');
             if (!is_array($uploadedFiles)) {
@@ -415,6 +414,30 @@ class AssistantController extends Controller
     {
         $assistant = Assistant::findOrFail($request->assistant_id);
 
+        // EXCLUSÃO EM MASSA (Bulk Delete)
+        if ($request->has('file_indexes')) {
+            $files = $assistant->knowledge_files;
+            if (!is_array($files)) $files = [];
+            
+            $indices = $request->input('file_indexes', []);
+            // Precisamos deletar do maior índice pro menor, senão a exclusão bagunça a ordem do array
+            $indices = array_map('intval', $indices);
+            rsort($indices);
+
+            foreach ($indices as $index) {
+                if (isset($files[$index])) {
+                    if (!empty($files[$index]['path'])) {
+                        Storage::delete($files[$index]['path']);
+                    }
+                    array_splice($files, $index, 1);
+                }
+            }
+
+            $assistant->forceFill(['knowledge_files' => array_values($files)])->save();
+            return redirect('/?configure=' . $assistant->id)->with('success', 'Fontes de conhecimento removidas com sucesso.');
+        }
+
+        // EXCLUSÃO ÚNICA (Fallback)
         if ($request->has('file_index')) {
             $files = $assistant->knowledge_files;
             if (!is_array($files)) $files = [];
