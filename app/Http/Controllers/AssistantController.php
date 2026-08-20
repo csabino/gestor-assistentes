@@ -186,6 +186,7 @@ class AssistantController extends Controller
         $instance = trim($request->input('instance') ?? ($assistant->whatsapp_instance ?? ''));
         $provider = $request->input('provider') ?? ($assistant->whatsapp_provider ?? '');
 
+        // Dispara o logout para a API da UaZapi / Evolution para derrubar a sessão no celular
         if ($baseUrl && $token) {
             try {
                 if (str_contains($baseUrl, 'uazapi.com') || $provider === 'uazapi') {
@@ -213,7 +214,8 @@ class AssistantController extends Controller
             }
         }
 
-        return response()->json(['success' => true, 'message' => 'Desconectado com sucesso.']);
+        // Mantém as credenciais salvas no formulário para você não precisar digitar tudo de novo
+        return response()->json(['success' => true, 'message' => 'Sessão encerrada com sucesso.']);
     }
 
     private function mapSite(Request $request)
