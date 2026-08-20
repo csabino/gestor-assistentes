@@ -106,6 +106,7 @@ class AssistantController extends Controller
         if ($request->isMethod('post') && $request->input('action') === 'test_whatsapp') return response()->json(['success' => true, 'connected' => true, 'message' => 'WhatsApp ativo.']);
         if ($request->isMethod('post') && $request->input('action') === 'disconnect_whatsapp') return response()->json(['success' => true]);
         
+        // ROTAS DO CRAWLER/SCRAPER SEQUENCIAL
         if ($request->isMethod('post') && $request->input('action') === 'map_site') return $this->mapSite($request);
         if ($request->isMethod('post') && $request->input('action') === 'scrape_single_url') return $this->scrapeSingleUrl($request);
 
@@ -193,11 +194,13 @@ class AssistantController extends Controller
             return response()->json(['success' => false, 'message' => 'Falha ao acessar o site inicial. Ele pode estar bloqueando a extração.']);
         }
 
-        $links = [$url]; // Garante que a Home será lida
+        $links = [$url];
         preg_match_all('/\[[^\]]*\]\((https?:\/\/[^\)]+)\)/i', $content, $matches);
 
         if (!empty($matches[1])) {
             foreach ($matches[1] as $link) {
+                // Filtra e remove parâmetros de busca (?) e âncoras (#) para evitar loops infinitos
+                $link = explode('?', $link)[0];
                 $link = explode('#', $link)[0];
                 $link = rtrim($link, '/');
                 $linkDomain = parse_url($link, PHP_URL_HOST);
@@ -205,7 +208,7 @@ class AssistantController extends Controller
                 if ($linkDomain) {
                     $linkDomainStr = str_replace('www.', '', $linkDomain);
                     if (str_ends_with($linkDomainStr, $domainStr)) {
-                        if (!preg_match('/\.(jpg|jpeg|png|gif|pdf|zip|rar|mp4|mp3|css|js)$/i', $link)) {
+                        if (!preg_match('/\.(jpg|jpeg|png|gif|pdf|zip|rar|mp4|mp3|css|js|svg|webp|doc|docx)$/i', $link)) {
                             if (!in_array($link, $links)) {
                                 $links[] = $link;
                             }
@@ -215,7 +218,8 @@ class AssistantController extends Controller
             }
         }
         
-        $links = array_slice($links, 0, 50); // Limita a 50 páginas para proteção
+        // Limite ampliado para 150 páginas por site
+        $links = array_slice($links, 0, 150);
         return response()->json(['success' => true, 'urls' => array_values($links)]);
     }
 
@@ -229,11 +233,10 @@ class AssistantController extends Controller
         if ($content) {
             $files = is_array($assistant->knowledge_files) ? $assistant->knowledge_files : [];
             
-            // Verifica se a URL já existe para atualizar ou pular
             $exists = false;
             foreach ($files as &$f) {
                 if (($f['name'] ?? '') === '🌐 ' . $url) {
-                    $f['content'] = $content; // Atualiza o conteúdo se já existir
+                    $f['content'] = $content;
                     $exists = true;
                     break;
                 }
@@ -351,7 +354,6 @@ class AssistantController extends Controller
         }
         $hasKnowledgeChanges = false;
 
-        // Processamento de Upload de Arquivos Físicos
         if ($request->hasFile('documents')) {
             $uploadedFiles = $request->file('documents');
             if (!is_array($uploadedFiles)) {
@@ -414,13 +416,11 @@ class AssistantController extends Controller
     {
         $assistant = Assistant::findOrFail($request->assistant_id);
 
-        // EXCLUSÃO EM MASSA (Bulk Delete)
         if ($request->has('file_indexes')) {
             $files = $assistant->knowledge_files;
             if (!is_array($files)) $files = [];
             
             $indices = $request->input('file_indexes', []);
-            // Precisamos deletar do maior índice pro menor, senão a exclusão bagunça a ordem do array
             $indices = array_map('intval', $indices);
             rsort($indices);
 
@@ -437,7 +437,6 @@ class AssistantController extends Controller
             return redirect('/?configure=' . $assistant->id)->with('success', 'Fontes de conhecimento removidas com sucesso.');
         }
 
-        // EXCLUSÃO ÚNICA (Fallback)
         if ($request->has('file_index')) {
             $files = $assistant->knowledge_files;
             if (!is_array($files)) $files = [];
@@ -480,19 +479,10 @@ class AssistantController extends Controller
             $prompt .= "===============================================\n";
         }
 
-        $prompt .= "\n\n===============================================\n";
-        $prompt .= "DIRETRIZES ABSOLUTAS DE CONFINAMENTO DE RESPOSTA E CITAÇÕES:\n";
-        $prompt .= "1. Você deve responder APENAS utilizando as informações contidas neste System Prompt e na Base de Conhecimento abaixo.\n";
-        $prompt .= "2. É ESTRITAMENTE PROIBIDO realizar buscas externas, acessar a internet ou utilizar conhecimento prévio geral para responder perguntas que não estejam documentadas aqui.\n";
-        $prompt .= "3. Se o usuário perguntar algo que NÃO esteja no prompt nem na Base de Conhecimento, informe educadamente que não possui essa informação.\n";
-        $prompt .= "4. Cumpra rigorosamente a REGRA DE LINKS: todos os links devem vir formatados em Markdown no padrão [Texto da Palavra](URL_COMPLETA).\n";
-        $prompt .= "5. FIDELIDADE AO CONTEÚDO E CITAÇÃO DE SITE: Quando o usuário perguntar sobre um serviço ou produto, responda usando os MESMOS TERMOS E TÍTULOS que constam nos documentos. Se a informação foi tirada de uma fonte que seja um site (começa com '🌐'), coloque em uma nova linha no final da resposta: 'URL Consultada: [LINK EXATO DA PÁGINA]'. Não use a citação de fonte para documentos normais (PDF/Word).\n";
-        $prompt .= "===============================================\n";
-
         $files = $assistant->knowledge_files;
 
         if (is_array($files) && !empty($files)) {
-            $prompt .= "\n### BASE DE CONHECIMENTO OFICIAL (DOCUMENTOS E URLS ANEXADOS) ###\n";
+            $prompt .= "\n\n### BASE DE CONHECIMENTO OFICIAL (DOCUMENTOS E URLS ANEXADOS) ###\n";
             foreach ($files as $file) {
                 $name = $file['name'] ?? 'Arquivo Desconhecido';
                 $content = $file['content'] ?? '';
@@ -502,10 +492,23 @@ class AssistantController extends Controller
                 }
 
                 if (!empty($content)) {
-                    $prompt .= "\n--- INÍCIO DA FONTE: {$name} ---\n" . $content . "\n--- FIM DA FONTE: {$name} ---\n";
+                    $cleanUrl = str_replace('🌐 ', '', $name);
+                    $prompt .= "\n--- INÍCIO DA FONTE [Nome: {$name} | Link: {$cleanUrl}] ---\n" . $content . "\n--- FIM DA FONTE [{$name}] ---\n";
                 }
             }
         }
+
+        // REGRAS NO FINAL ABSOLUTO PARA EVITAR DECAIMENTO DE ATENÇÃO DA IA
+        $prompt .= "\n\n===============================================\n";
+        $prompt .= "DIRETRIZES ABSOLUTAS E OBRIGATÓRIAS DE RESPOSTA E CITAÇÃO DE URL:\n";
+        $prompt .= "1. FIDELIDADE RIGOROSA E EXATA AO TEXTO: Você deve responder utilizando EXATAMENTE os mesmos termos, frases, títulos e explicações presentes nas fontes da Base de Conhecimento acima. NUNCA parafraseie com termos genéricos, NUNCA resuma de forma solta e NUNCA invente explicações.\n";
+        $prompt .= "2. CONFINAMENTO TOTAL: Responda APENAS com o conteúdo presente na Base de Conhecimento e neste System Prompt. É estritamente proibido utilizar conhecimento externo ou da internet.\n";
+        $prompt .= "3. CITAÇÃO OBRIGATÓRIA DE URL DO SITE: Sempre que você usar informações de uma fonte cujo nome começa com '🌐', você É OBRIGADA a incluir no FINAL da sua resposta uma nova linha no formato exato:\n";
+        $prompt .= "URL Consultada: [LINK_EXATO_DA_FONTE]\n";
+        $prompt .= "Exemplo: Se a resposta veio da fonte '🌐 https://inhouse.com.br/saque-regulado', adicione no final:\n";
+        $prompt .= "URL Consultada: https://inhouse.com.br/saque-regulado\n";
+        $prompt .= "4. FORMATO DE LINKS NO TEXTO: Todos os links mencionados no meio da resposta devem estar em Markdown no padrão [Texto da Palavra](URL_COMPLETA).\n";
+        $prompt .= "===============================================\n";
 
         return $prompt;
     }
@@ -823,7 +826,7 @@ class AssistantController extends Controller
 
         try {
             if ($provider === 'openai') {
-                $res = Http::withToken($apiKey)->post('https://api.openai.com/v1/chat/completions', [
+                $res = Http::withToken($apiKey)->post('https://api.openai.com/v1 climate/chat/completions', [
                     'model' => 'gpt-4o-mini',
                     'messages' => [['role' => 'user', 'content' => 'Responda OK']]
                 ]);
