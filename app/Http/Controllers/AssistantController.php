@@ -179,28 +179,14 @@ class AssistantController extends Controller
     private function disconnectWhatsapp(Request $request)
     {
         $assistantId = $request->input('assistant_id');
-        $provider = $request->input('provider');
-        $baseUrl = rtrim($request->input('url', ''), '/');
-        $instance = trim($request->input('instance', ''));
-        $token = trim($request->input('token', ''));
+        $assistant = $assistantId ? Assistant::find($assistantId) : null;
 
-        if ($assistantId) {
-            $assistant = Assistant::find($assistantId);
-            if ($assistant) {
-                $baseUrl = $baseUrl ?: rtrim($assistant->whatsapp_url ?? '', '/');
-                $instance = $instance ?: trim($assistant->whatsapp_instance ?? '');
-                $token = $token ?: trim($assistant->whatsapp_token ?? '');
-                $provider = $provider ?: ($assistant->whatsapp_provider ?? '');
+        $baseUrl = rtrim($request->input('url') ?? ($assistant->whatsapp_url ?? ''), '/');
+        $token = trim($request->input('token') ?? ($assistant->whatsapp_token ?? ''));
+        $instance = trim($request->input('instance') ?? ($assistant->whatsapp_instance ?? ''));
+        $provider = $request->input('provider') ?? ($assistant->whatsapp_provider ?? '');
 
-                // Limpa as credenciais do WhatsApp no banco de dados para este assistente
-                $assistant->forceFill([
-                    'whatsapp_provider' => null,
-                    'whatsapp_instance' => null,
-                    'whatsapp_token' => null,
-                    'whatsapp_url' => null,
-                ])->save();
-            }
-        }
+        // NÃO APAGA AS CREDENCIAIS DO BANCO! Mantém cadastradas para o usuário não ter que digitar tudo de novo.
 
         if ($baseUrl && $token) {
             try {
@@ -535,7 +521,7 @@ class AssistantController extends Controller
         $files = $assistant->knowledge_files;
 
         if (is_array($files) && !empty($files)) {
-            $prompt .= "\n\n### BASE DE CONHECIMENTO OFICIAL (DOCUMENTOS E URLS ANEXADOS) ###\n";
+            $prompt .= "\n\n### BASE DE CONHECIMENTO OFICIAL DA EMPRESA ###\n";
             foreach ($files as $file) {
                 $name = $file['name'] ?? 'Arquivo Desconhecido';
                 $content = $file['content'] ?? '';
@@ -546,22 +532,26 @@ class AssistantController extends Controller
 
                 if (!empty($content)) {
                     $cleanUrl = str_replace('🌐 ', '', $name);
-                    // LIMITA A 2.000 CARACTERES POR FONTE NO PROMPT PARA NÃO EXCEDER O LIMITE DE TOKENS
-                    $trimmedContent = mb_substr($content, 0, 2000);
-                    $prompt .= "\n--- INÍCIO DA FONTE [Nome: {$name} | Link: {$cleanUrl}] ---\n" . $trimmedContent . "\n--- FIM DA FONTE [{$name}] ---\n";
+                    // AMPLIADO PARA 6.000 CARACTERES: Captura o conteúdo real da página sem cortar no cabeçalho
+                    $trimmedContent = mb_substr($content, 0, 6000);
+                    
+                    if (str_starts_with($name, '🌐')) {
+                        $prompt .= "\n--- PÁGINA DA WEB: {$cleanUrl} ---\n" . $trimmedContent . "\n--- FIM DA PÁGINA: {$cleanUrl} ---\n";
+                    } else {
+                        $prompt .= "\n--- DOCUMENTO: {$name} ---\n" . $trimmedContent . "\n--- FIM DO DOCUMENTO: {$name} ---\n";
+                    }
                 }
             }
         }
 
         $prompt .= "\n\n===============================================\n";
-        $prompt .= "DIRETRIZES ABSOLUTAS E OBRIGATÓRIAS DE RESPOSTA E CITAÇÃO DE URL:\n";
-        $prompt .= "1. FIDELIDADE RIGOROSA E EXATA AO TEXTO: Você deve responder utilizando EXATAMENTE os mesmos termos, frases, títulos e explicações presentes nas fontes da Base de Conhecimento acima. NUNCA parafraseie com termos genéricos, NUNCA resuma de forma solta e NUNCA invente explicações.\n";
-        $prompt .= "2. CONFINAMENTO TOTAL: Responda APENAS com o conteúdo presente na Base de Conhecimento e neste System Prompt. É estritamente proibido utilizar conhecimento externo ou da internet.\n";
-        $prompt .= "3. CITAÇÃO OBRIGATÓRIA DE URL DO SITE: Sempre que você usar informações de uma fonte cujo nome começa com '🌐', você É OBRIGADA a incluir no FINAL da sua resposta uma nova linha no formato exato:\n";
-        $prompt .= "URL Consultada: [LINK_EXATO_DA_FONTE]\n";
-        $prompt .= "Exemplo: Se a resposta veio da fonte '🌐 https://inhouse.com.br/saque-regulado', adicione no final:\n";
-        $prompt .= "URL Consultada: https://inhouse.com.br/saque-regulado\n";
-        $prompt .= "4. FORMATO DE LINKS NO TEXTO: Todos os links mencionados no meio da resposta devem estar em Markdown no padrão [Texto da Palavra](URL_COMPLETA).\n";
+        $prompt .= "DIRETRIZES ABSOLUTAS E OBRIGATÓRIAS DE RESPOSTA:\n";
+        $prompt .= "1. FIDELIDADE AO CONTEÚDO: Responda à dúvida do cliente utilizando EXATAMENTE o texto e as explicações contidas nas PÁGINAS DA WEB ou DOCUMENTOS acima. Não invente conceitos e não parafraseie com definições genéricas de livros ou dicionários.\n";
+        $prompt .= "2. CITAÇÃO OBRIGATÓRIA DA URL: Sempre que você usar informações de uma PÁGINA DA WEB (fonte que possui URL), você É OBRIGADA a incluir na ÚLTIMA LINHA da sua resposta exatamente o texto:\n";
+        $prompt .= "URL Consultada: [URL_EXATA_DA_PÁGINA]\n";
+        $prompt .= "Exemplo:\n";
+        $prompt .= "URL Consultada: https://inhouse.com.br/sac-regulado\n";
+        $prompt .= "3. FORMATO DE LINKS NO CORPO DO TEXTO: Formate links intermediários em Markdown: [Texto](URL_COMPLETA).\n";
         $prompt .= "===============================================\n";
 
         return $prompt;
@@ -609,7 +599,7 @@ class AssistantController extends Controller
         if (!is_string($text) || empty($text)) return '';
         $clean = @mb_convert_encoding($text, 'UTF-8', 'UTF-8');
         $clean = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $clean);
-        return trim(mb_substr($clean, 0, 3000));
+        return trim(mb_substr($clean, 0, 8000));
     }
 
     private function chat(Request $request)
