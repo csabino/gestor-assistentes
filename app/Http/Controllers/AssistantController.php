@@ -288,7 +288,7 @@ class AssistantController extends Controller
         }
         $hasKnowledgeChanges = false;
 
-        // Processamento de Upload de Arquivos Físicos (PDF, DOCX, TXT, etc.)
+        // Processamento de Upload de Arquivos Físicos
         if ($request->hasFile('documents')) {
             $uploadedFiles = $request->file('documents');
             if (!is_array($uploadedFiles)) {
@@ -317,7 +317,7 @@ class AssistantController extends Controller
             }
         }
 
-        // Processamento de URL (Importação via Jina Reader)
+        // Processamento de URL via Jina Reader
         if ($request->filled('website_url')) {
             $url = trim($request->input('website_url'));
             $webContent = $this->fetchContentFromUrl($url);
@@ -423,9 +423,9 @@ class AssistantController extends Controller
         $prompt .= "\n\n===============================================\n";
         $prompt .= "DIRETRIZES ABSOLUTAS DE CONFINAMENTO DE RESPOSTA:\n";
         $prompt .= "1. Você deve responder APENAS utilizando as informações contidas neste System Prompt e na Base de Conhecimento abaixo.\n";
-        $prompt .= "2. É ESTRITAMENTE PROIBIDO realizar buscas externas, acessar a internet ou utilizar conhecimento prévio geral para responder perguntas corporativas que não estejam documentadas aqui.\n";
+        $prompt .= "2. É ESTRITAMENTE PROIBIDO realizar buscas externas, acessar a internet ou utilizar conhecimento prévio geral para responder perguntas que não estejam documentadas aqui.\n";
         $prompt .= "3. Se o usuário perguntar algo que NÃO esteja no prompt nem na Base de Conhecimento, informe educadamente que não possui essa informação.\n";
-        $prompt .= "4. Cumpra rigorosamente a REGRA OBRIGATÓRIA DE LINKS: todos os links devem vir formatados em Markdown no padrão [Texto da Palavra](URL_COMPLETA).\n";
+        $prompt .= "4. Cumpra rigorosamente a REGRA DE LINKS: todos os links devem vir formatados em Markdown no padrão [Texto da Palavra](URL_COMPLETA).\n";
         $prompt .= "===============================================\n";
 
         $files = $assistant->knowledge_files;
@@ -433,7 +433,7 @@ class AssistantController extends Controller
         if (is_array($files) && !empty($files)) {
             $prompt .= "\n### BASE DE CONHECIMENTO OFICIAL (DOCUMENTOS E URLS ANEXADOS) ###\n";
             foreach ($files as $file) {
-                $name = $file['name'] ?? 'Arquivo';
+                $name = $file['name'] ?? 'Arquivo Desconhecido';
                 $content = $file['content'] ?? '';
 
                 if (empty($content) && !empty($file['path']) && Storage::exists($file['path'])) {
@@ -441,7 +441,7 @@ class AssistantController extends Controller
                 }
 
                 if (!empty($content)) {
-                    $prompt .= "\n--- INÍCIO DO DOCUMENTO: {$name} ---\n" . $content . "\n--- FIM DO DOCUMENTO: {$name} ---\n";
+                    $prompt .= "\n--- INÍCIO DA FONTE: {$name} ---\n" . $content . "\n--- FIM DA FONTE: {$name} ---\n";
                 }
             }
         }
@@ -469,57 +469,18 @@ class AssistantController extends Controller
                     $zip->close();
                 }
             } elseif ($ext === 'pdf') {
-                $raw = @file_get_contents($filePath);
-                if ($raw) {
-                    preg_match_all('/stream[\r\n]+([\s\S]*?)[\r\n]+endstream/m', $raw, $streams);
-                    $extractedText = '';
-
-                    foreach ($streams[1] ?? [] as $stream) {
-                        $uncompressed = @gzuncompress($stream);
-                        if (!$uncompressed) {
-                            $uncompressed = @gzinflate($stream);
-                        }
-                        $data = $uncompressed ? $uncompressed : $stream;
-
-                        preg_match_all('/\((.*?)\)\s*Tj/s', $data, $tjSingle);
-                        foreach ($tjSingle[1] ?? [] as $t) {
-                            if (strlen($t) > 0) $extractedText .= $t . ' ';
-                        }
-
-                        preg_match_all('/\[(.*?)\]\s*TJ/s', $data, $tjArray);
-                        foreach ($tjArray[1] ?? [] as $arr) {
-                            preg_match_all('/\((.*?)\)/s', $arr, $m);
-                            foreach ($m[1] ?? [] as $t) {
-                                if (strlen($t) > 0) $extractedText .= $t;
-                            }
-                            $extractedText .= ' ';
-                        }
-
-                        preg_match_all('/BT[\s\S]*?ET/s', $data, $btMatches);
-                        foreach ($btMatches[0] ?? [] as $bt) {
-                            preg_match_all('/\((.*?)\)/s', $bt, $txtMatches);
-                            foreach ($txtMatches[1] ?? [] as $m) {
-                                if (strlen($m) > 1 && ctype_print($m)) $extractedText .= $m . ' ';
-                            }
-                        }
-                    }
-
-                    $text = trim($extractedText);
-
-                    if (empty($text)) {
-                        preg_match_all('/\((.*?)\)/s', $raw, $plainMatches);
-                        $fallback = '';
-                        foreach ($plainMatches[1] ?? [] as $pm) {
-                            if (strlen($pm) > 2 && ctype_print($pm)) {
-                                $fallback .= $pm . ' ';
-                            }
-                        }
-                        $text = trim($fallback);
-                    }
+                if (class_exists('\Smalot\PdfParser\Parser')) {
+                    $parser = new \Smalot\PdfParser\Parser();
+                    $pdf = $parser->parseFile($filePath);
+                    $text = $pdf->getText();
+                } else {
+                    Log::error("A biblioteca smalot/pdfparser não está instalada. Execute 'composer require smalot/pdfparser' no terminal.");
+                    $text = "ERRO INTERNO: Falha na extração. Leitor de PDF não instalado.";
                 }
             }
         } catch (\Throwable $e) {
             Log::error("Erro na leitura de {$fileName}: " . $e->getMessage());
+            $text = "Erro ao extrair conteúdo deste documento.";
         }
 
         return $this->sanitizeText($text);
