@@ -17,7 +17,13 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <style>[x-cloak] { display: none !important; }</style>
+    <style>
+        [x-cloak] { display: none !important; }
+        /* Ajuste sutil para a barra de rolagem interna */
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+    </style>
 
     <script>
         function openChatPopup(id) {
@@ -45,15 +51,18 @@
 
     @if($configuring)
         <script>
+            // Restaura o scroll SOMENTE se houver submissão de formulário
             document.addEventListener("DOMContentLoaded", function() {
                 const key = 'scrollpos_config_{{ $configuring->id }}';
                 const scrollpos = sessionStorage.getItem(key);
                 if (scrollpos) {
-                    window.scrollTo(0, parseInt(scrollpos));
+                    window.scrollTo({ top: parseInt(scrollpos), behavior: 'instant' });
                     sessionStorage.removeItem(key);
                 }
             });
-            window.addEventListener("beforeunload", function() {
+
+            // Escuta APENAS os envios de formulário para salvar a posição
+            document.addEventListener("submit", function() {
                 sessionStorage.setItem('scrollpos_config_{{ $configuring->id }}', window.scrollY);
             });
         </script>
@@ -79,10 +88,9 @@
     "
 >
 
-    <!-- SIDEBAR LATERAL GLOBAL (PRESENTE EM TODAS AS TELAS) -->
+    <!-- SIDEBAR LATERAL GLOBAL -->
     <aside :class="sidebarOpen ? 'w-64' : 'w-20'" class="bg-indigo-700 text-white min-h-screen transition-all duration-300 flex flex-col justify-between shrink-0 shadow-xl relative z-50">
         <div>
-            <!-- MARCA DA EMBALAGEM / LOGO -->
             <div class="h-16 flex items-center border-b border-indigo-600/80 transition-all px-3" :class="sidebarOpen ? 'justify-between' : 'justify-center'">
                 <a href="/" class="font-bold text-lg flex items-center gap-3 truncate hover:text-indigo-200 transition" x-show="sidebarOpen">
                     <svg class="w-7 h-7 text-indigo-200 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -96,7 +104,6 @@
                 </button>
             </div>
 
-            <!-- NAVEGAÇÃO COM TOOLTIPS FLUTUANTES -->
             <nav class="p-3 space-y-2 font-medium text-sm">
                 <!-- ASSISTENTES IA -->
                 <div class="relative group">
@@ -136,14 +143,12 @@
             </nav>
         </div>
 
-        <!-- RODAPÉ DA SIDEBAR -->
         <div class="p-4 border-t border-indigo-600/80 mt-auto">
             <span x-show="sidebarOpen" class="text-[11px] bg-indigo-800 text-indigo-200 px-3 py-1.5 rounded-full font-bold border border-indigo-500 block text-center shadow-inner tracking-wider">Multiagents v2.0</span>
             <span x-show="!sidebarOpen" class="text-[10px] text-indigo-300 font-bold block text-center tracking-widest">v2.0</span>
         </div>
     </aside>
 
-    <!-- CONTEÚDO PRINCIPAL (ÁREA DE ROLAGEM) -->
     <main class="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
         
         <div class="container mx-auto px-6 max-w-6xl py-8">
@@ -171,7 +176,6 @@
                             <p class="text-xs text-gray-500 mt-1">Gerencie os setores de atendimento e a lista de agentes associados.</p>
                         </div>
 
-                        <!-- FORMULÁRIO NOVO DEPARTAMENTO -->
                         <form action="/" method="POST" class="mb-8 bg-gray-50 p-4 rounded-xl border border-gray-200">
                             @csrf
                             <input type="hidden" name="action" value="store_department">
@@ -182,7 +186,6 @@
                             </div>
                         </form>
 
-                        <!-- LISTAGEM DOS DEPARTAMENTOS -->
                         <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
                             @forelse($departments as $dept)
                                 <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4">
@@ -193,7 +196,6 @@
                                         </h3>
                                     </div>
 
-                                    <!-- FORMULÁRIO DE ADIÇÃO DE AGENTE -->
                                     <form action="/" method="POST" class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
                                         @csrf
                                         <input type="hidden" name="action" value="store_agent">
@@ -213,7 +215,6 @@
                                         </div>
                                     </form>
 
-                                    <!-- TABELA DOS AGENTES DO DEPARTAMENTO -->
                                     <div class="overflow-x-auto border border-gray-100 rounded-lg">
                                         <table class="w-full text-left text-xs border-collapse">
                                             <thead>
@@ -243,7 +244,6 @@
                 </div>
 
             @elseif($currentView === 'agenda')
-                <!-- TELA DE CALENDÁRIO -->
                 <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                     <div class="border-b border-gray-100 pb-3 mb-6">
                         <h1 class="text-xl font-bold text-gray-800">Calendário e Agendamentos</h1>
@@ -257,7 +257,6 @@
                 </div>
 
             @elseif($currentView === 'settings')
-                <!-- TELA DE CONFIGURAÇÕES / SETTINGS -->
                 <div class="space-y-6">
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                         <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
@@ -286,10 +285,10 @@
                 </div>
 
             @elseif($configuring)
-                
                 <div class="sticky top-0 z-40 bg-gray-50/90 backdrop-blur-md py-4 mb-6 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm -mx-6 px-6">
                     <div class="flex items-center gap-4">
-                        <a href="/" onclick="sessionStorage.removeItem('scrollpos_config_{{ $configuring->id }}'); window.onbeforeunload = null;" class="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1.5 text-sm transition bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-100">
+                        <!-- Sem onclick para limpar a sessão, pois a gente vai limpar dinamicamente -->
+                        <a href="/" class="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1.5 text-sm transition bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-100">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg> Voltar
                         </a>
                         <div class="h-6 w-px bg-gray-300 hidden md:block"></div>
@@ -560,23 +559,27 @@
                                 @if($configuring->knowledge_files && count($configuring->knowledge_files) > 0)
                                     <div class="mb-5 bg-gray-50 p-4 rounded-lg border border-gray-200">
                                         <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Fontes de Conhecimento ({{ count($configuring->knowledge_files) }})</h4>
-                                        <ul class="space-y-2 text-sm text-gray-700">
-                                            @foreach($configuring->knowledge_files as $index => $file)
-                                                <li class="flex items-center justify-between bg-white px-3 py-2 border border-gray-200 rounded-md shadow-sm">
-                                                    <div class="flex items-center gap-2 truncate">
-                                                        @if(str_starts_with($file['name'], '🌐'))
-                                                            <span class="text-blue-500 shrink-0 text-base">🌐</span>
-                                                        @else
-                                                            <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
-                                                        @endif
-                                                        <span class="truncate font-medium">{{ str_replace('🌐 ', '', $file['name']) }}</span>
-                                                    </div>
-                                                    <button type="button" onclick="if(confirm('Remover esta fonte de conhecimento?')) document.getElementById('deleteFileForm_{{ $index }}').submit();" class="text-gray-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition shrink-0">
-                                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                                                    </button>
-                                                </li>
-                                            @endforeach
-                                        </ul>
+                                        
+                                        <!-- LISTA COM SCROLL INTERNO PARA MÁXIMO DE 3 ITENS -->
+                                        <div class="max-h-[135px] overflow-y-auto pr-1 custom-scroll">
+                                            <ul class="space-y-2 text-sm text-gray-700">
+                                                @foreach($configuring->knowledge_files as $index => $file)
+                                                    <li class="flex items-center justify-between bg-white px-3 py-2 border border-gray-200 rounded-md shadow-sm">
+                                                        <div class="flex items-center gap-2 truncate">
+                                                            @if(str_starts_with($file['name'], '🌐'))
+                                                                <span class="text-blue-500 shrink-0 text-base">🌐</span>
+                                                            @else
+                                                                <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                                                            @endif
+                                                            <span class="truncate font-medium">{{ str_replace('🌐 ', '', $file['name']) }}</span>
+                                                        </div>
+                                                        <button type="button" onclick="if(confirm('Remover esta fonte de conhecimento?')) document.getElementById('deleteFileForm_{{ $index }}').submit();" class="text-gray-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition shrink-0">
+                                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                        </button>
+                                                    </li>
+                                                @endforeach
+                                            </ul>
+                                        </div>
                                     </div>
                                 @endif
                             </div>
@@ -592,7 +595,6 @@
                                     </div>
                                 </div>
                                 
-                                <!-- NOVO CAMPO: IMPORTAR SITE / URL -->
                                 <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
                                     <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">🌐 Importar Site (Extração de Conteúdo)</label>
                                     <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
