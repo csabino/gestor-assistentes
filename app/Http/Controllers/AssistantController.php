@@ -178,19 +178,46 @@ class AssistantController extends Controller
 
     private function disconnectWhatsapp(Request $request)
     {
+        $assistantId = $request->input('assistant_id');
         $provider = $request->input('provider');
         $baseUrl = rtrim($request->input('url', ''), '/');
         $instance = trim($request->input('instance', ''));
         $token = trim($request->input('token', ''));
+
+        if ($assistantId) {
+            $assistant = Assistant::find($assistantId);
+            if ($assistant) {
+                $baseUrl = $baseUrl ?: rtrim($assistant->whatsapp_url ?? '', '/');
+                $instance = $instance ?: trim($assistant->whatsapp_instance ?? '');
+                $token = $token ?: trim($assistant->whatsapp_token ?? '');
+                $provider = $provider ?: ($assistant->whatsapp_provider ?? '');
+
+                // Limpa as credenciais do WhatsApp no banco de dados para este assistente
+                $assistant->forceFill([
+                    'whatsapp_provider' => null,
+                    'whatsapp_instance' => null,
+                    'whatsapp_token' => null,
+                    'whatsapp_url' => null,
+                ])->save();
+            }
+        }
 
         if ($baseUrl && $token) {
             try {
                 if (str_contains($baseUrl, 'uazapi.com') || $provider === 'uazapi') {
                     Http::withHeaders([
                         'token' => $token,
+                        'Client-Token' => $token,
                         'apikey' => $token,
                         'Content-Type' => 'application/json'
                     ])->post($baseUrl . '/instance/logout', ['token' => $token]);
+
+                    Http::withHeaders([
+                        'token' => $token,
+                        'Client-Token' => $token,
+                        'apikey' => $token,
+                        'Content-Type' => 'application/json'
+                    ])->post($baseUrl . '/logout', ['token' => $token]);
                 } else if ($provider === 'evolution' && $instance) {
                     Http::withHeaders([
                         'apikey' => $token,
@@ -519,7 +546,9 @@ class AssistantController extends Controller
 
                 if (!empty($content)) {
                     $cleanUrl = str_replace('🌐 ', '', $name);
-                    $prompt .= "\n--- INÍCIO DA FONTE [Nome: {$name} | Link: {$cleanUrl}] ---\n" . $content . "\n--- FIM DA FONTE [{$name}] ---\n";
+                    // LIMITA A 2.000 CARACTERES POR FONTE NO PROMPT PARA NÃO EXCEDER O LIMITE DE TOKENS
+                    $trimmedContent = mb_substr($content, 0, 2000);
+                    $prompt .= "\n--- INÍCIO DA FONTE [Nome: {$name} | Link: {$cleanUrl}] ---\n" . $trimmedContent . "\n--- FIM DA FONTE [{$name}] ---\n";
                 }
             }
         }
@@ -580,7 +609,7 @@ class AssistantController extends Controller
         if (!is_string($text) || empty($text)) return '';
         $clean = @mb_convert_encoding($text, 'UTF-8', 'UTF-8');
         $clean = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $clean);
-        return trim(substr($clean, 0, 3500));
+        return trim(mb_substr($clean, 0, 3000));
     }
 
     private function chat(Request $request)

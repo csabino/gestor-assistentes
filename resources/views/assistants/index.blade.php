@@ -49,7 +49,6 @@
 
     @if($configuring)
         <script>
-            // SALVA E RESTAURA O SCROLL DO CONTAINER <main>
             function saveScrollPosition() {
                 const mainContent = document.getElementById('mainContent');
                 if (mainContent) {
@@ -148,7 +147,6 @@
         </div>
     </aside>
 
-    <!-- MAIN SCROLL CONTAINER IDENTIFICADO -->
     <main id="mainContent" class="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
         
         <div class="container mx-auto px-6 max-w-6xl py-8">
@@ -295,11 +293,11 @@
                     </div>
                     
                     <div class="flex items-center gap-3 w-full md:w-auto">
-                        <form action="/" method="POST" class="flex-1 md:flex-none" onsubmit="saveScrollPosition()">
+                        <form action="/" method="POST" class="flex-1 md:flex-none">
                             @csrf @method('PATCH')
                             <input type="hidden" name="assistant_id" value="{{ $configuring->id }}">
                             <input type="hidden" name="from_config" value="1">
-                            <button type="submit" class="w-full md:w-auto text-sm px-4 py-2 rounded-lg font-semibold transition border flex justify-center items-center gap-2 {{ $configuring->is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200' }}">
+                            <button type="submit" onclick="saveScrollPosition()" class="w-full md:w-auto text-sm px-4 py-2 rounded-lg font-semibold transition border flex justify-center items-center gap-2 {{ $configuring->is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200' }}">
                                 @if($configuring->is_active)
                                     <svg class="w-2.5 h-2.5 fill-emerald-500" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg> Ativo
                                 @else
@@ -347,7 +345,13 @@
                         },
                         
                         getWaParams() {
-                            return { provider: this.wa_provider, url: this.wa_url, instance: this.wa_instance, token: this.wa_token };
+                            return { 
+                                assistant_id: '{{ $configuring->id ?? '' }}',
+                                provider: this.wa_provider, 
+                                url: this.wa_url, 
+                                instance: this.wa_instance, 
+                                token: this.wa_token 
+                            };
                         },
 
                         async startCrawler() {
@@ -449,6 +453,10 @@
                                 
                                 if (data.success) {
                                     this.waStatus = 'disconnected';
+                                    this.wa_provider = '';
+                                    this.wa_url = '';
+                                    this.wa_instance = '';
+                                    this.wa_token = '';
                                     saveScrollPosition();
                                     window.location.reload(); 
                                 } else {
@@ -483,7 +491,6 @@
                                 
                                 if (data.connected) {
                                     this.waStatus = 'connected';
-                                    // NÃO RECARREGA A TELA AUTOMATICAMENTE PARA NÃO DAR FLICKER
                                 } else if (data.success && this.pollAttempts < 20 && this.showWaModal) {
                                     this.pollAttempts++;
                                     setTimeout(() => {
@@ -633,7 +640,6 @@
                                         <div class="flex justify-between items-center mb-3 border-b border-gray-200 pb-2">
                                             <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Fontes ({{ count($configuring->knowledge_files) }})</h4>
                                             
-                                            <!-- AÇÕES EM LOTE -->
                                             <div class="flex items-center gap-3">
                                                 <label class="flex items-center gap-1.5 text-[11px] text-slate-600 cursor-pointer hover:text-indigo-600 transition">
                                                     <input type="checkbox" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" 
@@ -648,7 +654,6 @@
                                             </div>
                                         </div>
 
-                                        <!-- LISTA RETORNADA PARA MÁXIMO DE 3 LINHAS (max-h-[115px]) -->
                                         <div class="max-h-[115px] overflow-y-auto pr-1 custom-scroll">
                                             <ul class="space-y-1.5 text-sm text-gray-700">
                                                 @foreach($configuring->knowledge_files as $index => $file)
@@ -1044,7 +1049,6 @@
 
                 </form>
 
-                <!-- FORMULÁRIOS DE EXCLUSÃO SEPARADOS PARA NÃO QUEBRAR O DOM -->
                 @if($configuring->knowledge_files && count($configuring->knowledge_files) > 0)
                     @foreach($configuring->knowledge_files as $index => $file)
                         <form id="deleteFileForm_{{ $index }}" action="/" method="POST" class="hidden">
@@ -1057,7 +1061,6 @@
                 @endif
 
             @else
-                <!-- TELA DE LISTAGEM DE ASSISTENTES -->
                 <div class="mb-6">
                     <h1 class="text-xl font-bold text-gray-800">Gestão de Assistentes IA</h1>
                     <p class="text-xs text-gray-500 mt-1">Crie, configure e monitore seus assistentes virtuais multimodais integrados ao WhatsApp e canais de atendimento.</p>
@@ -1099,7 +1102,6 @@
                     </div>
                 </div>
 
-                <!-- CARDS GRID -->
                 <div x-show="view === 'card'" x-transition class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                     @forelse($assistants as $assistant)
                         <div x-show="(filter === 'all') || (filter === 'active' && {{ $assistant->is_active ? 'true' : 'false' }}) || (filter === 'inactive' && {{ !$assistant->is_active ? 'true' : 'false' }})"
@@ -1156,7 +1158,6 @@
                     @endforelse
                 </div>
                 
-                <!-- LISTA TABULAR -->
                 <div x-show="view === 'list'" x-transition class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     <table class="w-full text-left border-collapse text-sm">
                         <thead>
@@ -1226,7 +1227,6 @@
                 </div>
             @endif
 
-            <!-- MODAL DE HISTÓRICO DE CONVERSAS -->
             @if(isset($conversationsAssistant) && $conversationsAssistant)
                 <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
                     <div class="bg-white rounded-2xl shadow-2xl max-w-5xl w-full flex flex-col relative border border-slate-200 h-[85vh] overflow-hidden">
@@ -1248,7 +1248,6 @@
 
                         <div class="flex flex-1 overflow-hidden">
                             
-                            <!-- LISTA DE CONTATOS NA ESQUERDA -->
                             <div class="w-1/3 border-r border-slate-200 bg-slate-50/50 overflow-y-auto">
                                 <div class="p-3 border-b border-slate-200 text-xs font-bold text-slate-400 uppercase tracking-wider">
                                     Atendimentos ({{ count($conversationThreads ?? []) }})
@@ -1276,7 +1275,6 @@
                                 </div>
                             </div>
 
-                            <!-- HISTÓRICO DE MENSAGENS NA DIREITA -->
                             <div class="w-2/3 bg-slate-100 flex flex-col justify-between overflow-hidden">
                                 @if(isset($activePhone) && $activePhone && isset($activeThreadMessages) && count($activeThreadMessages) > 0)
                                     <div class="p-3 bg-white border-b border-slate-200 flex justify-between items-center text-xs font-semibold text-slate-700 shrink-0 shadow-sm z-10 relative">
