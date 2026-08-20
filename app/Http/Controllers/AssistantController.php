@@ -282,12 +282,14 @@ class AssistantController extends Controller
             }
         }
 
-        if ($request->hasFile('documents')) {
-            $existingFiles = $assistant->knowledge_files;
-            if (!is_array($existingFiles)) {
-                $existingFiles = [];
-            }
+        $existingFiles = $assistant->knowledge_files;
+        if (!is_array($existingFiles)) {
+            $existingFiles = [];
+        }
+        $hasKnowledgeChanges = false;
 
+        // Processamento de Upload de Arquivos Físicos (PDF, DOCX, TXT, etc.)
+        if ($request->hasFile('documents')) {
             $uploadedFiles = $request->file('documents');
             if (!is_array($uploadedFiles)) {
                 $uploadedFiles = [$uploadedFiles];
@@ -307,17 +309,61 @@ class AssistantController extends Controller
                             'path' => $path,
                             'content' => $extractedText
                         ];
+                        $hasKnowledgeChanges = true;
                     } catch (\Throwable $e) {
                         Log::error('Erro no anexo ' . $file->getClientOriginalName() . ': ' . $e->getMessage());
                     }
                 }
             }
+        }
+
+        // Processamento de URL (Importação via Jina Reader)
+        if ($request->filled('website_url')) {
+            $url = trim($request->input('website_url'));
+            $webContent = $this->fetchContentFromUrl($url);
+
+            if ($webContent) {
+                $existingFiles[] = [
+                    'name' => '🌐 ' . $url,
+                    'path' => null,
+                    'content' => $webContent
+                ];
+                $hasKnowledgeChanges = true;
+            } else {
+                return redirect('/?configure=' . $assistant->id)->with('error', 'Não foi possível extrair o conteúdo da URL informada.');
+            }
+        }
+
+        if ($hasKnowledgeChanges) {
             $data['knowledge_files'] = array_values($existingFiles);
         }
 
         $assistant->forceFill($data)->save();
 
         return redirect('/?configure=' . $assistant->id)->with('success', 'Configurações atualizadas!');
+    }
+
+    private function fetchContentFromUrl(string $url): ?string
+    {
+        try {
+            if (!str_starts_with($url, 'http://') && !str_starts_with($url, 'https://')) {
+                $url = 'https://' . $url;
+            }
+
+            if (!filter_var($url, FILTER_VALIDATE_URL)) {
+                return null;
+            }
+
+            $response = Http::timeout(30)->get('https://r.jina.ai/' . $url);
+
+            if ($response->successful()) {
+                return $this->sanitizeText($response->body());
+            }
+        } catch (\Throwable $e) {
+            Log::error("Erro ao importar URL via Jina Reader ({$url}): " . $e->getMessage());
+        }
+
+        return null;
     }
 
     private function toggleActive(Request $request)
@@ -344,7 +390,7 @@ class AssistantController extends Controller
                 array_splice($files, $index, 1);
                 $assistant->forceFill(['knowledge_files' => array_values($files)])->save();
             }
-            return redirect('/?configure=' . $assistant->id)->with('success', 'Arquivo removido.');
+            return redirect('/?configure=' . $assistant->id)->with('success', 'Arquivo/URL removido.');
         }
 
         $assistant->delete();
@@ -385,7 +431,7 @@ class AssistantController extends Controller
         $files = $assistant->knowledge_files;
 
         if (is_array($files) && !empty($files)) {
-            $prompt .= "\n### BASE DE CONHECIMENTO OFICIAL (DOCUMENTOS ANEXADOS) ###\n";
+            $prompt .= "\n### BASE DE CONHECIMENTO OFICIAL (DOCUMENTOS E URLS ANEXADOS) ###\n";
             foreach ($files as $file) {
                 $name = $file['name'] ?? 'Arquivo';
                 $content = $file['content'] ?? '';
