@@ -625,15 +625,31 @@ class AssistantController extends Controller
     {
         if (empty($text)) return '';
 
+        // 1. Troca links do markdown: [Texto](URL) -> Texto: 👉 URL
         $text = preg_replace_callback('/\[([^\]]+)\]\(([^)]+)\)/', function ($matches) {
             $label = trim($matches[1]);
             $url = trim($matches[2]);
             return "{$label}:\n👉 {$url}";
         }, $text);
 
+        // 2. Converte Headers (### Titulo) para negrito do WhatsApp (*Titulo*)
         $text = preg_replace('/^#{1,6}\s*(.+)$/m', '*$1*', $text);
-        $text = preg_replace('/\*\*(.*?)\*\*/s', '*$1*', $text);
+
+        // 3. Converte bullet points do markdown (* ou -) para bullet points reais (•)
         $text = preg_replace('/^\s*[\*\-]\s+/m', '• ', $text);
+
+        // 4. Limpa erros da IA ao misturar listas numeradas com negrito (Ex: *1. *Texto**)
+        $text = preg_replace('/^\*(\d+\.)\s*\*/m', '$1 *', $text);
+        $text = preg_replace('/^\*(\d+\.)\s*/m', '$1 ', $text);
+
+        // 5. Converte Negrito exagerado da IA (***texto*** ou **texto**) para o padrão WhatsApp (*texto*)
+        $text = preg_replace('/\*\*\*(.*?)\*\*\*/s', '*$1*', $text);
+        $text = preg_replace('/\*\*(.*?)\*\*/s', '*$1*', $text);
+
+        // 6. Limpa qualquer asterisco duplo órfão que possa ter sobrado na conversão
+        $text = str_replace('**', '*', $text);
+
+        // 7. Remove espaços excessivos de quebra de linha
         $text = preg_replace("/\n{3,}/", "\n\n", $text);
 
         return trim($text);
