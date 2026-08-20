@@ -49,9 +49,12 @@
 
     @if($configuring)
         <script>
-            // FUNÇÃO DEFINITIVA DE SCROLL ROBUSTO
+            // SALVA E RESTAURA O SCROLL DO CONTAINER <main>
             function saveScrollPosition() {
-                sessionStorage.setItem('scrollpos_config_{{ $configuring->id }}', window.scrollY || document.documentElement.scrollTop);
+                const mainContent = document.getElementById('mainContent');
+                if (mainContent) {
+                    sessionStorage.setItem('scrollpos_config_{{ $configuring->id }}', mainContent.scrollTop);
+                }
             }
 
             document.addEventListener("DOMContentLoaded", function() {
@@ -59,8 +62,11 @@
                 const scrollpos = sessionStorage.getItem(key);
                 if (scrollpos !== null) {
                     setTimeout(() => {
-                        window.scrollTo({ top: parseInt(scrollpos), behavior: 'auto' });
-                    }, 50); // O leve atraso garante que a página já renderizou os elementos
+                        const mainContent = document.getElementById('mainContent');
+                        if (mainContent) {
+                            mainContent.scrollTop = parseInt(scrollpos);
+                        }
+                    }, 50);
                     sessionStorage.removeItem(key);
                 }
             });
@@ -128,7 +134,7 @@
 
                 <div class="relative group">
                     <a href="/?view=settings" class="flex items-center rounded-xl transition font-semibold {{ $currentView === 'settings' ? 'bg-indigo-900/90 text-white shadow-sm border border-indigo-500/30' : 'text-indigo-100 hover:bg-indigo-600' }}" :class="sidebarOpen ? 'gap-3.5 px-4 py-3' : 'justify-center p-3'">
-                        <svg class="w-5 h-5 shrink-0 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.27 1.06-.12 1.451l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.27-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.149-.894z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        <svg class="w-5 h-5 shrink-0 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.27 1.06-.12 1.451l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.27-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.149-.894z'/><path stroke-linecap='round' stroke-linejoin='round' d='M15 12a3 3 0 11-6 0 3 3 0 016 0z'/></svg>
                         <span x-show="sidebarOpen" class="truncate">Settings</span>
                     </a>
                     <div x-show="!sidebarOpen" class="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-md shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">Settings</div>
@@ -142,7 +148,8 @@
         </div>
     </aside>
 
-    <main class="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
+    <!-- MAIN SCROLL CONTAINER IDENTIFICADO -->
+    <main id="mainContent" class="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
         
         <div class="container mx-auto px-6 max-w-6xl py-8">
             
@@ -288,11 +295,11 @@
                     </div>
                     
                     <div class="flex items-center gap-3 w-full md:w-auto">
-                        <form action="/" method="POST" class="flex-1 md:flex-none">
+                        <form action="/" method="POST" class="flex-1 md:flex-none" onsubmit="saveScrollPosition()">
                             @csrf @method('PATCH')
                             <input type="hidden" name="assistant_id" value="{{ $configuring->id }}">
                             <input type="hidden" name="from_config" value="1">
-                            <button type="submit" onclick="saveScrollPosition()" class="w-full md:w-auto text-sm px-4 py-2 rounded-lg font-semibold transition border flex justify-center items-center gap-2 {{ $configuring->is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200' }}">
+                            <button type="submit" class="w-full md:w-auto text-sm px-4 py-2 rounded-lg font-semibold transition border flex justify-center items-center gap-2 {{ $configuring->is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200' }}">
                                 @if($configuring->is_active)
                                     <svg class="w-2.5 h-2.5 fill-emerald-500" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg> Ativo
                                 @else
@@ -306,7 +313,7 @@
                     </div>
                 </div>
 
-                <form id="configForm" action="/" method="POST" enctype="multipart/form-data" 
+                <form id="configForm" action="/" method="POST" enctype="multipart/form-data" onsubmit="saveScrollPosition()"
                     x-data="{ 
                         provider: '{{ $configuring->provider ?? 'openai' }}',
                         wa_provider: '{{ $configuring->whatsapp_provider ?? '' }}',
@@ -476,11 +483,7 @@
                                 
                                 if (data.connected) {
                                     this.waStatus = 'connected';
-                                    setTimeout(() => {
-                                        this.showWaModal = false;
-                                        saveScrollPosition();
-                                        window.location.reload();
-                                    }, 1500);
+                                    // NÃO RECARREGA A TELA AUTOMATICAMENTE PARA NÃO DAR FLICKER
                                 } else if (data.success && this.pollAttempts < 20 && this.showWaModal) {
                                     this.pollAttempts++;
                                     setTimeout(() => {
@@ -644,9 +647,9 @@
                                                 </button>
                                             </div>
                                         </div>
-                                        
-                                        <!-- LISTA COM SCROLL INTERNO E CHECKBOXES -->
-                                        <div class="max-h-[160px] overflow-y-auto pr-1 custom-scroll">
+
+                                        <!-- LISTA RETORNADA PARA MÁXIMO DE 3 LINHAS (max-h-[115px]) -->
+                                        <div class="max-h-[115px] overflow-y-auto pr-1 custom-scroll">
                                             <ul class="space-y-1.5 text-sm text-gray-700">
                                                 @foreach($configuring->knowledge_files as $index => $file)
                                                     <li class="flex items-center justify-between bg-white px-3 py-1.5 border rounded-md shadow-sm transition"
@@ -808,6 +811,234 @@
                                     Conectar / QR Code
                                 </button>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- MODAL DE CAMPOS DE QUALIFICAÇÃO / LEAD -->
+                    <div x-show="showLeadModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4" x-transition>
+                        <div x-on:click.away="showLeadModal = false" class="bg-white rounded-xl shadow-2xl max-w-3xl w-full flex flex-col relative border border-slate-200 max-h-[85vh]">
+                            
+                            <div class="flex justify-between items-center border-b border-slate-100 p-5 shrink-0">
+                                <div class="flex items-center gap-3">
+                                    <span class="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
+                                    </span>
+                                    <div>
+                                        <h3 class="text-base font-bold text-slate-800">Campos de Qualificação (Variáveis)</h3>
+                                        <p class="text-xs text-slate-500 font-medium mt-0.5">Defina os dados que a IA deve capturar para abrir chamados (InSoft Omni).</p>
+                                    </div>
+                                </div>
+                                <button type="button" x-on:click="showLeadModal = false" class="text-slate-400 hover:text-slate-600 p-2 rounded-lg hover:bg-slate-100 transition">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+
+                            <div class="p-5 overflow-y-auto bg-slate-50 flex-1">
+                                <div class="space-y-3">
+                                    <template x-for="(field, index) in leadFields" :key="index">
+                                        <div class="bg-white p-3.5 rounded-lg border border-slate-200 shadow-sm flex items-start gap-3 relative group">
+                                            <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label class="block text-[10px] uppercase tracking-wide font-bold text-slate-500 mb-1">Nome de Exibição (Label)</label>
+                                                    <input type="text" x-model="field.label" :name="'lead_fields['+index+'][label]'" placeholder="Ex: Nome Completo" class="w-full border border-slate-200 rounded-md px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-[10px] uppercase tracking-wide font-bold text-slate-500 mb-1">Variável Interna (InSoft Omni)</label>
+                                                    <input type="text" x-model="field.name" :name="'lead_fields['+index+'][name]'" placeholder="Ex: client_name" class="w-full border border-slate-200 bg-slate-50 rounded-md px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                                                </div>
+                                            </div>
+                                            <button type="button" @click="leadFields.splice(index, 1)" class="mt-5 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-md transition" title="Remover Campo">
+                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+                                            </button>
+                                        </div>
+                                    </template>
+
+                                    <div x-show="leadFields.length === 0" class="text-center py-8 border-2 border-dashed border-slate-200 rounded-xl bg-white">
+                                        <svg class="w-8 h-8 text-slate-300 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                                        <p class="text-xs text-slate-500 font-medium">Nenhum campo dinâmico cadastrado.</p>
+                                    </div>
+                                </div>
+                                
+                                <button type="button" @click="leadFields.push({label: '', name: ''})" class="mt-4 w-full border-2 border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 font-semibold py-3 rounded-xl text-xs transition flex items-center justify-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                                    Adicionar Novo Campo
+                                </button>
+                            </div>
+
+                            <div class="flex justify-between items-center p-5 border-t border-slate-100 bg-white rounded-b-xl shrink-0">
+                                <p class="text-[10px] text-slate-400 font-medium w-2/3 leading-tight">Dica: O campo "Variável Interna" deve ser o mesmo nome esperado pela API do InSoft Omni (sem espaços, ex: cpf_cliente).</p>
+                                <button type="button" x-on:click="showLeadModal = false" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-lg text-xs transition shadow-sm">
+                                    Concluído
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MODAL DIAGNÓSTICO DO WEBHOOK -->
+                    <div x-show="showWebhookModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4" x-transition>
+                        <div x-on:click.away="closeWebhookModal()" class="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 relative border border-slate-200 space-y-5">
+                            
+                            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.27 1.06-.12 1.451l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.27-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.149-.894z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                    </span>
+                                    <h3 class="text-sm font-bold text-slate-800">Webhook & Diagnóstico do Sistema</h3>
+                                </div>
+                                <button type="button" x-on:click="closeWebhookModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1.5">URL do Webhook do Assistente</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="text" readonly id="modalWebhookUrl" value="{{ request()->schemeAndHttpHost() }}/?webhook_id={{ $configuring->id }}" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 font-mono outline-none">
+                                    <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('modalWebhookUrl').value); alert('URL copiada!');" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg text-xs transition shrink-0">Copiar</button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <label class="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                                        <span>Raio-X da Última Requisição</span>
+                                    </label>
+                                    <button type="button" onclick="window.location.href='/?configure={{ $configuring->id }}&modal=webhook'" class="text-indigo-600 hover:text-indigo-800 text-xs font-semibold flex items-center gap-1">
+                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
+                                        Atualizar
+                                    </button>
+                                </div>
+
+                                <div class="bg-slate-900 text-slate-100 p-4 rounded-xl text-[11px] font-mono border border-slate-800 max-h-72 overflow-y-auto space-y-2">
+                                    @if($lastWebhook)
+                                        @php
+                                            $whDate = \Carbon\Carbon::parse($lastWebhook['timestamp'] ?? now())->setTimezone('America/Sao_Paulo')->format('d/m/Y H:i:s');
+                                        @endphp
+                                        <div class="flex justify-between border-b border-slate-800 pb-2 mb-2">
+                                            <span class="text-slate-400">Data/Hora: {{ $whDate }}</span>
+                                            <span class="text-slate-400">Remetente: <strong class="text-slate-200">{{ $lastWebhook['sender'] ?? '-' }}</strong></span>
+                                        </div>
+                                        <p><span class="text-slate-400">Mensagem:</span> <span class="text-slate-100 font-sans font-medium">"{{ $lastWebhook['user_message'] ?? '-' }}"</span></p>
+                                        
+                                        @if(isset($lastWebhook['ai_reply']))
+                                            <p class="truncate"><span class="text-slate-400">Resposta IA:</span> <span class="text-emerald-400 font-sans font-medium">{{ $lastWebhook['ai_reply'] }}</span></p>
+                                        @endif
+
+                                        <div class="pt-2 border-t border-slate-800 flex items-center justify-between mt-2">
+                                            <span class="text-slate-400">Status do Disparo:</span>
+                                            @if(($lastWebhook['wa_send_result']['success'] ?? false) === true)
+                                                <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-semibold">ENTREGUE</span>
+                                            @else
+                                                <span class="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded text-[10px] font-semibold">FALHOU</span>
+                                            @endif
+                                        </div>
+
+                                        @if(isset($lastWebhook['error']))
+                                            <div class="bg-rose-950/40 border border-rose-800/40 p-2 rounded text-rose-300 mt-2">
+                                                Motivo: {{ $lastWebhook['error'] }}
+                                            </div>
+                                        @endif
+
+                                        @if(isset($lastWebhook['wa_send_result']['error']))
+                                            <div class="bg-rose-950/40 border border-rose-800/40 p-2 rounded text-rose-300 mt-2">
+                                                Resposta API: {{ $lastWebhook['wa_send_result']['error'] }}
+                                            </div>
+                                        @endif
+
+                                        @if(isset($lastWebhook['raw_snippet']))
+                                            <div class="mt-3 pt-2 border-t border-slate-800 text-[10px]">
+                                                <span class="text-slate-500 block mb-1">Payload Recebido:</span>
+                                                <div class="bg-slate-950 p-2 rounded text-slate-400 font-mono break-all text-[9px]">
+                                                    {{ $lastWebhook['raw_snippet'] }}
+                                                </div>
+                                            </div>
+                                        @endif
+                                    @else
+                                        <p class="text-slate-500 italic py-4 text-center font-sans">Nenhum evento registrado. Mande uma mensagem para gerar o diagnóstico.</p>
+                                    @endif
+                                </div>
+                            </div>
+
+                            <div class="flex justify-end pt-2 border-t border-slate-100">
+                                <button type="button" x-on:click="closeWebhookModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-4 py-2 rounded-lg text-xs transition">
+                                    Fechar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MODAL DO QR CODE -->
+                    <div x-show="showWaModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4" x-transition>
+                        <div x-on:click.away="showWaModal = false" class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center relative border border-gray-100">
+                            
+                            <button type="button" x-on:click="showWaModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition p-1 rounded-lg">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+
+                            <h3 class="text-lg font-bold text-gray-800 mb-1 flex items-center justify-center gap-2">
+                                <svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>
+                                Conexão WhatsApp
+                            </h3>
+                            <p class="text-xs text-gray-500 mb-6">{{ $configuring->name }}</p>
+
+                            <div x-show="waLoading && !waResult" class="py-8 space-y-3">
+                                <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-emerald-500 border-t-transparent"></div>
+                                <p class="text-sm font-semibold text-gray-600">Acessando API...</p>
+                            </div>
+
+                            <div x-show="waResult !== null">
+                                <template x-if="waResult?.connected">
+                                    <div class="py-6 space-y-3">
+                                        <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                                            <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                                        </div>
+                                        <h4 class="text-base font-bold text-gray-800">WhatsApp Conectado!</h4>
+                                        <p class="text-xs text-gray-500" x-text="waResult?.message"></p>
+                                    </div>
+                                </template>
+
+                                <template x-if="waResult?.qr && !waResult?.connected">
+                                    <div class="space-y-4">
+                                        <p class="text-xs text-gray-600 font-medium" x-text="waResult?.message"></p>
+                                        <div class="bg-gray-50 p-4 rounded-xl inline-block border border-gray-200 shadow-inner">
+                                            <img :src="waResult.qr" alt="QR Code" class="w-56 h-56 object-contain mx-auto rounded-lg">
+                                        </div>
+                                        <p class="text-[11px] text-gray-400">1. Abra o WhatsApp no celular<br>2. Toque em <b>Aparelhos Conectados</b> > <b>Conectar um Aparelho</b></p>
+                                        
+                                        <div class="text-[10px] text-gray-400 mt-2 flex items-center justify-center gap-1.5 bg-gray-50 py-1.5 rounded border border-gray-100">
+                                            <span class="inline-block animate-spin rounded-full h-3 w-3 border-2 border-emerald-500 border-t-transparent"></span>
+                                            Aguardando leitura... (Tentativa <span x-text="pollAttempts"></span>/20)
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <template x-if="!waResult?.qr && !waResult?.connected && waResult?.success">
+                                    <div class="py-6 space-y-3">
+                                        <div class="inline-block animate-spin rounded-full h-8 w-8 border-3 border-emerald-500 border-t-transparent"></div>
+                                        <p class="text-xs text-gray-600 font-semibold">Instância acordou! Obtendo imagem do QR Code...</p>
+                                        <p class="text-[11px] text-gray-400" x-text="`Tentativa ${pollAttempts} de 20 (Aguarde 3s...)`"></p>
+                                    </div>
+                                </template>
+
+                                <template x-if="!waResult?.success">
+                                    <div class="py-4 space-y-2">
+                                        <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
+                                            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+                                        </div>
+                                        <p class="text-xs font-semibold text-red-600" x-text="waResult?.message"></p>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <div class="mt-6 pt-4 border-t border-gray-100 flex gap-2">
+                                <button type="button" x-on:click="runWaPoll()" :disabled="waLoading" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 rounded-lg text-xs transition">
+                                    Atualizar / Tentar Novamente
+                                </button>
+                                <button type="button" x-on:click="showWaModal = false" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2 rounded-lg text-xs transition">
+                                    Fechar
+                                </button>
+                            </div>
+
                         </div>
                     </div>
 
