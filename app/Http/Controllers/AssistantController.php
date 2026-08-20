@@ -186,8 +186,6 @@ class AssistantController extends Controller
         $instance = trim($request->input('instance') ?? ($assistant->whatsapp_instance ?? ''));
         $provider = $request->input('provider') ?? ($assistant->whatsapp_provider ?? '');
 
-        // NÃO APAGA AS CREDENCIAIS DO BANCO! Mantém cadastradas para o usuário não ter que digitar tudo de novo.
-
         if ($baseUrl && $token) {
             try {
                 if (str_contains($baseUrl, 'uazapi.com') || $provider === 'uazapi') {
@@ -532,26 +530,25 @@ class AssistantController extends Controller
 
                 if (!empty($content)) {
                     $cleanUrl = str_replace('🌐 ', '', $name);
-                    // AMPLIADO PARA 6.000 CARACTERES: Captura o conteúdo real da página sem cortar no cabeçalho
-                    $trimmedContent = mb_substr($content, 0, 6000);
+                    $trimmedContent = mb_substr($content, 0, 5000);
                     
                     if (str_starts_with($name, '🌐')) {
-                        $prompt .= "\n--- PÁGINA DA WEB: {$cleanUrl} ---\n" . $trimmedContent . "\n--- FIM DA PÁGINA: {$cleanUrl} ---\n";
+                        $prompt .= "\n[TIPO: PAGINA_WEB]\n[URL: {$cleanUrl}]\n[CONTEÚDO]:\n" . $trimmedContent . "\n[FIM DE PAGINA_WEB]\n";
                     } else {
-                        $prompt .= "\n--- DOCUMENTO: {$name} ---\n" . $trimmedContent . "\n--- FIM DO DOCUMENTO: {$name} ---\n";
+                        $prompt .= "\n[TIPO: DOCUMENTO_ARQUIVO]\n[NOME_ARQUIVO: {$name}]\n[CONTEÚDO]:\n" . $trimmedContent . "\n[FIM DE DOCUMENTO_ARQUIVO]\n";
                     }
                 }
             }
         }
 
         $prompt .= "\n\n===============================================\n";
-        $prompt .= "DIRETRIZES ABSOLUTAS E OBRIGATÓRIAS DE RESPOSTA:\n";
-        $prompt .= "1. FIDELIDADE AO CONTEÚDO: Responda à dúvida do cliente utilizando EXATAMENTE o texto e as explicações contidas nas PÁGINAS DA WEB ou DOCUMENTOS acima. Não invente conceitos e não parafraseie com definições genéricas de livros ou dicionários.\n";
-        $prompt .= "2. CITAÇÃO OBRIGATÓRIA DA URL: Sempre que você usar informações de uma PÁGINA DA WEB (fonte que possui URL), você É OBRIGADA a incluir na ÚLTIMA LINHA da sua resposta exatamente o texto:\n";
-        $prompt .= "URL Consultada: [URL_EXATA_DA_PÁGINA]\n";
-        $prompt .= "Exemplo:\n";
-        $prompt .= "URL Consultada: https://inhouse.com.br/sac-regulado\n";
-        $prompt .= "3. FORMATO DE LINKS NO CORPO DO TEXTO: Formate links intermediários em Markdown: [Texto](URL_COMPLETA).\n";
+        $prompt .= "DIRETRIZES ABSOLUTAS E OBRIGATÓRIAS DE RESPOSTA E CITAÇÃO:\n";
+        $prompt .= "1. FIDELIDADE AO CONTEÚDO: Responda utilizando EXATAMENTE os termos, frases e explicações das fontes acima. Não invente explicações genéricas.\n";
+        $prompt .= "2. REGRA DE CITAÇÃO PARA PAGINA_WEB: Se a sua resposta utilizar informações que vieram de uma fonte marcada como [TIPO: PAGINA_WEB], você É OBRIGADA a incluir na ÚLTIMA LINHA da resposta:\n";
+        $prompt .= "URL Consultada: [URL_DA_FONTE]\n";
+        $prompt .= "Exemplo: URL Consultada: https://inhouse.com.br/sac-regulado\n";
+        $prompt .= "3. REGRA DE PROIBIÇÃO PARA DOCUMENTO_ARQUIVO: Se a sua resposta utilizar informações que vieram de uma fonte marcada como [TIPO: DOCUMENTO_ARQUIVO] (como .docx ou .pdf), é ESTRITAMENTE PROIBIDO adicionar 'URL Consultada' ou citar links de páginas da web.\n";
+        $prompt .= "4. FORMATO DE LINKS INTERMEDIÁRIOS: Formate links no meio da frase em Markdown: [Texto](URL_COMPLETA).\n";
         $prompt .= "===============================================\n";
 
         return $prompt;
