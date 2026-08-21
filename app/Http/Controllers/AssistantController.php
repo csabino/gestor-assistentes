@@ -797,16 +797,15 @@ private function extractAudioBytesFromResponse($response): ?string
         $json = $response->json();
 
         if (is_array($json)) {
+            // 1. Tenta extrair base64 direto se houver
             $b64 = $json['base64'] 
                 ?? $json['data']['base64'] 
                 ?? $json['media'] 
                 ?? $json['data'] 
-                ?? $json['file'] 
                 ?? $json['result']
-                ?? $json['downloadUrl']
                 ?? null;
 
-            if (is_string($b64) && strlen($b64) > 100) {
+            if (is_string($b64) && strlen($b64) > 100 && !str_starts_with($b64, 'http')) {
                 $cleanB64 = preg_replace('#^data:audio/\w+;base64,#i', '', $b64);
                 $decoded = base64_decode($cleanB64);
                 if ($decoded && strlen($decoded) > 100) {
@@ -814,14 +813,28 @@ private function extractAudioBytesFromResponse($response): ?string
                 }
             }
 
-            $returnedUrl = $json['url'] ?? $json['mediaUrl'] ?? $json['data']['url'] ?? null;
-            if (is_string($returnedUrl) && str_starts_with($returnedUrl, 'http') && !str_contains($returnedUrl, '.enc')) {
+            // 2. Mapeia a URL descriptografada fornecida pela UaZapi (fileURL)
+            $returnedUrl = $json['fileURL']
+                ?? $json['fileUrl']
+                ?? $json['file_url']
+                ?? $json['url'] 
+                ?? $json['mediaUrl'] 
+                ?? $json['media_url']
+                ?? $json['downloadUrl']
+                ?? $json['data']['fileURL']
+                ?? $json['data']['fileUrl']
+                ?? $json['data']['url'] 
+                ?? null;
+
+            if (is_string($returnedUrl) && str_starts_with($returnedUrl, 'http')) {
                 try {
-                    $dl = Http::timeout(15)->get($returnedUrl);
+                    $dl = Http::timeout(25)->get($returnedUrl);
                     if ($dl->successful() && strlen($dl->body()) > 200) {
                         return $dl->body();
                     }
-                } catch (\Throwable $eUrl) {}
+                } catch (\Throwable $eUrl) {
+                    Log::error("Erro no download da fileURL da UaZapi: " . $eUrl->getMessage());
+                }
             }
         }
 
@@ -906,8 +919,7 @@ private function extractAudioBytesFromResponse($response): ?string
                     $token = trim($assistant->whatsapp_token ?? '');
                     $baseUrl = rtrim($assistant->whatsapp_url ?? '', '/');
                     $msgPayload = $request->input('message') ?? [];
-                    $msgId = $msgPayload['messageid'] ?? null;
-                    $fullId = $msgPayload['id'] ?? null;
+                    $msgId = $msgPayload['messageid'] ?? $msgPayload['id'] ?? null;
 
                     $headers = [
                         'token' => $token,
@@ -918,47 +930,27 @@ private function extractAudioBytesFromResponse($response): ?string
                     ];
 
                     $audioBytes = null;
-                    $attemptLogs = [];
 
                     if ($baseUrl && $token) {
-                        $dlRoutes = [
-                            '/message/download',
-                            '/message/downloadMedia',
-                            '/download/media',
-                            '/media/download',
-                            '/download',
-                            '/instance/downloadMedia',
-                            '/message/getBase64'
+                        $url = $baseUrl . '/message/download?token=' . urlencode($token);
+                        
+                        $payloads = [
+                            ['token' => $token, 'id' => $msgId, 'messageid' => $msgId, 'message' => $msgPayload],
+                            ['token' => $token, 'id' => $msgId]
                         ];
 
-                        foreach ($dlRoutes as $route) {
-                            $url = $baseUrl . $route . '?token=' . urlencode($token);
-
-                            $payloads = [
-                                ['token' => $token, 'id' => $msgId, 'messageid' => $msgId, 'message' => $msgPayload],
-                                ['token' => $token, 'id' => $fullId, 'message' => $msgPayload],
-                                ['token' => $token, 'id' => $msgId]
-                            ];
-
-                            foreach ($payloads as $pIdx => $payload) {
-                                if (empty($payload['id']) && empty($payload['message'])) continue;
-
-                                try {
-                                    $res = Http::withHeaders($headers)->timeout(15)->post($url, $payload);
-                                    if ($res->successful()) {
-                                        $bytes = $this->extractAudioBytesFromResponse($res);
-                                        if ($bytes) {
-                                            $audioBytes = $bytes;
-                                            break 2;
-                                        }
-                                        $attemptLogs[] = "POST {$route} (P{$pIdx}): 200 sem base64 (" . substr($res->body(), 0, 80) . ")";
-                                    } else {
-                                        $attemptLogs[] = "POST {$route} (P{$pIdx}): status " . $res->status() . " (" . substr($res->body(), 0, 80) . ")";
+                        foreach ($payloads as $payload) {
+                            if (empty($payload['id'])) continue;
+                            try {
+                                $res = Http::withHeaders($headers)->timeout(20)->post($url, $payload);
+                                if ($res->successful()) {
+                                    $bytes = $this->extractAudioBytesFromResponse($res);
+                                    if ($bytes) {
+                                        $audioBytes = $bytes;
+                                        break;
                                     }
-                                } catch (\Throwable $ePost) {
-                                    $attemptLogs[] = "POST {$route} exc: " . $ePost->getMessage();
                                 }
-                            }
+                            } catch (\Throwable $eDl) {}
                         }
                     }
 
@@ -972,17 +964,17 @@ private function extractAudioBytesFromResponse($response): ?string
                             if (!empty($transcribedText)) {
                                 $userMessage = $transcribedText;
                             } else {
-                                $audioErrorDetails = "Whisper rejeitou o audio gravado em temporario.";
+                                $audioErrorDetails = "Whisper nao retornou transcricao para o audio.";
                             }
                         } else {
-                            $audioErrorDetails = "Chave da OpenAI nao configurada para transcricao.";
+                            $audioErrorDetails = "Chave OpenAI nao configurada para transcricao.";
                         }
                         @unlink($tempPath);
                     } else if (!$audioErrorDetails) {
-                        $audioErrorDetails = !empty($attemptLogs) ? implode(' | ', array_slice($attemptLogs, 0, 4)) : "Nao foi possivel obter base64 de audio da UaZapi.";
+                        $audioErrorDetails = "Falha ao baixar arquivo da fileURL fornecida pela UaZapi.";
                     }
                 } catch (\Throwable $e) {
-                    $audioErrorDetails = "Excecao geral no audio: " . $e->getMessage();
+                    $audioErrorDetails = "Excecao no processamento do audio: " . $e->getMessage();
                     Log::error("Erro no audio: " . $e->getMessage());
                 }
             }
