@@ -203,19 +203,30 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
                 'Content-Type' => 'application/json'
             ];
 
-            // 1. Checa status da conexão garantindo tratamento de tipos
-            $statusEndpoints = [
-                $baseUrl . '/instance/connectionState/' . $instance,
-                $baseUrl . '/instance/connectionState',
-                $baseUrl . '/instance/status/' . $instance,
-                $baseUrl . '/instance/status',
-                $baseUrl . '/status'
+            $params = array_filter([
+                'token' => $token,
+                'instance' => $instance
+            ]);
+
+            // 1. Checa status da conexão (testando GET e POST)
+            $statusPaths = [
+                '/instance/connectionState/' . $instance,
+                '/instance/connectionState',
+                '/instance/status/' . $instance,
+                '/instance/status',
+                '/status'
             ];
 
             $connected = false;
 
-            foreach ($statusEndpoints as $endpoint) {
-                $res = Http::withHeaders($headers)->get($endpoint, ['token' => $token, 'instance' => $instance]);
+            foreach ($statusPaths as $path) {
+                $url = $baseUrl . $path;
+                
+                $res = Http::withHeaders($headers)->get($url, $params);
+                if (!$res->successful()) {
+                    $res = Http::withHeaders($headers)->post($url, $params);
+                }
+
                 if ($res->successful()) {
                     $json = $res->json();
                     if (is_array($json)) {
@@ -235,21 +246,30 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
                 return response()->json(['connected' => true, 'success' => true, 'message' => 'WhatsApp conectado.']);
             }
 
-            // 2. Busca e valida a imagem do QR Code
+            // 2. Busca o QR Code via POST (padrão UaZapi) e GET como fallback
             if ($isTest) {
-                $qrEndpoints = [
-                    $baseUrl . '/instance/connect/' . $instance,
-                    $baseUrl . '/instance/connect',
-                    $baseUrl . '/instance/qr/' . $instance,
-                    $baseUrl . '/instance/qr',
-                    $baseUrl . '/connect',
-                    $baseUrl . '/qr'
+                $qrPaths = [
+                    '/instance/connect/' . $instance,
+                    '/instance/connect',
+                    '/connect',
+                    '/instance/qr/' . $instance,
+                    '/instance/qr',
+                    '/qr',
+                    '/instance/qrcode',
+                    '/qrcode'
                 ];
 
                 $lastResponseBody = '';
 
-                foreach ($qrEndpoints as $endpoint) {
-                    $res = Http::withHeaders($headers)->get($endpoint, ['token' => $token, 'instance' => $instance]);
+                foreach ($qrPaths as $path) {
+                    $url = $baseUrl . $path;
+
+                    // Tenta POST com payload JSON (exigido pela UaZapi para acionar a sessão)
+                    $res = Http::withHeaders($headers)->post($url, $params);
+                    if (!$res->successful()) {
+                        $res = Http::withHeaders($headers)->get($url, $params);
+                    }
+
                     $lastResponseBody = $res->body();
 
                     if ($res->successful()) {
