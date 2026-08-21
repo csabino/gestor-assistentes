@@ -186,37 +186,34 @@ private function disconnectWhatsapp(Request $request)
         $instance = trim($request->input('instance') ?? ($assistant->whatsapp_instance ?? ''));
         $provider = $request->input('provider') ?? ($assistant->whatsapp_provider ?? '');
 
-        // IMPORTANTE: Nenhum dado é apagado do banco de dados aqui. 
-        // Suas credenciais permanecem salvas e intactas.
+        // 🔒 GARANTIA 1: Nenhuma credencial é apagada do seu banco de dados.
 
         if ($baseUrl && $token) {
             try {
                 if (str_contains($baseUrl, 'uazapi.com') || $provider === 'uazapi') {
                     
-                    // Tenta a rota padrão de logout da UaZapi
-                    $endpoint = $baseUrl . '/instance/logout/' . $instance;
-                    
-                    $response = Http::withHeaders([
+                    $headers = [
                         'token' => $token,
                         'Client-Token' => $token,
+                        'client-token' => $token,
                         'apikey' => $token,
                         'Content-Type' => 'application/json'
-                    ])->delete($endpoint);
-                    
-                    // Se a UaZapi der erro 404 (Página não encontrada), tentamos a rota alternativa
-                    if ($response->status() === 404) {
-                        $response = Http::withHeaders([
-                            'token' => $token,
-                            'Client-Token' => $token,
-                            'apikey' => $token,
-                            'Content-Type' => 'application/json'
-                        ])->post($baseUrl . '/instance/logout', [
-                            'token' => $token, 
-                            'instance' => $instance
-                        ]);
+                    ];
+
+                    $payload = [
+                        'token' => $token,
+                        'instance' => $instance
+                    ];
+
+                    // 🔒 GARANTIA 2: Tenta a rota EXCLUSIVA de desconectar o celular (sem deletar instância)
+                    $response = Http::withHeaders($headers)->post($baseUrl . '/instance/disconnect', $payload);
+
+                    // Se a rota for diferente, tenta a de logout de sessão
+                    if (!$response->successful() && $response->status() !== 405) {
+                        $response = Http::withHeaders($headers)->post($baseUrl . '/instance/logout', $payload);
                     }
 
-                    // Se a API barrar, retorna o erro exato na tela em um popup para investigarmos
+                    // Se a UaZapi recusar, exibe a mensagem de retorno na tela para investigarmos
                     if (!$response->successful()) {
                         return response()->json([
                             'success' => false, 
@@ -225,6 +222,7 @@ private function disconnectWhatsapp(Request $request)
                     }
 
                 } else if ($provider === 'evolution' && $instance) {
+                    // A Evolution usa DELETE /instance/logout para deslogar a sessão (sem deletar a instância)
                     $response = Http::withHeaders([
                         'apikey' => $token,
                         'Content-Type' => 'application/json'
@@ -246,7 +244,6 @@ private function disconnectWhatsapp(Request $request)
             }
         }
 
-        // Se deu tudo certo lá na API, avisa a tela sem apagar nada localmente
         return response()->json(['success' => true, 'message' => 'Sessão encerrada com sucesso na API.']);
     }
 
