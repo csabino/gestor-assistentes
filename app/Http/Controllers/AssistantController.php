@@ -824,16 +824,6 @@ public function webhook(Request $request, $id)
 
             $audioService = new \App\Services\AudioService();
 
-            // 1. Mapeamento preciso da URL do áudio vindo da UaZapi (message.content.URL)
-            $audioUrl = $request->input('message.content.URL')
-                ?? $request->input('message.content.url')
-                ?? $request->input('message.media_url')
-                ?? $request->input('message.url')
-                ?? $request->input('message.file')
-                ?? $request->input('mediaUrl')
-                ?? $request->input('data.message.audioMessage.url')
-                ?? null;
-
             $msgType = strtolower(
                 $request->input('message.mediaType')
                 ?? $request->input('message.messageType')
@@ -841,6 +831,12 @@ public function webhook(Request $request, $id)
                 ?? $request->input('type')
                 ?? ''
             );
+
+            $audioUrl = $request->input('message.content.URL')
+                ?? $request->input('message.content.url')
+                ?? $request->input('message.media_url')
+                ?? $request->input('message.url')
+                ?? null;
 
             $isAudioMessage = in_array($msgType, ['ptt', 'audio', 'audiomessage', 'voice']) 
                 || (!empty($audioUrl) && (str_contains($audioUrl, '.og') || str_contains($audioUrl, '.mp3') || str_contains($audioUrl, 'audio') || str_contains($audioUrl, '.enc')));
@@ -858,7 +854,9 @@ public function webhook(Request $request, $id)
 
             $userMessage = is_array($rawMessage) ? ($rawMessage['text'] ?? $rawMessage['body'] ?? '') : (string)$rawMessage;
 
-            // 2. Captura e Download da mídia de áudio
+            $audioErrorDetails = null;
+
+            // 2. Processa o áudio solicitando decodificação à UaZapi
             if ($isAudioMessage) {
                 try {
                     $token = trim($assistant->whatsapp_token ?? '');
@@ -873,30 +871,42 @@ public function webhook(Request $request, $id)
 
                     $audioBytes = null;
 
-                    // Tenta decodificar via endpoint de mídia da UaZapi
-                    if ($baseUrl) {
-                        foreach ([$baseUrl . '/message/downloadMedia', $baseUrl . '/instance/downloadMedia'] as $dlEndpoint) {
+                    // Solicita decodificação em endpoints de mídia da UaZapi
+                    if ($baseUrl && $token) {
+                        $dlEndpoints = [
+                            $baseUrl . '/message/downloadMedia',
+                            $baseUrl . '/instance/downloadMedia',
+                            $baseUrl . '/message/getBase64',
+                            $baseUrl . '/chat/downloadMedia'
+                        ];
+
+                        $messagePayload = $request->input('message') ?? $request->all();
+
+                        foreach ($dlEndpoints as $dlUrl) {
                             try {
-                                $dlRes = Http::withHeaders($headers)->timeout(15)->post($dlEndpoint . '?token=' . urlencode($token), [
+                                $dlRes = Http::withHeaders($headers)->timeout(20)->post($dlUrl . '?token=' . urlencode($token), [
                                     'token' => $token,
-                                    'message' => $request->input('message')
+                                    'instance' => $assistant->whatsapp_instance,
+                                    'message' => $messagePayload
                                 ]);
+
                                 if ($dlRes->successful()) {
-                                    $b64 = $dlRes->json('base64') ?? $dlRes->json('data.base64');
-                                    if ($b64) {
+                                    $json = $dlRes->json();
+                                    $b64 = $json['base64'] ?? $json['data']['base64'] ?? $json['media'] ?? $json['data'] ?? null;
+                                    
+                                    if (is_string($b64) && strlen($b64) > 100) {
                                         $audioBytes = base64_decode(preg_replace('#^data:audio/\w+;base64,#i', '', $b64));
                                         break;
+                                    } elseif (!is_array($json) && strlen($dlRes->body()) > 100) {
+                                        $audioBytes = $dlRes->body();
+                                        break;
                                     }
+                                } else {
+                                    $audioErrorDetails = "Endpoint {$dlUrl} retornou código " . $dlRes->status();
                                 }
-                            } catch (\Throwable $eDl) {}
-                        }
-                    }
-
-                    // Fallback: Download direto pela URL
-                    if (!$audioBytes && !empty($audioUrl)) {
-                        $audioResponse = Http::withHeaders($headers)->timeout(30)->get($audioUrl);
-                        if ($audioResponse->successful()) {
-                            $audioBytes = $audioResponse->body();
+                            } catch (\Throwable $eDl) {
+                                $audioErrorDetails = "Erro requisitando {$dlUrl}: " . $eDl->getMessage();
+                            }
                         }
                     }
 
@@ -909,14 +919,17 @@ public function webhook(Request $request, $id)
                             $transcribedText = $audioService->transcribeAudio($tempPath, $transcriptionKey, 'openai');
                             if (!empty($transcribedText)) {
                                 $userMessage = $transcribedText;
+                            } else {
+                                $audioErrorDetails = "Whisper não retornou texto para o arquivo de áudio.";
                             }
+                        } else {
+                            $audioErrorDetails = "Chave da OpenAI para transcrição não configurada no assistente.";
                         }
                         @unlink($tempPath);
-                    } else {
-                        Log::error("Não foi possível obter os bytes do áudio da UaZapi.");
                     }
                 } catch (\Throwable $e) {
-                    Log::error("Erro no processamento do áudio: " . $e->getMessage());
+                    $audioErrorDetails = "Exceção no áudio: " . $e->getMessage();
+                    Log::error("Erro no áudio: " . $e->getMessage());
                 }
             }
 
@@ -927,8 +940,8 @@ public function webhook(Request $request, $id)
                     'assistant_id' => $assistant->id,
                     'sender' => substr($sender, 0, 255),
                     'user_message' => $isAudioMessage ? '[Áudio Não Transcrito]' : '[Mídia / Sem Texto]',
-                    'ai_reply' => 'Ignorado (Falha na transcrição do áudio)',
-                    'wa_send_result' => json_encode(['info' => 'Nenhuma resposta enviada']),
+                    'ai_reply' => 'Ignorado (' . ($audioErrorDetails ?? 'Falha ao decodificar mídia') . ')',
+                    'wa_send_result' => json_encode(['info' => 'Nenhuma resposta enviada', 'debug' => $audioErrorDetails]),
                     'raw_snippet' => json_encode($request->all(), JSON_INVALID_UTF8_IGNORE),
                     'timestamp' => $nowFormatted,
                     'created_at' => $nowFormatted,
