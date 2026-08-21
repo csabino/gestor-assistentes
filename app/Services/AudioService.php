@@ -8,9 +8,6 @@ use Illuminate\Support\Facades\Log;
 
 class AudioService
 {
-    /**
-     * Transcreve áudio recebido em texto (Speech-to-Text) via OpenAI Whisper
-     */
     public function transcribeAudio(string $audioFilePath, string $apiKey, string $provider = 'openai'): ?string
     {
         try {
@@ -47,23 +44,28 @@ class AudioService
         }
     }
 
-    /**
-     * Converte texto em áudio MP3 (Text-to-Speech) usando a API oficial Google Cloud TTS
-     */
     public function textToSpeech(
         string $text, 
         string $googleApiKey, 
         string $voiceName = 'pt-BR-Chirp3-HD-Erinome', 
         string $gender = 'FEMALE', 
         string $langCode = 'pt-BR'
-    ): ?string {
+    ): ?array {
         if (empty(trim($text)) || empty($googleApiKey)) {
+            Log::error("Google TTS abortado: texto ou chave API vazios.");
             return null;
         }
 
         try {
+            // 1. Remove formatações Markdown
             $cleanText = str_replace(['*', '#', '_', '`', '~'], '', $text);
+
+            // 2. Remove todos os Emojis do texto que será narrado
+            $cleanText = preg_replace('/[\x{1F600}-\x{1F64F}\x{1F300}-\x{1F5FF}\x{1F680}-\x{1F6FF}\x{1F700}-\x{1F7FF}\x{1F800}-\x{1F8FF}\x{1F900}-\x{1F9FF}\x{1FA00}-\x{1FA6F}\x{1FA70}-\x{1FAFF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}\x{FE00}-\x{FE0F}]/u', '', $cleanText);
+
+            // 3. Limpa quebras de linha duplas
             $cleanText = preg_replace("/\n{2,}/", "\n", $cleanText);
+            $cleanText = trim($cleanText);
 
             $url = "https://texttospeech.googleapis.com/v1/text:synthesize?key={$googleApiKey}";
 
@@ -106,7 +108,10 @@ class AudioService
 
             Storage::disk('public')->put($relativePath, base64_decode($audioBase64));
 
-            return Storage::disk('public')->url($relativePath);
+            return [
+                'url' => Storage::disk('public')->url($relativePath),
+                'base64' => $audioBase64
+            ];
 
         } catch (\Throwable $e) {
             Log::error("Exceção ao gerar voz Google TTS: " . $e->getMessage());
@@ -114,9 +119,6 @@ class AudioService
         }
     }
 
-    /**
-     * Separa URLs da resposta da IA para envio separado no WhatsApp
-     */
     public function separateLinksFromText(string $aiResponseText): array
     {
         $links = [];
