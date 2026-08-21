@@ -190,64 +190,99 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
         $instance = trim($request->input('instance') ?? ($assistant->whatsapp_instance ?? ''));
         $provider = $request->input('provider') ?? ($assistant->whatsapp_provider ?? '');
 
-        if (!$baseUrl || !$token || !$instance) {
-            return response()->json(['connected' => false, 'success' => false, 'message' => 'Credenciais incompletas na tela.']);
+        if (!$baseUrl || !$token) {
+            return response()->json(['connected' => false, 'success' => false, 'message' => 'Credenciais de WhatsApp incompletas.']);
         }
 
         try {
             $headers = [
                 'token' => $token,
+                'Client-Token' => $token,
+                'client-token' => $token,
                 'apikey' => $token,
                 'Content-Type' => 'application/json'
             ];
 
-            // 1. Busca o status de conexão atual
-            $res = Http::withHeaders($headers)->get($baseUrl . '/instance/connectionState/' . $instance);
-            if ($res->status() === 404) {
-                $res = Http::withHeaders($headers)->get($baseUrl . '/instance/connectionState', ['instance' => $instance]);
+            // 1. Checa status da conexão em todos os endpoints possíveis da UaZapi
+            $statusEndpoints = [
+                $baseUrl . '/instance/connectionState/' . $instance,
+                $baseUrl . '/instance/connectionState',
+                $baseUrl . '/instance/status/' . $instance,
+                $baseUrl . '/instance/status',
+                $baseUrl . '/status'
+            ];
+
+            $connected = false;
+
+            foreach ($statusEndpoints as $endpoint) {
+                $res = Http::withHeaders($headers)->get($endpoint, ['token' => $token, 'instance' => $instance]);
+                if ($res->successful()) {
+                    $state = $res->json('instance.state') ?? $res->json('state') ?? $res->json('status') ?? $res->json('connectionStatus');
+                    if ($state) {
+                        $connected = in_array(strtolower((string)$state), ['open', 'connected', 'conectado']);
+                        if ($connected) break;
+                    }
+                }
             }
-            
-            $state = $res->json('instance.state') ?? $res->json('state') ?? $res->json('status');
-            $connected = in_array(strtolower((string)$state), ['open', 'connected', 'conectado']);
-            
-            // 2. Se não estiver conectado e o painel estiver tentando puxar o QR Code
-            if (!$connected && $isTest) {
-                $qr = null;
-                
-                // A UaZapi/Evolution precisa ser "acordada" na rota /connect antes de liberar a imagem
-                $urlsToTry = [
+
+            if ($connected) {
+                return response()->json(['connected' => true, 'success' => true, 'message' => 'WhatsApp conectado.']);
+            }
+
+            // 2. Se não estiver conectado e clicou em Conectar/Testar ($isTest)
+            if ($isTest) {
+                $qrEndpoints = [
                     $baseUrl . '/instance/connect/' . $instance,
                     $baseUrl . '/instance/connect',
                     $baseUrl . '/instance/qr/' . $instance,
-                    $baseUrl . '/instance/qr'
+                    $baseUrl . '/instance/qr',
+                    $baseUrl . '/connect',
+                    $baseUrl . '/qr'
                 ];
 
-                foreach ($urlsToTry as $url) {
-                    // Adiciona o parâmetro de query '?instance=' se for uma rota genérica
-                    $qrRes = str_ends_with($url, 'connect') || str_ends_with($url, 'qr') 
-                        ? Http::withHeaders($headers)->get($url, ['instance' => $instance]) 
-                        : Http::withHeaders($headers)->get($url);
-                        
-                    if ($qrRes->successful()) {
-                        $qr = $qrRes->json('qrcode') ?? $qrRes->json('base64') ?? $qrRes->json('instance.qrcode') ?? $qrRes->json('qr');
-                        if ($qr) break; // Achou o QR Code, para de procurar
+                $lastResponseBody = '';
+
+                foreach ($qrEndpoints as $endpoint) {
+                    $res = Http::withHeaders($headers)->get($endpoint, ['token' => $token, 'instance' => $instance]);
+                    $lastResponseBody = $res->body();
+
+                    if ($res->successful()) {
+                        $qr = $res->json('qrcode') 
+                           ?? $res->json('base64') 
+                           ?? $res->json('qr') 
+                           ?? $res->json('code') 
+                           ?? $res->json('data.qrcode') 
+                           ?? $res->json('data.base64') 
+                           ?? $res->json('instance.qrcode')
+                           ?? $res->json('response.qrcode');
+
+                        if ($qr) {
+                            if (is_string($qr) && !str_starts_with($qr, 'data:image')) {
+                                $qr = 'data:image/png;base64,' . $qr;
+                            }
+                            return response()->json([
+                                'connected' => false, 
+                                'success' => true, 
+                                'qr' => $qr, 
+                                'message' => 'Escaneie o QR Code no seu celular.'
+                            ]);
+                        }
                     }
                 }
 
-                if ($qr) {
-                    // Garante que o QR code vai aparecer na tela (colocando o prefixo base64 se a API não mandar)
-                    if (!str_starts_with($qr, 'data:image')) {
-                        $qr = 'data:image/png;base64,' . $qr;
-                    }
-                    return response()->json(['connected' => false, 'success' => true, 'qr' => $qr, 'message' => 'Escaneie o QR Code no seu celular.']);
-                }
+                // Se varreu tudo e não achou a imagem, devolve a resposta da API para sabermos o motivo
+                return response()->json([
+                    'connected' => false, 
+                    'success' => false, 
+                    'message' => "Não foi possível obter o QR Code da UaZapi.\nResposta da API: " . mb_substr($lastResponseBody, 0, 250)
+                ]);
             }
-            
-            return response()->json(['connected' => $connected, 'success' => true, 'message' => $connected ? 'WhatsApp conectado.' : 'Acordando instância para gerar QR Code...']);
-            
+
+            return response()->json(['connected' => false, 'success' => true, 'message' => 'Aguardando conexão...']);
+
         } catch (\Throwable $e) {
-            Log::error("Erro checando status do WhatsApp: " . $e->getMessage());
-            return response()->json(['connected' => false, 'success' => false, 'message' => 'Falha de comunicação: ' . $e->getMessage()]);
+            Log::error("Erro checando status WhatsApp: " . $e->getMessage());
+            return response()->json(['connected' => false, 'success' => false, 'message' => 'Erro interno: ' . $e->getMessage()]);
         }
     }
 
