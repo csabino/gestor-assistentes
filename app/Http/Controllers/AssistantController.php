@@ -1250,19 +1250,24 @@ private function extractAudioBytesFromResponse($response): ?string
         }
     }
 
-    private function sendWhatsappAudioMessage(Assistant $assistant, string $to, array $audioData): array
+    private function sendWhatsappAudioMessage(Assistant $assistant, string $to, $audioData): array
     {
         if (empty($assistant->whatsapp_url) || empty($assistant->whatsapp_token)) {
             return ['success' => false, 'error' => 'WhatsApp não configurado.'];
         }
 
         try {
+            // Aceita tanto string (URL) quanto array
+            if (is_string($audioData)) {
+                $audioData = ['url' => $audioData, 'base64' => ''];
+            }
+
             $cleanTo = preg_replace('/[^0-9]/', '', $to);
             $baseUrl = rtrim($assistant->whatsapp_url, '/');
             $token = trim($assistant->whatsapp_token);
 
             $b64Raw = $audioData['base64'] ?? '';
-            $b64DataUri = 'data:audio/mp3;base64,' . $b64Raw;
+            $b64DataUri = !empty($b64Raw) ? 'data:audio/mp3;base64,' . $b64Raw : '';
             $audioUrl = $audioData['url'] ?? '';
 
             if (str_contains($baseUrl, 'uazapi.com') || $assistant->whatsapp_provider === 'uazapi') {
