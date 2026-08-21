@@ -103,11 +103,9 @@ class AssistantController extends Controller
         if ($request->isMethod('post') && $request->input('action') === 'chat') return $this->chat($request);
         if ($request->isMethod('post') && $request->input('action') === 'test_ai') return $this->testAi($request);
         
-        // --- CIRURGIA 1: Removido os returns de "sucesso falso" e inserido o teste real na API ---
         if ($request->isMethod('post') && $request->input('action') === 'status_whatsapp') return $this->checkWhatsappStatus($request, false);
         if ($request->isMethod('post') && $request->input('action') === 'test_whatsapp') return $this->checkWhatsappStatus($request, true);
         if ($request->isMethod('post') && $request->input('action') === 'disconnect_whatsapp') return $this->disconnectWhatsapp($request);
-        // -----------------------------------------------------------------------------------------
         
         if ($request->isMethod('post') && $request->input('action') === 'map_site') return $this->mapSite($request);
         if ($request->isMethod('post') && $request->input('action') === 'scrape_single_url') return $this->scrapeSingleUrl($request);
@@ -179,8 +177,7 @@ class AssistantController extends Controller
         ));
     }
 
-    // --- CIRURGIA 2: Função que busca a verdade (status e QR code) direto na API ---
-private function checkWhatsappStatus(Request $request, $isTest = false)
+    private function checkWhatsappStatus(Request $request, $isTest = false)
     {
         $assistantId = $request->input('assistant_id');
         $assistant = $assistantId ? Assistant::find($assistantId) : null;
@@ -191,7 +188,7 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
         $provider = $request->input('provider') ?? ($assistant->whatsapp_provider ?? '');
 
         if (!$baseUrl || !$token) {
-            return response()->json(['connected' => false, 'success' => false, 'message' => 'Credenciais de WhatsApp incompletas.']);
+            return response()->json(['connected' => false, 'success' => false, 'message' => 'Credenciais incompletas.']);
         }
 
         try {
@@ -208,20 +205,17 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
                 'instance' => $instance
             ]);
 
-            // 1. Checa o status da conexão na UaZapi
             $statusPaths = [
                 '/instance/connectionState/' . $instance,
                 '/instance/connectionState',
                 '/instance/status/' . $instance,
-                '/instance/status',
-                '/status'
+                '/instance/status'
             ];
 
             $connected = false;
 
             foreach ($statusPaths as $path) {
                 $url = $baseUrl . $path;
-                
                 $res = Http::withHeaders($headers)->get($url, $params);
                 if (!$res->successful()) {
                     $res = Http::withHeaders($headers)->post($url, $params);
@@ -243,8 +237,6 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
                               ?? $json['state'] 
                               ?? $json['status'] 
                               ?? $json['connectionStatus'] 
-                              ?? $json['data']['state'] 
-                              ?? $json['data']['status'] 
                               ?? null;
 
                         if (is_array($state)) {
@@ -253,7 +245,7 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
 
                         if (is_string($state)) {
                             $stateClean = strtolower(trim($state));
-                            if (in_array($stateClean, ['open', 'connected', 'conectado', 'connecting_online', 'pair'])) {
+                            if (in_array($stateClean, ['open', 'connected', 'conectado'])) {
                                 $connected = true;
                                 break;
                             }
@@ -263,48 +255,34 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
             }
 
             if ($connected) {
-                return response()->json(['connected' => true, 'success' => true, 'message' => 'WhatsApp conectado com sucesso!']);
+                return response()->json(['connected' => true, 'success' => true, 'message' => 'WhatsApp conectado!']);
             }
 
-            // 2. Tenta obter QR Code se ainda não identificou a conexão
             if ($isTest) {
                 $qrPaths = [
                     '/instance/connect/' . $instance,
                     '/instance/connect',
-                    '/connect',
                     '/instance/qr/' . $instance,
-                    '/instance/qr',
-                    '/qr'
+                    '/instance/qr'
                 ];
-
-                $lastResponseBody = '';
 
                 foreach ($qrPaths as $path) {
                     $url = $baseUrl . $path;
-
                     $res = Http::withHeaders($headers)->post($url, $params);
                     if (!$res->successful()) {
                         $res = Http::withHeaders($headers)->get($url, $params);
                     }
 
-                    $lastResponseBody = $res->body();
-
                     if ($res->successful()) {
                         $json = $res->json();
                         if (is_array($json)) {
-                            $stateMsg = strtolower(json_encode($json));
-                            if (str_contains($stateMsg, 'connected') || str_contains($stateMsg, 'open') || str_contains($stateMsg, 'conectado')) {
-                                return response()->json(['connected' => true, 'success' => true, 'message' => 'WhatsApp conectado com sucesso!']);
-                            }
-
                             $qr = $json['qrcode'] 
                                ?? $json['base64'] 
                                ?? $json['qr'] 
                                ?? $json['code'] 
                                ?? ($json['data']['qrcode'] ?? null)
                                ?? ($json['data']['base64'] ?? null)
-                               ?? ($json['instance']['qrcode'] ?? null)
-                               ?? ($json['response']['qrcode'] ?? null);
+                               ?? ($json['instance']['qrcode'] ?? null);
 
                             if (is_array($qr)) {
                                 $qr = $qr['base64'] ?? $qr['qrcode'] ?? $qr['code'] ?? null;
@@ -325,24 +303,14 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
                     }
                 }
 
-                // Se a API retornou 404 / Not Found ao buscar o QR Code, confirma a conexão efetuada
-                if (str_contains($lastResponseBody, 'Not Found') || str_contains($lastResponseBody, '404')) {
-                    return response()->json([
-                        'connected' => true, 
-                        'success' => true, 
-                        'message' => 'WhatsApp conectado com sucesso!'
-                    ]);
-                }
-
-                $responseMessage = is_string($lastResponseBody) ? mb_substr($lastResponseBody, 0, 250) : json_encode($lastResponseBody);
                 return response()->json([
                     'connected' => false, 
                     'success' => false, 
-                    'message' => "Não foi possível obter o QR Code da UaZapi.\nResposta da API: " . $responseMessage
+                    'message' => 'WhatsApp desconectado. Clique para gerar QR Code.'
                 ]);
             }
 
-            return response()->json(['connected' => false, 'success' => true, 'message' => 'Aguardando conexão...']);
+            return response()->json(['connected' => false, 'success' => true, 'message' => 'WhatsApp desconectado.']);
 
         } catch (\Throwable $e) {
             Log::error("Erro checando status WhatsApp: " . $e->getMessage());
@@ -350,8 +318,7 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
         }
     }
 
-    // --- CIRURGIA 3: Desconectar corrigido com DELETE e fallback seguro ---
-private function disconnectWhatsapp(Request $request)
+    private function disconnectWhatsapp(Request $request)
     {
         $assistantId = $request->input('assistant_id');
         $assistant = $assistantId ? Assistant::find($assistantId) : null;
@@ -376,41 +343,21 @@ private function disconnectWhatsapp(Request $request)
                     'instance' => $instance
                 ]);
 
-                // UaZapi: Apenas POST para nao gerar erro 405
                 if (str_contains($baseUrl, 'uazapi.com') || $provider === 'uazapi') {
                     $response = Http::withHeaders($headers)->post($baseUrl . '/instance/disconnect', $payload);
 
                     if (!$response->successful()) {
                         $response = Http::withHeaders($headers)->post($baseUrl . '/instance/logout', $payload);
                     }
-
-                    if (!$response->successful()) {
-                        return response()->json([
-                            'success' => false, 
-                            'message' => "A UaZapi recusou a desconexão.\n\nCódigo: " . $response->status() . "\nResposta: " . $response->body()
-                        ]);
-                    }
-
                 } else if ($provider === 'evolution') {
-                    $response = Http::withHeaders($headers)->delete($baseUrl . '/instance/logout/' . $instance);
-
-                    if (!$response->successful()) {
-                        return response()->json([
-                            'success' => false, 
-                            'message' => "A Evolution recusou a desconexão.\n\nCódigo: " . $response->status() . "\nResposta: " . $response->body()
-                        ]);
-                    }
+                    Http::withHeaders($headers)->delete($baseUrl . '/instance/logout/' . $instance);
                 }
             } catch (\Throwable $e) {
                 Log::error("Erro ao desconectar WhatsApp: " . $e->getMessage());
-                return response()->json([
-                    'success' => false, 
-                    'message' => 'Falha de conexão com o servidor do WhatsApp: ' . $e->getMessage()
-                ]);
             }
         }
 
-        return response()->json(['success' => true, 'message' => 'Sessão encerrada com sucesso na API.']);
+        return response()->json(['success' => true, 'connected' => false, 'message' => 'Sessão encerrada com sucesso.']);
     }
 
     private function mapSite(Request $request)
@@ -822,31 +769,19 @@ private function disconnectWhatsapp(Request $request)
     {
         if (empty($text)) return '';
 
-        // 1. Troca links do markdown: [Texto](URL) -> Texto: 👉 URL
         $text = preg_replace_callback('/\[([^\]]+)\]\(([^)]+)\)/', function ($matches) {
             $label = trim($matches[1]);
             $url = trim($matches[2]);
             return "{$label}:\n👉 {$url}";
         }, $text);
 
-        // 2. Converte Headers (### Titulo) para negrito do WhatsApp (*Titulo*)
         $text = preg_replace('/^#{1,6}\s*(.+)$/m', '*$1*', $text);
-
-        // 3. Converte bullet points do markdown (* ou -) para bullet points reais (•)
         $text = preg_replace('/^\s*[\*\-]\s+/m', '• ', $text);
-
-        // 4. Limpa erros da IA ao misturar listas numeradas com negrito (Ex: *1. *Texto**)
         $text = preg_replace('/^\*(\d+\.)\s*\*/m', '$1 *', $text);
         $text = preg_replace('/^\*(\d+\.)\s*/m', '$1 ', $text);
-
-        // 5. Converte Negrito exagerado da IA (***texto*** ou **texto**) para o padrão WhatsApp (*texto*)
         $text = preg_replace('/\*\*\*(.*?)\*\*\*/s', '*$1*', $text);
         $text = preg_replace('/\*\*(.*?)\*\*/s', '*$1*', $text);
-
-        // 6. Limpa qualquer asterisco duplo órfão que possa ter sobrado na conversão
         $text = str_replace('**', '*', $text);
-
-        // 7. Remove espaços excessivos de quebra de linha
         $text = preg_replace("/\n{3,}/", "\n\n", $text);
 
         return trim($text);
