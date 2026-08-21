@@ -824,16 +824,26 @@ public function webhook(Request $request, $id)
 
             $audioService = new \App\Services\AudioService();
 
-            // Identifica se a mensagem é um áudio e obtém a URL do arquivo
-            $audioUrl = $request->input('message.media_url')
+            // 1. Mapeamento preciso da URL do áudio vindo da UaZapi (message.content.URL)
+            $audioUrl = $request->input('message.content.URL')
+                ?? $request->input('message.content.url')
+                ?? $request->input('message.media_url')
                 ?? $request->input('message.url')
+                ?? $request->input('message.file')
                 ?? $request->input('mediaUrl')
                 ?? $request->input('data.message.audioMessage.url')
-                ?? $request->input('message.audioMessage.url')
                 ?? null;
 
-            $msgType = strtolower($request->input('message.type') ?? $request->input('message.media_type') ?? $request->input('type') ?? '');
-            $isAudioMessage = in_array($msgType, ['audio', 'ptt']) || (!empty($audioUrl) && str_contains($audioUrl, '.og'));
+            $msgType = strtolower(
+                $request->input('message.mediaType')
+                ?? $request->input('message.messageType')
+                ?? $request->input('message.type')
+                ?? $request->input('type')
+                ?? ''
+            );
+
+            $isAudioMessage = in_array($msgType, ['ptt', 'audio', 'audiomessage', 'voice']) 
+                || (!empty($audioUrl) && (str_contains($audioUrl, '.og') || str_contains($audioUrl, '.mp3') || str_contains($audioUrl, 'audio') || str_contains($audioUrl, '.enc')));
 
             $rawMessage = $request->input('message.content')
                 ?? $request->input('message.text')
@@ -848,23 +858,65 @@ public function webhook(Request $request, $id)
 
             $userMessage = is_array($rawMessage) ? ($rawMessage['text'] ?? $rawMessage['body'] ?? '') : (string)$rawMessage;
 
-            // Se for mensagem de áudio, realiza o download temporário e a transcrição via Whisper
-            if ($isAudioMessage && !empty($audioUrl)) {
+            // 2. Captura e Download da mídia de áudio
+            if ($isAudioMessage) {
                 try {
-                    $tempPath = storage_path('app/temp_audio_' . time() . '_' . rand(1000, 9999) . '.ogg');
-                    $audioContent = Http::timeout(30)->get($audioUrl)->body();
-                    file_put_contents($tempPath, $audioContent);
+                    $token = trim($assistant->whatsapp_token ?? '');
+                    $baseUrl = rtrim($assistant->whatsapp_url ?? '', '/');
+                    $headers = [
+                        'token' => $token,
+                        'Client-Token' => $token,
+                        'client-token' => $token,
+                        'apikey' => $token,
+                        'Content-Type' => 'application/json'
+                    ];
 
-                    $transcriptionKey = trim($assistant->openai_api_key ?? '');
-                    if ($transcriptionKey) {
-                        $transcribedText = $audioService->transcribeAudio($tempPath, $transcriptionKey, 'openai');
-                        if (!empty($transcribedText)) {
-                            $userMessage = $transcribedText;
+                    $audioBytes = null;
+
+                    // Tenta decodificar via endpoint de mídia da UaZapi
+                    if ($baseUrl) {
+                        foreach ([$baseUrl . '/message/downloadMedia', $baseUrl . '/instance/downloadMedia'] as $dlEndpoint) {
+                            try {
+                                $dlRes = Http::withHeaders($headers)->timeout(15)->post($dlEndpoint . '?token=' . urlencode($token), [
+                                    'token' => $token,
+                                    'message' => $request->input('message')
+                                ]);
+                                if ($dlRes->successful()) {
+                                    $b64 = $dlRes->json('base64') ?? $dlRes->json('data.base64');
+                                    if ($b64) {
+                                        $audioBytes = base64_decode(preg_replace('#^data:audio/\w+;base64,#i', '', $b64));
+                                        break;
+                                    }
+                                }
+                            } catch (\Throwable $eDl) {}
                         }
                     }
-                    @unlink($tempPath);
+
+                    // Fallback: Download direto pela URL
+                    if (!$audioBytes && !empty($audioUrl)) {
+                        $audioResponse = Http::withHeaders($headers)->timeout(30)->get($audioUrl);
+                        if ($audioResponse->successful()) {
+                            $audioBytes = $audioResponse->body();
+                        }
+                    }
+
+                    if ($audioBytes) {
+                        $tempPath = storage_path('app/temp_audio_' . time() . '_' . rand(1000, 9999) . '.ogg');
+                        file_put_contents($tempPath, $audioBytes);
+
+                        $transcriptionKey = trim($assistant->openai_api_key ?? '');
+                        if ($transcriptionKey) {
+                            $transcribedText = $audioService->transcribeAudio($tempPath, $transcriptionKey, 'openai');
+                            if (!empty($transcribedText)) {
+                                $userMessage = $transcribedText;
+                            }
+                        }
+                        @unlink($tempPath);
+                    } else {
+                        Log::error("Não foi possível obter os bytes do áudio da UaZapi.");
+                    }
                 } catch (\Throwable $e) {
-                    Log::error("Erro no download/transcrição de áudio: " . $e->getMessage());
+                    Log::error("Erro no processamento do áudio: " . $e->getMessage());
                 }
             }
 
@@ -874,8 +926,8 @@ public function webhook(Request $request, $id)
                 DB::table('webhook_logs')->insert([
                     'assistant_id' => $assistant->id,
                     'sender' => substr($sender, 0, 255),
-                    'user_message' => '[Mídia / Áudio Sem Texto]',
-                    'ai_reply' => 'Ignorado (Não foi possível transcrever)',
+                    'user_message' => $isAudioMessage ? '[Áudio Não Transcrito]' : '[Mídia / Sem Texto]',
+                    'ai_reply' => 'Ignorado (Falha na transcrição do áudio)',
                     'wa_send_result' => json_encode(['info' => 'Nenhuma resposta enviada']),
                     'raw_snippet' => json_encode($request->all(), JSON_INVALID_UTF8_IGNORE),
                     'timestamp' => $nowFormatted,
@@ -906,7 +958,6 @@ public function webhook(Request $request, $id)
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
             $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
 
-            // Grava histórico da conversa
             DB::table('chat_messages')->insert([
                 [
                     'assistant_id' => $assistant->id,
@@ -926,7 +977,6 @@ public function webhook(Request $request, $id)
                 ]
             ]);
 
-            // Se o usuário mandou áudio, gera resposta em voz e separa links
             if ($isAudioMessage) {
                 $separated = $audioService->separateLinksFromText($aiReply);
                 $googleKey = env('GOOGLE_API_KEY_TTS');
@@ -936,17 +986,14 @@ public function webhook(Request $request, $id)
                 if ($audioPublicUrl) {
                     $waResult = $this->sendWhatsappAudioMessage($assistant, $sender, $audioPublicUrl);
 
-                    // Se existirem links na resposta, envia uma mensagem de texto adicional com os links
                     if (!empty($separated['extracted_links'])) {
                         $this->sendWhatsappMessage($assistant, $sender, $separated['extracted_links']);
                     }
                 } else {
-                    // Fallback caso a API do Google falhe: responde em texto normal
                     $formattedReply = $this->formatTextForWhatsapp($aiReply);
                     $waResult = $this->sendWhatsappMessage($assistant, $sender, $formattedReply);
                 }
             } else {
-                // Entrada em texto normal
                 $formattedReply = $this->formatTextForWhatsapp($aiReply);
                 $waResult = $this->sendWhatsappMessage($assistant, $sender, $formattedReply);
             }
