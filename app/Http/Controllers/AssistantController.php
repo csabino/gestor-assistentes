@@ -1038,7 +1038,10 @@ private function extractAudioBytesFromResponse($response): ?string
 
             if ($isAudioMessage) {
                 $separated = $audioService->separateLinksFromText($aiReply);
-                $googleKey = env('GOOGLE_API_KEY_TTS') ?? env('GOOGLE_API_KEY');
+                $googleKey = env('GOOGLE_API_KEY_TTS') 
+                    ?? env('GOOGLE_APIKEY_TTS') 
+                    ?? (defined('GOOGLE_APIKEY_TTS') ? GOOGLE_APIKEY_TTS : null) 
+                    ?? env('GOOGLE_API_KEY');
 
                 $audioData = $audioService->textToSpeech($separated['audio_text'], $googleKey);
 
