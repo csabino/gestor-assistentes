@@ -1260,17 +1260,43 @@ private function extractAudioBytesFromResponse($response): ?string
         }
 
         try {
-            if (is_string($audioData)) {
-                $audioData = ['url' => $audioData, 'base64' => ''];
-            }
-
             $cleanTo = preg_replace('/[^0-9]/', '', $to);
             $baseUrl = rtrim($assistant->whatsapp_url, '/');
             $token = trim($assistant->whatsapp_token);
 
-            $b64Raw = $audioData['base64'] ?? '';
-            $b64DataUri = !empty($b64Raw) ? 'data:audio/mp3;base64,' . $b64Raw : '';
-            $audioUrl = $audioData['url'] ?? '';
+            $b64Raw = '';
+            $possiblePath = '';
+
+            if (is_array($audioData)) {
+                $b64Raw = $audioData['base64'] ?? '';
+                $possiblePath = $audioData['url'] ?? $audioData['path'] ?? '';
+            } else if (is_string($audioData)) {
+                $possiblePath = $audioData;
+            }
+
+            // Se o base64 veio vazio, lê o arquivo diretamente do disco do servidor PHP
+            if (empty($b64Raw) && !empty($possiblePath)) {
+                $relativePath = parse_url($possiblePath, PHP_URL_PATH) ?? $possiblePath;
+                $cleanRelative = ltrim(str_replace('/storage/', '', $relativePath), '/');
+
+                $localCandidates = [
+                    $possiblePath,
+                    storage_path('app/public/' . $cleanRelative),
+                    storage_path('app/' . $cleanRelative),
+                    public_path('storage/' . $cleanRelative),
+                    public_path($cleanRelative)
+                ];
+
+                foreach ($localCandidates as $candidate) {
+                    if (file_exists($candidate) && is_file($candidate)) {
+                        $content = file_get_contents($candidate);
+                        if ($content && strlen($content) > 100) {
+                            $b64Raw = base64_encode($content);
+                            break;
+                        }
+                    }
+                }
+            }
 
             if (str_contains($baseUrl, 'uazapi.com') || $assistant->whatsapp_provider === 'uazapi') {
                 $endpoint = $baseUrl . '/send/media';
@@ -1283,11 +1309,13 @@ private function extractAudioBytesFromResponse($response): ?string
                     'Content-Type' => 'application/json'
                 ];
 
-                // Prioriza o envio direto por Base64 para não depender do download HTTP da UaZapi
+                // Envia os bytes em Base64 diretamente no corpo para a UaZapi não fazer download externo
+                $filePayload = !empty($b64Raw) ? 'data:audio/mp3;base64,' . $b64Raw : $possiblePath;
+
                 $payload = [
                     'token' => $token,
                     'number' => $cleanTo,
-                    'file' => $b64DataUri ?: $audioUrl,
+                    'file' => $filePayload,
                     'type' => 'audio',
                     'mimetype' => 'audio/mp3',
                     'ptt' => true
@@ -1305,7 +1333,7 @@ private function extractAudioBytesFromResponse($response): ?string
                 $endpoint = $baseUrl . '/message/sendWhatsAppAudio/' . $assistant->whatsapp_instance;
                 $payload = [
                     'number' => $cleanTo,
-                    'audio' => $audioUrl ?: $b64DataUri
+                    'audio' => !empty($b64Raw) ? 'data:audio/mp3;base64,' . $b64Raw : $possiblePath
                 ];
 
                 $response = Http::withHeaders([
