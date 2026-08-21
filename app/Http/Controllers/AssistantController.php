@@ -1260,7 +1260,6 @@ private function extractAudioBytesFromResponse($response): ?string
         }
 
         try {
-            // Aceita tanto string (URL) quanto array
             if (is_string($audioData)) {
                 $audioData = ['url' => $audioData, 'base64' => ''];
             }
@@ -1284,38 +1283,23 @@ private function extractAudioBytesFromResponse($response): ?string
                     'Content-Type' => 'application/json'
                 ];
 
-                $fileOptions = array_filter([
-                    $b64DataUri,
-                    $b64Raw,
-                    $audioUrl
-                ]);
+                // Prioriza o envio direto por Base64 para não depender do download HTTP da UaZapi
+                $payload = [
+                    'token' => $token,
+                    'number' => $cleanTo,
+                    'file' => $b64DataUri ?: $audioUrl,
+                    'type' => 'audio',
+                    'mimetype' => 'audio/mp3',
+                    'ptt' => true
+                ];
 
-                $lastError = null;
-
-                foreach ($fileOptions as $fileVal) {
-                    $payload = [
-                        'token' => $token,
-                        'number' => $cleanTo,
-                        'file' => $fileVal,
-                        'type' => 'audio',
-                        'mimetype' => 'audio/mp3',
-                        'ptt' => true
-                    ];
-
-                    try {
-                        $response = Http::withHeaders($headers)->timeout(30)->post($endpoint . '?token=' . urlencode($token), $payload);
-                        
-                        if ($response->successful()) {
-                            return ['success' => true, 'response' => $response->json()];
-                        }
-                        
-                        $lastError = $response->body();
-                    } catch (\Throwable $eSub) {
-                        $lastError = $eSub->getMessage();
-                    }
+                $response = Http::withHeaders($headers)->timeout(30)->post($endpoint . '?token=' . urlencode($token), $payload);
+                
+                if ($response->successful()) {
+                    return ['success' => true, 'response' => $response->json()];
                 }
 
-                return ['success' => false, 'error' => $lastError ?? 'Falha no envio de áudio para UaZapi'];
+                return ['success' => false, 'error' => $response->body()];
 
             } else {
                 $endpoint = $baseUrl . '/message/sendWhatsAppAudio/' . $assistant->whatsapp_instance;
