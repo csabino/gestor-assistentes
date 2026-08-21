@@ -821,7 +821,7 @@ private function extractAudioBytesFromResponse($response): ?string
         return null;
     }
 
-    public function webhook(Request $request, $id)
+public function webhook(Request $request, $id)
     {
         $this->configureTimezone();
         $this->ensureWebhookLogTableExists();
@@ -889,7 +889,7 @@ private function extractAudioBytesFromResponse($response): ?string
 
             $audioErrorDetails = null;
 
-            // Processamento flexivel do audio (POST e GET)
+            // Processamento do áudio via UaZapi
             if ($isAudioMessage) {
                 try {
                     $token = trim($assistant->whatsapp_token ?? '');
@@ -911,17 +911,13 @@ private function extractAudioBytesFromResponse($response): ?string
                         $dlRoutes = [
                             '/message/download',
                             '/message/downloadMedia',
-                            '/message/download-media',
-                            '/download/media',
-                            '/media/download',
-                            '/instance/downloadMedia',
+                            '/message/getBase64',
                             '/chat/downloadMedia'
                         ];
 
                         foreach ($dlRoutes as $route) {
                             $url = $baseUrl . $route . '?token=' . urlencode($token);
 
-                            // 1. Tenta POST
                             try {
                                 $res = Http::withHeaders($headers)->timeout(15)->post($url, [
                                     'token' => $token,
@@ -938,30 +934,16 @@ private function extractAudioBytesFromResponse($response): ?string
                                         break;
                                     }
                                 } else {
-                                    $audioErrorDetails = "POST {$route} ret: " . $res->status();
+                                    $audioErrorDetails = "UaZapi {$route} erro (" . $res->status() . "): " . substr($res->body(), 0, 100);
                                 }
-                            } catch (\Throwable $ePost) {}
-
-                            // 2. Tenta GET
-                            try {
-                                $getUrl = $url . ($msgId ? '&id=' . urlencode($msgId) . '&messageid=' . urlencode($msgId) : '');
-                                $res = Http::withHeaders($headers)->timeout(15)->get($getUrl);
-
-                                if ($res->successful()) {
-                                    $bytes = $this->extractAudioBytesFromResponse($res);
-                                    if ($bytes) {
-                                        $audioBytes = $bytes;
-                                        break;
-                                    }
-                                } else {
-                                    $audioErrorDetails = "GET {$route} ret: " . $res->status();
-                                }
-                            } catch (\Throwable $eGet) {}
+                            } catch (\Throwable $ePost) {
+                                $audioErrorDetails = "Excecao {$route}: " . $ePost->getMessage();
+                            }
                         }
                     }
 
-                    // Fallback para download direto caso esteja liberado
-                    if (!$audioBytes && !empty($audioUrl)) {
+                    // Impede o download direto de URLs .enc (criptografadas pelo WhatsApp)
+                    if (!$audioBytes && !empty($audioUrl) && !str_contains($audioUrl, '.enc') && !str_contains($audioUrl, 'whatsapp.net')) {
                         try {
                             $audioResponse = Http::withHeaders($headers)->timeout(30)->get($audioUrl);
                             if ($audioResponse->successful() && strlen($audioResponse->body()) > 200) {
@@ -980,17 +962,17 @@ private function extractAudioBytesFromResponse($response): ?string
                             if (!empty($transcribedText)) {
                                 $userMessage = $transcribedText;
                             } else {
-                                $audioErrorDetails = "Whisper rejeitou o audio gravado em temporario.";
+                                $audioErrorDetails = "Whisper rejeitou o audio. Os bytes recebidos nao sao um formato OGG/MP3 valido.";
                             }
                         } else {
-                            $audioErrorDetails = "Chave da OpenAI nao configurada para transcricao.";
+                            $audioErrorDetails = "Chave da OpenAI nao configurada no assistente.";
                         }
                         @unlink($tempPath);
                     } else if (!$audioErrorDetails) {
-                        $audioErrorDetails = "Nao foi possivel obter os bytes de audio dos endpoints UaZapi.";
+                        $audioErrorDetails = "Nao foi possivel obter base64 de audio da UaZapi.";
                     }
                 } catch (\Throwable $e) {
-                    $audioErrorDetails = "Excecao no processamento do audio: " . $e->getMessage();
+                    $audioErrorDetails = "Excecao geral no audio: " . $e->getMessage();
                     Log::error("Erro no audio: " . $e->getMessage());
                 }
             }
