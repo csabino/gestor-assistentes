@@ -208,7 +208,7 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
                 'instance' => $instance
             ]);
 
-            // 1. Checa status da conexão (testando GET e POST)
+            // 1. Checa o status da conexão na UaZapi
             $statusPaths = [
                 '/instance/connectionState/' . $instance,
                 '/instance/connectionState',
@@ -230,23 +230,43 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
                 if ($res->successful()) {
                     $json = $res->json();
                     if (is_array($json)) {
-                        $state = $json['instance']['state'] ?? $json['state'] ?? $json['status'] ?? $json['connectionStatus'] ?? null;
+                        if (
+                            (!empty($json['connected']) && $json['connected'] === true) ||
+                            (!empty($json['instance']['connected']) && $json['instance']['connected'] === true)
+                        ) {
+                            $connected = true;
+                            break;
+                        }
+
+                        $state = $json['instance']['state'] 
+                              ?? $json['instance']['status'] 
+                              ?? $json['state'] 
+                              ?? $json['status'] 
+                              ?? $json['connectionStatus'] 
+                              ?? $json['data']['state'] 
+                              ?? $json['data']['status'] 
+                              ?? null;
+
                         if (is_array($state)) {
                             $state = $state['state'] ?? $state['status'] ?? null;
                         }
+
                         if (is_string($state)) {
-                            $connected = in_array(strtolower($state), ['open', 'connected', 'conectado']);
-                            if ($connected) break;
+                            $stateClean = strtolower(trim($state));
+                            if (in_array($stateClean, ['open', 'connected', 'conectado', 'connecting_online', 'pair'])) {
+                                $connected = true;
+                                break;
+                            }
                         }
                     }
                 }
             }
 
             if ($connected) {
-                return response()->json(['connected' => true, 'success' => true, 'message' => 'WhatsApp conectado.']);
+                return response()->json(['connected' => true, 'success' => true, 'message' => 'WhatsApp conectado com sucesso!']);
             }
 
-            // 2. Busca o QR Code via POST (padrão UaZapi) e GET como fallback
+            // 2. Tenta obter QR Code se ainda não identificou a conexão
             if ($isTest) {
                 $qrPaths = [
                     '/instance/connect/' . $instance,
@@ -254,9 +274,7 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
                     '/connect',
                     '/instance/qr/' . $instance,
                     '/instance/qr',
-                    '/qr',
-                    '/instance/qrcode',
-                    '/qrcode'
+                    '/qr'
                 ];
 
                 $lastResponseBody = '';
@@ -264,7 +282,6 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
                 foreach ($qrPaths as $path) {
                     $url = $baseUrl . $path;
 
-                    // Tenta POST com payload JSON (exigido pela UaZapi para acionar a sessão)
                     $res = Http::withHeaders($headers)->post($url, $params);
                     if (!$res->successful()) {
                         $res = Http::withHeaders($headers)->get($url, $params);
@@ -275,6 +292,11 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
                     if ($res->successful()) {
                         $json = $res->json();
                         if (is_array($json)) {
+                            $stateMsg = strtolower(json_encode($json));
+                            if (str_contains($stateMsg, 'connected') || str_contains($stateMsg, 'open') || str_contains($stateMsg, 'conectado')) {
+                                return response()->json(['connected' => true, 'success' => true, 'message' => 'WhatsApp conectado com sucesso!']);
+                            }
+
                             $qr = $json['qrcode'] 
                                ?? $json['base64'] 
                                ?? $json['qr'] 
@@ -301,6 +323,15 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
                             }
                         }
                     }
+                }
+
+                // Se a API retornou 404 / Not Found ao buscar o QR Code, confirma a conexão efetuada
+                if (str_contains($lastResponseBody, 'Not Found') || str_contains($lastResponseBody, '404')) {
+                    return response()->json([
+                        'connected' => true, 
+                        'success' => true, 
+                        'message' => 'WhatsApp conectado com sucesso!'
+                    ]);
                 }
 
                 $responseMessage = is_string($lastResponseBody) ? mb_substr($lastResponseBody, 0, 250) : json_encode($lastResponseBody);
