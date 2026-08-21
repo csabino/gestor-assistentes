@@ -351,7 +351,7 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
     }
 
     // --- CIRURGIA 3: Desconectar corrigido com DELETE e fallback seguro ---
-    private function disconnectWhatsapp(Request $request)
+private function disconnectWhatsapp(Request $request)
     {
         $assistantId = $request->input('assistant_id');
         $assistant = $assistantId ? Assistant::find($assistantId) : null;
@@ -361,21 +361,27 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
         $instance = trim($request->input('instance') ?? ($assistant->whatsapp_instance ?? ''));
         $provider = $request->input('provider') ?? ($assistant->whatsapp_provider ?? '');
 
-        if ($baseUrl && $token && $instance) {
+        if ($baseUrl && $token) {
             try {
                 $headers = [
                     'token' => $token,
+                    'Client-Token' => $token,
+                    'client-token' => $token,
                     'apikey' => $token,
                     'Content-Type' => 'application/json'
                 ];
 
-                if (str_contains($baseUrl, 'uazapi.com') || $provider === 'uazapi') {
-                    // O Padrão para "Deslogar" a sessão do celular sem apagar a instância:
-                    $response = Http::withHeaders($headers)->delete($baseUrl . '/instance/logout/' . $instance);
+                $payload = array_filter([
+                    'token' => $token,
+                    'instance' => $instance
+                ]);
 
-                    // Se falhar, tenta via POST
+                // UaZapi: Apenas POST para nao gerar erro 405
+                if (str_contains($baseUrl, 'uazapi.com') || $provider === 'uazapi') {
+                    $response = Http::withHeaders($headers)->post($baseUrl . '/instance/disconnect', $payload);
+
                     if (!$response->successful()) {
-                        $response = Http::withHeaders($headers)->post($baseUrl . '/instance/logout', ['instance' => $instance]);
+                        $response = Http::withHeaders($headers)->post($baseUrl . '/instance/logout', $payload);
                     }
 
                     if (!$response->successful()) {
