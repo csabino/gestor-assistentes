@@ -802,6 +802,8 @@ private function extractAudioBytesFromResponse($response): ?string
                 ?? $json['media'] 
                 ?? $json['data'] 
                 ?? $json['file'] 
+                ?? $json['result']
+                ?? $json['downloadUrl']
                 ?? null;
 
             if (is_string($b64) && strlen($b64) > 100) {
@@ -810,6 +812,16 @@ private function extractAudioBytesFromResponse($response): ?string
                 if ($decoded && strlen($decoded) > 100) {
                     return $decoded;
                 }
+            }
+
+            $returnedUrl = $json['url'] ?? $json['mediaUrl'] ?? $json['data']['url'] ?? null;
+            if (is_string($returnedUrl) && str_starts_with($returnedUrl, 'http') && !str_contains($returnedUrl, '.enc')) {
+                try {
+                    $dl = Http::timeout(15)->get($returnedUrl);
+                    if ($dl->successful() && strlen($dl->body()) > 200) {
+                        return $dl->body();
+                    }
+                } catch (\Throwable $eUrl) {}
             }
         }
 
@@ -821,7 +833,7 @@ private function extractAudioBytesFromResponse($response): ?string
         return null;
     }
 
-public function webhook(Request $request, $id)
+    public function webhook(Request $request, $id)
     {
         $this->configureTimezone();
         $this->ensureWebhookLogTableExists();
@@ -889,13 +901,13 @@ public function webhook(Request $request, $id)
 
             $audioErrorDetails = null;
 
-            // Processamento do áudio via UaZapi
             if ($isAudioMessage) {
                 try {
                     $token = trim($assistant->whatsapp_token ?? '');
                     $baseUrl = rtrim($assistant->whatsapp_url ?? '', '/');
                     $msgPayload = $request->input('message') ?? [];
-                    $msgId = $msgPayload['messageid'] ?? $msgPayload['id'] ?? null;
+                    $msgId = $msgPayload['messageid'] ?? null;
+                    $fullId = $msgPayload['id'] ?? null;
 
                     $headers = [
                         'token' => $token,
@@ -906,50 +918,48 @@ public function webhook(Request $request, $id)
                     ];
 
                     $audioBytes = null;
+                    $attemptLogs = [];
 
                     if ($baseUrl && $token) {
                         $dlRoutes = [
                             '/message/download',
                             '/message/downloadMedia',
-                            '/message/getBase64',
-                            '/chat/downloadMedia'
+                            '/download/media',
+                            '/media/download',
+                            '/download',
+                            '/instance/downloadMedia',
+                            '/message/getBase64'
                         ];
 
                         foreach ($dlRoutes as $route) {
                             $url = $baseUrl . $route . '?token=' . urlencode($token);
 
-                            try {
-                                $res = Http::withHeaders($headers)->timeout(15)->post($url, [
-                                    'token' => $token,
-                                    'id' => $msgId,
-                                    'messageid' => $msgId,
-                                    'message' => $msgPayload,
-                                    'instance' => $assistant->whatsapp_instance
-                                ]);
+                            $payloads = [
+                                ['token' => $token, 'id' => $msgId, 'messageid' => $msgId, 'message' => $msgPayload],
+                                ['token' => $token, 'id' => $fullId, 'message' => $msgPayload],
+                                ['token' => $token, 'id' => $msgId]
+                            ];
 
-                                if ($res->successful()) {
-                                    $bytes = $this->extractAudioBytesFromResponse($res);
-                                    if ($bytes) {
-                                        $audioBytes = $bytes;
-                                        break;
+                            foreach ($payloads as $pIdx => $payload) {
+                                if (empty($payload['id']) && empty($payload['message'])) continue;
+
+                                try {
+                                    $res = Http::withHeaders($headers)->timeout(15)->post($url, $payload);
+                                    if ($res->successful()) {
+                                        $bytes = $this->extractAudioBytesFromResponse($res);
+                                        if ($bytes) {
+                                            $audioBytes = $bytes;
+                                            break 2;
+                                        }
+                                        $attemptLogs[] = "POST {$route} (P{$pIdx}): 200 sem base64 (" . substr($res->body(), 0, 80) . ")";
+                                    } else {
+                                        $attemptLogs[] = "POST {$route} (P{$pIdx}): status " . $res->status() . " (" . substr($res->body(), 0, 80) . ")";
                                     }
-                                } else {
-                                    $audioErrorDetails = "UaZapi {$route} erro (" . $res->status() . "): " . substr($res->body(), 0, 100);
+                                } catch (\Throwable $ePost) {
+                                    $attemptLogs[] = "POST {$route} exc: " . $ePost->getMessage();
                                 }
-                            } catch (\Throwable $ePost) {
-                                $audioErrorDetails = "Excecao {$route}: " . $ePost->getMessage();
                             }
                         }
-                    }
-
-                    // Impede o download direto de URLs .enc (criptografadas pelo WhatsApp)
-                    if (!$audioBytes && !empty($audioUrl) && !str_contains($audioUrl, '.enc') && !str_contains($audioUrl, 'whatsapp.net')) {
-                        try {
-                            $audioResponse = Http::withHeaders($headers)->timeout(30)->get($audioUrl);
-                            if ($audioResponse->successful() && strlen($audioResponse->body()) > 200) {
-                                $audioBytes = $audioResponse->body();
-                            }
-                        } catch (\Throwable $eDirect) {}
                     }
 
                     if ($audioBytes && strlen($audioBytes) > 100) {
@@ -962,14 +972,14 @@ public function webhook(Request $request, $id)
                             if (!empty($transcribedText)) {
                                 $userMessage = $transcribedText;
                             } else {
-                                $audioErrorDetails = "Whisper rejeitou o audio. Os bytes recebidos nao sao um formato OGG/MP3 valido.";
+                                $audioErrorDetails = "Whisper rejeitou o audio gravado em temporario.";
                             }
                         } else {
-                            $audioErrorDetails = "Chave da OpenAI nao configurada no assistente.";
+                            $audioErrorDetails = "Chave da OpenAI nao configurada para transcricao.";
                         }
                         @unlink($tempPath);
                     } else if (!$audioErrorDetails) {
-                        $audioErrorDetails = "Nao foi possivel obter base64 de audio da UaZapi.";
+                        $audioErrorDetails = !empty($attemptLogs) ? implode(' | ', array_slice($attemptLogs, 0, 4)) : "Nao foi possivel obter base64 de audio da UaZapi.";
                     }
                 } catch (\Throwable $e) {
                     $audioErrorDetails = "Excecao geral no audio: " . $e->getMessage();
