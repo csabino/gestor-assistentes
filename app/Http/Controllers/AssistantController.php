@@ -788,7 +788,7 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
         return trim($text);
     }
 
-    public function webhook(Request $request, $id)
+public function webhook(Request $request, $id)
     {
         $this->configureTimezone();
         $this->ensureWebhookLogTableExists();
@@ -822,6 +822,19 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
                 return response()->json(['status' => 'ignored_from_me']);
             }
 
+            $audioService = new \App\Services\AudioService();
+
+            // Identifica se a mensagem é um áudio e obtém a URL do arquivo
+            $audioUrl = $request->input('message.media_url')
+                ?? $request->input('message.url')
+                ?? $request->input('mediaUrl')
+                ?? $request->input('data.message.audioMessage.url')
+                ?? $request->input('message.audioMessage.url')
+                ?? null;
+
+            $msgType = strtolower($request->input('message.type') ?? $request->input('message.media_type') ?? $request->input('type') ?? '');
+            $isAudioMessage = in_array($msgType, ['audio', 'ptt']) || (!empty($audioUrl) && str_contains($audioUrl, '.og'));
+
             $rawMessage = $request->input('message.content')
                 ?? $request->input('message.text')
                 ?? $request->input('data.message.conversation')
@@ -835,14 +848,34 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
 
             $userMessage = is_array($rawMessage) ? ($rawMessage['text'] ?? $rawMessage['body'] ?? '') : (string)$rawMessage;
 
+            // Se for mensagem de áudio, realiza o download temporário e a transcrição via Whisper
+            if ($isAudioMessage && !empty($audioUrl)) {
+                try {
+                    $tempPath = storage_path('app/temp_audio_' . time() . '_' . rand(1000, 9999) . '.ogg');
+                    $audioContent = Http::timeout(30)->get($audioUrl)->body();
+                    file_put_contents($tempPath, $audioContent);
+
+                    $transcriptionKey = trim($assistant->openai_api_key ?? '');
+                    if ($transcriptionKey) {
+                        $transcribedText = $audioService->transcribeAudio($tempPath, $transcriptionKey, 'openai');
+                        if (!empty($transcribedText)) {
+                            $userMessage = $transcribedText;
+                        }
+                    }
+                    @unlink($tempPath);
+                } catch (\Throwable $e) {
+                    Log::error("Erro no download/transcrição de áudio: " . $e->getMessage());
+                }
+            }
+
             $nowFormatted = now()->setTimezone('America/Sao_Paulo')->toDateTimeString();
 
             if (empty(trim($userMessage))) {
                 DB::table('webhook_logs')->insert([
                     'assistant_id' => $assistant->id,
                     'sender' => substr($sender, 0, 255),
-                    'user_message' => '[Mídia / Não Texto]',
-                    'ai_reply' => 'Ignorado (Processamento restrito a texto)',
+                    'user_message' => '[Mídia / Áudio Sem Texto]',
+                    'ai_reply' => 'Ignorado (Não foi possível transcrever)',
                     'wa_send_result' => json_encode(['info' => 'Nenhuma resposta enviada']),
                     'raw_snippet' => json_encode($request->all(), JSON_INVALID_UTF8_IGNORE),
                     'timestamp' => $nowFormatted,
@@ -873,14 +906,13 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
             $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
 
-            $formattedReply = $this->formatTextForWhatsapp($aiReply);
-
+            // Grava histórico da conversa
             DB::table('chat_messages')->insert([
                 [
                     'assistant_id' => $assistant->id,
                     'phone_number' => $cleanSender,
                     'role' => 'user',
-                    'content' => $userMessage,
+                    'content' => $isAudioMessage ? '[🎙️ Áudio]: ' . $userMessage : $userMessage,
                     'created_at' => $nowFormatted,
                     'updated_at' => $nowFormatted,
                 ],
@@ -894,13 +926,36 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
                 ]
             ]);
 
-            $waResult = $this->sendWhatsappMessage($assistant, $sender, $formattedReply);
+            // Se o usuário mandou áudio, gera resposta em voz e separa links
+            if ($isAudioMessage) {
+                $separated = $audioService->separateLinksFromText($aiReply);
+                $googleKey = env('GOOGLE_API_KEY_TTS');
+
+                $audioPublicUrl = $audioService->textToSpeech($separated['audio_text'], $googleKey);
+
+                if ($audioPublicUrl) {
+                    $waResult = $this->sendWhatsappAudioMessage($assistant, $sender, $audioPublicUrl);
+
+                    // Se existirem links na resposta, envia uma mensagem de texto adicional com os links
+                    if (!empty($separated['extracted_links'])) {
+                        $this->sendWhatsappMessage($assistant, $sender, $separated['extracted_links']);
+                    }
+                } else {
+                    // Fallback caso a API do Google falhe: responde em texto normal
+                    $formattedReply = $this->formatTextForWhatsapp($aiReply);
+                    $waResult = $this->sendWhatsappMessage($assistant, $sender, $formattedReply);
+                }
+            } else {
+                // Entrada em texto normal
+                $formattedReply = $this->formatTextForWhatsapp($aiReply);
+                $waResult = $this->sendWhatsappMessage($assistant, $sender, $formattedReply);
+            }
 
             DB::table('webhook_logs')->insert([
                 'assistant_id' => $assistant->id,
                 'sender' => substr($sender, 0, 255),
-                'user_message' => $userMessage,
-                'ai_reply' => $formattedReply,
+                'user_message' => $isAudioMessage ? '[🎙️ Áudio]: ' . $userMessage : $userMessage,
+                'ai_reply' => $aiReply,
                 'wa_send_result' => json_encode($waResult, JSON_INVALID_UTF8_IGNORE),
                 'raw_snippet' => json_encode($request->all(), JSON_INVALID_UTF8_IGNORE),
                 'timestamp' => $nowFormatted,
@@ -908,7 +963,7 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
                 'updated_at' => $nowFormatted,
             ]);
 
-            return response()->json(['status' => 'success', 'reply' => $formattedReply]);
+            return response()->json(['status' => 'success', 'reply' => $aiReply]);
         } catch (\Throwable $e) {
             $nowFormatted = now()->setTimezone('America/Sao_Paulo')->toDateTimeString();
             DB::table('webhook_logs')->insert([
@@ -1074,6 +1129,56 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
                     'number' => $cleanTo,
                     'phone' => $cleanTo,
                     'text' => $message
+                ];
+
+                $response = Http::withHeaders([
+                    'token' => $token,
+                    'apikey' => $token,
+                    'Content-Type' => 'application/json'
+                ])->post($endpoint, $payload);
+            }
+
+            return ['success' => $response->successful(), 'error' => $response->failed() ? $response->body() : null];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    private function sendWhatsappAudioMessage(Assistant $assistant, string $to, string $audioUrl): array
+    {
+        if (empty($assistant->whatsapp_url) || empty($assistant->whatsapp_token)) {
+            return ['success' => false, 'error' => 'WhatsApp não configurado.'];
+        }
+
+        try {
+            $cleanTo = preg_replace('/[^0-9]/', '', $to);
+            $baseUrl = rtrim($assistant->whatsapp_url, '/');
+            $token = trim($assistant->whatsapp_token);
+
+            if (str_contains($baseUrl, 'uazapi.com') || $assistant->whatsapp_provider === 'uazapi') {
+                $endpoint = $baseUrl . '/send/media';
+                
+                $payload = [
+                    'token' => $token,
+                    'number' => $cleanTo,
+                    'media' => $audioUrl,
+                    'type' => 'audio',
+                    'mimetype' => 'audio/mp3'
+                ];
+
+                $response = Http::withHeaders([
+                    'token' => $token,
+                    'Client-Token' => $token,
+                    'client-token' => $token,
+                    'apikey' => $token,
+                    'Content-Type' => 'application/json'
+                ])->post($endpoint . '?token=' . urlencode($token), $payload);
+
+            } else {
+                $endpoint = $baseUrl . '/message/sendWhatsAppAudio/' . $assistant->whatsapp_instance;
+                $payload = [
+                    'number' => $cleanTo,
+                    'audio' => $audioUrl
                 ];
 
                 $response = Http::withHeaders([
