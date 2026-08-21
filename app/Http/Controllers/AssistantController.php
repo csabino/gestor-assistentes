@@ -102,9 +102,12 @@ class AssistantController extends Controller
         if ($request->isMethod('post') && $request->input('action') === 'store_department') return $this->storeDepartment($request);
         if ($request->isMethod('post') && $request->input('action') === 'chat') return $this->chat($request);
         if ($request->isMethod('post') && $request->input('action') === 'test_ai') return $this->testAi($request);
-        if ($request->isMethod('post') && $request->input('action') === 'status_whatsapp') return response()->json(['connected' => true]);
-        if ($request->isMethod('post') && $request->input('action') === 'test_whatsapp') return response()->json(['success' => true, 'connected' => true, 'message' => 'WhatsApp ativo.']);
+        
+        // --- CIRURGIA 1: Removido os returns de "sucesso falso" e inserido o teste real na API ---
+        if ($request->isMethod('post') && $request->input('action') === 'status_whatsapp') return $this->checkWhatsappStatus($request, false);
+        if ($request->isMethod('post') && $request->input('action') === 'test_whatsapp') return $this->checkWhatsappStatus($request, true);
         if ($request->isMethod('post') && $request->input('action') === 'disconnect_whatsapp') return $this->disconnectWhatsapp($request);
+        // -----------------------------------------------------------------------------------------
         
         if ($request->isMethod('post') && $request->input('action') === 'map_site') return $this->mapSite($request);
         if ($request->isMethod('post') && $request->input('action') === 'scrape_single_url') return $this->scrapeSingleUrl($request);
@@ -176,7 +179,8 @@ class AssistantController extends Controller
         ));
     }
 
-private function disconnectWhatsapp(Request $request)
+    // --- CIRURGIA 2: Função que busca a verdade (status e QR code) direto na API ---
+    private function checkWhatsappStatus(Request $request, $isTest = false)
     {
         $assistantId = $request->input('assistant_id');
         $assistant = $assistantId ? Assistant::find($assistantId) : null;
@@ -186,34 +190,89 @@ private function disconnectWhatsapp(Request $request)
         $instance = trim($request->input('instance') ?? ($assistant->whatsapp_instance ?? ''));
         $provider = $request->input('provider') ?? ($assistant->whatsapp_provider ?? '');
 
-        // 🔒 GARANTIA 1: Nenhuma credencial é apagada do seu banco de dados.
+        if (!$baseUrl || !$token || !$instance) {
+            return response()->json(['connected' => false, 'success' => false, 'message' => 'Credenciais incompletas na tela.']);
+        }
 
-        if ($baseUrl && $token) {
+        try {
+            $headers = [
+                'token' => $token,
+                'apikey' => $token,
+                'Content-Type' => 'application/json'
+            ];
+
+            if (str_contains($baseUrl, 'uazapi.com') || $provider === 'uazapi') {
+                $res = Http::withHeaders($headers)->get($baseUrl . '/instance/connectionState/' . $instance);
+                
+                if ($res->status() === 404) {
+                    $res = Http::withHeaders($headers)->get($baseUrl . '/instance/connectionState', ['instance' => $instance]);
+                }
+                
+                $state = $res->json('instance.state') ?? $res->json('state') ?? $res->json('status');
+                $connected = in_array(strtolower((string)$state), ['open', 'connected', 'conectado']);
+                
+                if (!$connected && $isTest) {
+                    $qrRes = Http::withHeaders($headers)->get($baseUrl . '/instance/qr/' . $instance);
+                    if ($qrRes->status() === 404) {
+                        $qrRes = Http::withHeaders($headers)->get($baseUrl . '/instance/qr', ['instance' => $instance]);
+                    }
+                    $qr = $qrRes->json('qrcode') ?? $qrRes->json('base64');
+                    if ($qr) {
+                        return response()->json(['connected' => false, 'success' => true, 'qr' => $qr, 'message' => 'Escaneie o QR Code no seu celular.']);
+                    }
+                }
+                
+                return response()->json(['connected' => $connected, 'success' => true, 'message' => $connected ? 'WhatsApp conectado.' : 'Aguardando conexão...']);
+            } 
+            else if ($provider === 'evolution') {
+                $res = Http::withHeaders($headers)->get($baseUrl . '/instance/connectionState/' . $instance);
+                $state = $res->json('instance.state') ?? $res->json('state');
+                $connected = in_array(strtolower((string)$state), ['open', 'connected']);
+
+                if (!$connected && $isTest) {
+                    $resQr = Http::withHeaders($headers)->get($baseUrl . '/instance/connect/' . $instance);
+                    $qr = $resQr->json('base64');
+                    if ($qr) {
+                        return response()->json(['connected' => false, 'success' => true, 'qr' => $qr, 'message' => 'Escaneie o QR Code.']);
+                    }
+                }
+                return response()->json(['connected' => $connected, 'success' => true, 'message' => $connected ? 'WhatsApp conectado.' : 'Aguardando conexão...']);
+            }
+        } catch (\Throwable $e) {
+            Log::error("Erro checando status do WhatsApp: " . $e->getMessage());
+        }
+
+        return response()->json(['connected' => false, 'success' => false, 'message' => 'Falha ao consultar API.']);
+    }
+
+    // --- CIRURGIA 3: Desconectar corrigido com DELETE e fallback seguro ---
+    private function disconnectWhatsapp(Request $request)
+    {
+        $assistantId = $request->input('assistant_id');
+        $assistant = $assistantId ? Assistant::find($assistantId) : null;
+
+        $baseUrl = rtrim($request->input('url') ?? ($assistant->whatsapp_url ?? ''), '/');
+        $token = trim($request->input('token') ?? ($assistant->whatsapp_token ?? ''));
+        $instance = trim($request->input('instance') ?? ($assistant->whatsapp_instance ?? ''));
+        $provider = $request->input('provider') ?? ($assistant->whatsapp_provider ?? '');
+
+        if ($baseUrl && $token && $instance) {
             try {
+                $headers = [
+                    'token' => $token,
+                    'apikey' => $token,
+                    'Content-Type' => 'application/json'
+                ];
+
                 if (str_contains($baseUrl, 'uazapi.com') || $provider === 'uazapi') {
-                    
-                    $headers = [
-                        'token' => $token,
-                        'Client-Token' => $token,
-                        'client-token' => $token,
-                        'apikey' => $token,
-                        'Content-Type' => 'application/json'
-                    ];
+                    // O Padrão para "Deslogar" a sessão do celular sem apagar a instância:
+                    $response = Http::withHeaders($headers)->delete($baseUrl . '/instance/logout/' . $instance);
 
-                    $payload = [
-                        'token' => $token,
-                        'instance' => $instance
-                    ];
-
-                    // 🔒 GARANTIA 2: Tenta a rota EXCLUSIVA de desconectar o celular (sem deletar instância)
-                    $response = Http::withHeaders($headers)->post($baseUrl . '/instance/disconnect', $payload);
-
-                    // Se a rota for diferente, tenta a de logout de sessão
-                    if (!$response->successful() && $response->status() !== 405) {
-                        $response = Http::withHeaders($headers)->post($baseUrl . '/instance/logout', $payload);
+                    // Se falhar, tenta via POST
+                    if (!$response->successful()) {
+                        $response = Http::withHeaders($headers)->post($baseUrl . '/instance/logout', ['instance' => $instance]);
                     }
 
-                    // Se a UaZapi recusar, exibe a mensagem de retorno na tela para investigarmos
                     if (!$response->successful()) {
                         return response()->json([
                             'success' => false, 
@@ -221,12 +280,8 @@ private function disconnectWhatsapp(Request $request)
                         ]);
                     }
 
-                } else if ($provider === 'evolution' && $instance) {
-                    // A Evolution usa DELETE /instance/logout para deslogar a sessão (sem deletar a instância)
-                    $response = Http::withHeaders([
-                        'apikey' => $token,
-                        'Content-Type' => 'application/json'
-                    ])->delete($baseUrl . '/instance/logout/' . $instance);
+                } else if ($provider === 'evolution') {
+                    $response = Http::withHeaders($headers)->delete($baseUrl . '/instance/logout/' . $instance);
 
                     if (!$response->successful()) {
                         return response()->json([
