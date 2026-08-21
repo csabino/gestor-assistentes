@@ -9,14 +9,24 @@ use Illuminate\Support\Facades\Log;
 class AudioService
 {
     /**
-     * Transcreve áudio recebido em texto (Speech-to-Text) via OpenAI Whisper ou Google Cloud STT
+     * Transcreve áudio recebido em texto (Speech-to-Text) via OpenAI Whisper
      */
     public function transcribeAudio(string $audioFilePath, string $apiKey, string $provider = 'openai'): ?string
     {
         try {
+            if (!file_exists($audioFilePath) || filesize($audioFilePath) < 100) {
+                Log::error("Arquivo de áudio inválido ou muito pequeno para transcrição.");
+                return null;
+            }
+
             if ($provider === 'openai') {
                 $response = Http::withToken($apiKey)
-                    ->attach('file', file_get_contents($audioFilePath), basename($audioFilePath))
+                    ->attach(
+                        'file', 
+                        file_get_contents($audioFilePath), 
+                        'audio.ogg', 
+                        ['Content-Type' => 'audio/ogg']
+                    )
                     ->post('https://api.openai.com/v1/audio/transcriptions', [
                         'model' => 'whisper-1',
                         'language' => 'pt'
@@ -25,30 +35,10 @@ class AudioService
                 if ($response->successful()) {
                     return trim($response->json('text') ?? '');
                 }
+
+                Log::error("Erro na API Whisper OpenAI: " . $response->body());
             }
 
-            // Fallback para Google Cloud Speech-to-Text se necessário
-            if ($provider === 'google') {
-                $audioData = base64_encode(file_get_contents($audioFilePath));
-                $url = "https://speech.googleapis.com/v1/speech:recognize?key={$apiKey}";
-
-                $response = Http::post($url, [
-                    'config' => [
-                        'encoding' => 'OGG_OPUS',
-                        'sampleRateHertz' => 16000,
-                        'languageCode' => 'pt-BR'
-                    ],
-                    'audio' => [
-                        'content' => $audioData
-                    ]
-                ]);
-
-                if ($response->successful()) {
-                    return trim($response->json('results.0.alternatives.0.transcript') ?? '');
-                }
-            }
-
-            Log::error("Erro na transcrição de áudio: " . $response->body());
             return null;
 
         } catch (\Throwable $e) {
@@ -72,7 +62,6 @@ class AudioService
         }
 
         try {
-            // 1. Limpa formatações Markdown e asteriscos para a voz não ler símbolos
             $cleanText = str_replace(['*', '#', '_', '`', '~'], '', $text);
             $cleanText = preg_replace("/\n{2,}/", "\n", $cleanText);
 
@@ -110,7 +99,6 @@ class AudioService
                 return null;
             }
 
-            // 2. Salva o arquivo de áudio no diretório público
             $microTime = microtime(true);
             $composeFileName = date('dmyHis', (int)$microTime) . sprintf('%03d', ($microTime - (int)$microTime) * 1000);
             $fileName = "ia_" . $composeFileName . ".mp3";
@@ -118,7 +106,6 @@ class AudioService
 
             Storage::disk('public')->put($relativePath, base64_decode($audioBase64));
 
-            // Retorna a URL pública completa do arquivo gerado
             return Storage::disk('public')->url($relativePath);
 
         } catch (\Throwable $e) {
@@ -128,14 +115,12 @@ class AudioService
     }
 
     /**
-     * Separa URLs e Links Markdown da resposta da IA para que a voz diga 
-     * apenas o texto falado e os links sejam enviados separadamente via mensagem.
+     * Separa URLs da resposta da IA para envio separado no WhatsApp
      */
     public function separateLinksFromText(string $aiResponseText): array
     {
         $links = [];
         
-        // 1. Extrai links em formato Markdown: [Nome](https://link.com)
         $textWithoutMarkdownLinks = preg_replace_callback('/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/', function ($matches) use (&$links) {
             $label = trim($matches[1]);
             $url = trim($matches[2]);
@@ -143,7 +128,6 @@ class AudioService
             return $label;
         }, $aiResponseText);
 
-        // 2. Extrai URLs puras: https://link.com
         $textClean = preg_replace_callback('/https?:\/\/[^\s]+/', function ($matches) use (&$links) {
             $url = trim($matches[0]);
             if (!in_array("• " . $url, $links)) {
