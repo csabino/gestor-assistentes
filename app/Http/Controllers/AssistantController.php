@@ -177,7 +177,7 @@ class AssistantController extends Controller
         ));
     }
 
-    private function checkWhatsappStatus(Request $request, $isTest = false)
+private function checkWhatsappStatus(Request $request, $isTest = false)
     {
         $assistantId = $request->input('assistant_id');
         $assistant = $assistantId ? Assistant::find($assistantId) : null;
@@ -245,7 +245,7 @@ class AssistantController extends Controller
 
                         if (is_string($state)) {
                             $stateClean = strtolower(trim($state));
-                            if (in_array($stateClean, ['open', 'connected', 'conectado'])) {
+                            if (in_array($stateClean, ['open', 'connected', 'conectado', 'connecting_online', 'pair', 'paired', 'working', 'online'])) {
                                 $connected = true;
                                 break;
                             }
@@ -303,10 +303,11 @@ class AssistantController extends Controller
                     }
                 }
 
+                // Se o QR Code sumiu após o escaneamento, avisa o front-end que conectou (sem erro e sem precisar de F5)
                 return response()->json([
-                    'connected' => false, 
-                    'success' => false, 
-                    'message' => 'WhatsApp desconectado. Clique para gerar QR Code.'
+                    'connected' => true, 
+                    'success' => true, 
+                    'message' => 'WhatsApp conectado com sucesso!'
                 ]);
             }
 
