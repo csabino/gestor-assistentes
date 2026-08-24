@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\CalendarController;
+use App\Http\Controllers\OmniController;
 
 Route::match(['get', 'post', 'patch', 'put', 'delete'], '/webhook/whatsapp/{id}', [AssistantController::class, 'webhook'])
     ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
@@ -19,3 +20,6 @@ Route::match(['get', 'post', 'patch', 'put', 'delete'], '/', function (\Illumina
     if ($request->input('view') === 'agenda') return app(CalendarController::class)->handle($request);
     return app(AssistantController::class)->index($request);
 })->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
+
+Route::post('/omni/send', [OmniController::class, 'forwardToOmni'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
