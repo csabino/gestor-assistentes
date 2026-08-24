@@ -1,2 +1,4 @@
 [variables]
 NIXPACKS_DOCUMENT_ROOT = 'public'
+NIXPACKS_PHP_ROOT_DIR = '/app/public'
+IS_LARAVEL = '1'
