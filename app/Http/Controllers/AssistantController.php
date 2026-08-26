@@ -859,7 +859,8 @@ class AssistantController extends Controller
             ];
 
             if (class_exists('\App\Services\OmniTicketService')) {
-                app(\App\Services\OmniTicketService::class)->send($payload);
+                $res = app(\App\Services\OmniTicketService::class)->sendToOmni($payload);
+                Log::info("Registro Omni ({$type}): ", $res);
             } else {
                 $omniReq = new Request($payload);
                 app(\App\Http\Controllers\OmniController::class)->forwardToOmni($omniReq);
