@@ -177,7 +177,7 @@ class AssistantController extends Controller
         ));
     }
 
-private function checkWhatsappStatus(Request $request, $isTest = false)
+    private function checkWhatsappStatus(Request $request, $isTest = false)
     {
         $assistantId = $request->input('assistant_id');
         $assistant = $assistantId ? Assistant::find($assistantId) : null;
@@ -303,7 +303,6 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
                     }
                 }
 
-                // Se o QR Code sumiu após o escaneamento, avisa o front-end que conectou (sem erro e sem precisar de F5)
                 return response()->json([
                     'connected' => true, 
                     'success' => true, 
@@ -788,7 +787,7 @@ private function checkWhatsappStatus(Request $request, $isTest = false)
         return trim($text);
     }
 
-private function extractAudioBytesFromResponse($response): ?string
+    private function extractAudioBytesFromResponse($response): ?string
     {
         if (!$response || !$response->successful()) {
             return null;
@@ -797,7 +796,6 @@ private function extractAudioBytesFromResponse($response): ?string
         $json = $response->json();
 
         if (is_array($json)) {
-            // 1. Tenta extrair base64 direto se houver
             $b64 = $json['base64'] 
                 ?? $json['data']['base64'] 
                 ?? $json['media'] 
@@ -813,7 +811,6 @@ private function extractAudioBytesFromResponse($response): ?string
                 }
             }
 
-            // 2. Mapeia a URL descriptografada fornecida pela UaZapi (fileURL)
             $returnedUrl = $json['fileURL']
                 ?? $json['fileUrl']
                 ?? $json['file_url']
@@ -844,6 +841,32 @@ private function extractAudioBytesFromResponse($response): ?string
         }
 
         return null;
+    }
+
+    /**
+     * Envia os eventos de conversa de forma assíncrona/segura para o Omni sem interromper o fluxo
+     */
+    private function sendToOmni(string $message, string $pushName, string $type, string $phone)
+    {
+        try {
+            $remoteJidAlt = str_contains($phone, '@') ? $phone : ($phone . '@s.whatsapp.net');
+
+            $payload = [
+                'conversation' => $message,
+                'pushName'     => $pushName ?: 'Cliente',
+                'type'         => $type,
+                'remoteJidAlt' => $remoteJidAlt,
+            ];
+
+            if (class_exists('\App\Services\OmniTicketService')) {
+                app(\App\Services\OmniTicketService::class)->send($payload);
+            } else {
+                $omniReq = new Request($payload);
+                app(\App\Http\Controllers\OmniController::class)->forwardToOmni($omniReq);
+            }
+        } catch (\Throwable $e) {
+            Log::error("Erro ao registrar conversa no Omni ({$type}): " . $e->getMessage());
+        }
     }
 
     public function webhook(Request $request, $id)
@@ -996,6 +1019,15 @@ private function extractAudioBytesFromResponse($response): ?string
                 return response()->json(['status' => 'no_message']);
             }
 
+            $pushName = $request->input('message.senderName')
+                ?? $request->input('senderName')
+                ?? $request->input('pushName')
+                ?? $request->input('data.pushName')
+                ?? $cleanSender;
+
+            // 1. REGISTRA ENTRADA DA MENSAGEM NO OMNI (INPUT)
+            $this->sendToOmni($userMessage, $pushName, 'input', $cleanSender);
+
             $contextLimit = (int) ($assistant->context_limit ?? 12);
 
             $historyRecords = DB::table('chat_messages')
@@ -1016,6 +1048,9 @@ private function extractAudioBytesFromResponse($response): ?string
 
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
             $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
+
+            // 2. REGISTRA SAÍDA DA MENSAGEM NO OMNI (OUTPUT)
+            $this->sendToOmni($aiReply, $pushName, 'output', $cleanSender);
 
             DB::table('chat_messages')->insert([
                 [
@@ -1274,7 +1309,6 @@ private function extractAudioBytesFromResponse($response): ?string
                 $possiblePath = $audioData;
             }
 
-            // Se o base64 veio vazio, lê o arquivo diretamente do disco do servidor PHP
             if (empty($b64Raw) && !empty($possiblePath)) {
                 $relativePath = parse_url($possiblePath, PHP_URL_PATH) ?? $possiblePath;
                 $cleanRelative = ltrim(str_replace('/storage/', '', $relativePath), '/');
@@ -1309,7 +1343,6 @@ private function extractAudioBytesFromResponse($response): ?string
                     'Content-Type' => 'application/json'
                 ];
 
-                // Envia os bytes em Base64 diretamente no corpo para a UaZapi não fazer download externo
                 $filePayload = !empty($b64Raw) ? 'data:audio/mp3;base64,' . $b64Raw : $possiblePath;
 
                 $payload = [
