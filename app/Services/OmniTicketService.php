@@ -39,13 +39,13 @@ class OmniTicketService
 
             Log::warning('Omni Webhook retornou erro HTTP', [
                 'status' => $response->status(),
-                'body' => $response->body()
+                'body'   => $response->body()
             ]);
 
             return [
                 'success' => false,
                 'status'  => $response->status(),
-                'message' => 'Falha ao processar no servidor Omni.'
+                'message' => $response->body()
             ];
 
         } catch (\Throwable $e) {
