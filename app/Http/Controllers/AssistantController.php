@@ -1047,27 +1047,43 @@ class AssistantController extends Controller
                 }
 
                 if (is_array($dataArr)) {
-                    $protocolo = $dataArr['protocolo'] ?? null;
-                    $ticketId = $dataArr['ticket_id'] ?? null;
+                    $protocolo = $dataArr['protocolo'] ?? $dataArr['number'] ?? $dataArr['ticket_number'] ?? null;
+                    $ticketId = $dataArr['ticket_id'] ?? $dataArr['id'] ?? null;
                 }
             }
 
-            // Fallback: se o protocolo veio nulo (sessao existente), busca direto no banco pelo ticket_id
-            if (empty($protocolo) && !empty($ticketId)) {
-                try {
-                    $prefix = defined('TABLE_PREFIX_OPEN') ? TABLE_PREFIX_OPEN : 'ost_';
-                    $tRow = DB::table($prefix . 'ticket')->where('ticket_id', $ticketId)->first();
-                    if ($tRow && !empty($tRow->number)) {
-                        $protocolo = $tRow->number;
+            // Fallback 1: Busca o protocolo direto no banco MySQL
+            if (empty($protocolo)) {
+                $ticketTables = ['ost_ticket', 'ticket', 'open_ticket', 'tickets', 'ost_tickets'];
+
+                if (!empty($ticketId)) {
+                    foreach ($ticketTables as $tTable) {
+                        try {
+                            $tRow = DB::table($tTable)->where('ticket_id', $ticketId)->first();
+                            if ($tRow && !empty($tRow->number)) {
+                                $protocolo = $tRow->number;
+                                break;
+                            }
+                        } catch (\Throwable $eDb1) {}
                     }
-                } catch (\Throwable $eDb1) {
-                    try {
-                        $tRow = DB::table('ticket')->where('ticket_id', $ticketId)->first();
-                        if ($tRow && !empty($tRow->number)) {
-                            $protocolo = $tRow->number;
-                        }
-                    } catch (\Throwable $eDb2) {}
                 }
+
+                if (empty($protocolo) && !empty($cleanSender)) {
+                    foreach ($ticketTables as $tTable) {
+                        try {
+                            $tRow = DB::table($tTable)->orderBy('ticket_id', 'desc')->first();
+                            if ($tRow && !empty($tRow->number)) {
+                                $protocolo = $tRow->number;
+                                break;
+                            }
+                        } catch (\Throwable $eDb2) {}
+                    }
+                }
+            }
+
+            // Fallback 2: Se temos ticket_id numerico, formata (ex: 865 -> 000000865)
+            if (empty($protocolo) && !empty($ticketId) && is_numeric($ticketId)) {
+                $protocolo = str_pad((string)$ticketId, 9, '0', STR_PAD_LEFT);
             }
 
             $contextLimit = (int) ($assistant->context_limit ?? 12);
@@ -1129,6 +1145,10 @@ class AssistantController extends Controller
                     } else {
                         $aiReply = str_replace($alvoBusca, $alvoBusca . $strProto, $aiReply);
                     }
+                } else {
+                    $lines = explode("\n", $aiReply);
+                    array_splice($lines, 1, 0, trim($strProto));
+                    $aiReply = implode("\n", $lines);
                 }
             }
 
