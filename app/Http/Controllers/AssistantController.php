@@ -843,9 +843,6 @@ class AssistantController extends Controller
         return null;
     }
 
-    /**
-     * Envia os eventos de conversa de forma assíncrona/segura para o Omni sem interromper o fluxo
-     */
     private function sendToOmni(string $message, string $pushName, string $type, string $phone)
     {
         try {
@@ -1029,18 +1026,48 @@ class AssistantController extends Controller
                 ?? $request->input('data.pushName')
                 ?? $cleanSender;
 
-            // 1. REGISTRA ENTRADA DA MENSAGEM NO OMNI (INPUT) E CAPTURA O PROTOCOLO RETORNADO
+            // 1. REGISTRA ENTRADA DA MENSAGEM NO OMNI (INPUT) E CAPTURA O PROTOCOLO
             $omniInputRes = $this->sendToOmni($userMessage, $pushName, 'input', $cleanSender);
 
             $protocolo = null;
-            if (is_array($omniInputRes)) {
-                $protocolo = $omniInputRes['protocolo'] ?? null;
-            } elseif ($omniInputRes instanceof \Illuminate\Http\JsonResponse) {
-                $resData = $omniInputRes->getData(true);
-                $protocolo = $resData['protocolo'] ?? null;
-            } elseif (is_string($omniInputRes)) {
-                $decoded = json_decode($omniInputRes, true);
-                $protocolo = $decoded['protocolo'] ?? null;
+            $ticketId = null;
+
+            if (!empty($omniInputRes)) {
+                $dataArr = null;
+                if (is_array($omniInputRes)) {
+                    $dataArr = $omniInputRes;
+                } elseif (is_string($omniInputRes)) {
+                    $dataArr = json_decode($omniInputRes, true);
+                } elseif (method_exists($omniInputRes, 'getData')) {
+                    $dataArr = $omniInputRes->getData(true);
+                } elseif (method_exists($omniInputRes, 'json')) {
+                    $dataArr = $omniInputRes->json();
+                } elseif (method_exists($omniInputRes, 'getContent')) {
+                    $dataArr = json_decode($omniInputRes->getContent(), true);
+                }
+
+                if (is_array($dataArr)) {
+                    $protocolo = $dataArr['protocolo'] ?? null;
+                    $ticketId = $dataArr['ticket_id'] ?? null;
+                }
+            }
+
+            // Fallback: se o protocolo veio nulo (sessao existente), busca direto no banco pelo ticket_id
+            if (empty($protocolo) && !empty($ticketId)) {
+                try {
+                    $prefix = defined('TABLE_PREFIX_OPEN') ? TABLE_PREFIX_OPEN : 'ost_';
+                    $tRow = DB::table($prefix . 'ticket')->where('ticket_id', $ticketId)->first();
+                    if ($tRow && !empty($tRow->number)) {
+                        $protocolo = $tRow->number;
+                    }
+                } catch (\Throwable $eDb1) {
+                    try {
+                        $tRow = DB::table('ticket')->where('ticket_id', $ticketId)->first();
+                        if ($tRow && !empty($tRow->number)) {
+                            $protocolo = $tRow->number;
+                        }
+                    } catch (\Throwable $eDb2) {}
+                }
             }
 
             $contextLimit = (int) ($assistant->context_limit ?? 12);
@@ -1064,7 +1091,7 @@ class AssistantController extends Controller
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
             $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
 
-            // 2. TRATA E INJETA NOME E PROTOCOLO NO TEXTO ANTES DE ENVIAR PARA WHATSAPP E OMNI
+            // 2. TRATA E INJETA NOME E PROTOCOLO NO TEXTO ANTES DE ENVIAR PARA WHATSAPP
             $clientName = $pushName ?: '';
 
             if (!empty($protocolo)) {
@@ -1076,7 +1103,7 @@ class AssistantController extends Controller
                 $aiReply = str_replace([', #NOME#', ' #NOME#', ', [Nome do Cliente]', ' [Nome do Cliente]'], '', $aiReply);
             }
 
-            // Injeção de Segurança do Nome se não constar no texto
+            // Injeção de Segurança do Nome
             if (!empty($clientName) && strpos($aiReply, $clientName) === false) {
                 if (stripos($aiReply, 'à InHouse.') !== false) {
                     $aiReply = str_replace('à InHouse.', 'à InHouse, ' . $clientName . '.', $aiReply);
@@ -1089,8 +1116,8 @@ class AssistantController extends Controller
                 }
             }
 
-            // Injeção de Segurança do Protocolo com PONTO FINAL no fim do número
-            if (!empty($protocolo) && strpos($aiReply, $protocolo) === false) {
+            // Injeção de Segurança do Protocolo
+            if (!empty($protocolo) && strpos($aiReply, (string)$protocolo) === false) {
                 $strProto = "\nSeu protocolo de atendimento é: " . $protocolo . ".";
                 $alvoBusca = (!empty($clientName) && strpos($aiReply, $clientName) !== false) ? $clientName : 'InHouse';
                 $posAlvo = strpos($aiReply, $alvoBusca);
