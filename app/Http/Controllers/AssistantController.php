@@ -860,14 +860,17 @@ class AssistantController extends Controller
 
             if (class_exists('\App\Services\OmniTicketService')) {
                 $res = app(\App\Services\OmniTicketService::class)->sendToOmni($payload);
-                Log::info("Registro Omni ({$type}): ", $res);
+                Log::info("Registro Omni ({$type}): ", is_array($res) ? $res : (array)$res);
+                return $res;
             } else {
                 $omniReq = new Request($payload);
-                app(\App\Http\Controllers\OmniController::class)->forwardToOmni($omniReq);
+                $res = app(\App\Http\Controllers\OmniController::class)->forwardToOmni($omniReq);
+                return $res;
             }
         } catch (\Throwable $e) {
             Log::error("Erro ao registrar conversa no Omni ({$type}): " . $e->getMessage());
         }
+        return null;
     }
 
     public function webhook(Request $request, $id)
@@ -1026,8 +1029,19 @@ class AssistantController extends Controller
                 ?? $request->input('data.pushName')
                 ?? $cleanSender;
 
-            // 1. REGISTRA ENTRADA DA MENSAGEM NO OMNI (INPUT)
-            $this->sendToOmni($userMessage, $pushName, 'input', $cleanSender);
+            // 1. REGISTRA ENTRADA DA MENSAGEM NO OMNI (INPUT) E CAPTURA O PROTOCOLO RETORNADO
+            $omniInputRes = $this->sendToOmni($userMessage, $pushName, 'input', $cleanSender);
+
+            $protocolo = null;
+            if (is_array($omniInputRes)) {
+                $protocolo = $omniInputRes['protocolo'] ?? null;
+            } elseif ($omniInputRes instanceof \Illuminate\Http\JsonResponse) {
+                $resData = $omniInputRes->getData(true);
+                $protocolo = $resData['protocolo'] ?? null;
+            } elseif (is_string($omniInputRes)) {
+                $decoded = json_decode($omniInputRes, true);
+                $protocolo = $decoded['protocolo'] ?? null;
+            }
 
             $contextLimit = (int) ($assistant->context_limit ?? 12);
 
@@ -1050,7 +1064,50 @@ class AssistantController extends Controller
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
             $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
 
-            // 2. REGISTRA SAÍDA DA MENSAGEM NO OMNI (OUTPUT)
+            // 2. TRATA E INJETA NOME E PROTOCOLO NO TEXTO ANTES DE ENVIAR PARA WHATSAPP E OMNI
+            $clientName = $pushName ?: '';
+
+            if (!empty($protocolo)) {
+                $aiReply = str_replace(['#PROTOCOLO#', '[PROTOCOLO]', '[Número do Protocolo]'], $protocolo . '.', $aiReply);
+            }
+            if (!empty($clientName)) {
+                $aiReply = str_replace(['#NOME#', '[NOME]', '[Nome do Cliente]'], $clientName, $aiReply);
+            } else {
+                $aiReply = str_replace([', #NOME#', ' #NOME#', ', [Nome do Cliente]', ' [Nome do Cliente]'], '', $aiReply);
+            }
+
+            // Injeção de Segurança do Nome se não constar no texto
+            if (!empty($clientName) && strpos($aiReply, $clientName) === false) {
+                if (stripos($aiReply, 'à InHouse.') !== false) {
+                    $aiReply = str_replace('à InHouse.', 'à InHouse, ' . $clientName . '.', $aiReply);
+                } elseif (stripos($aiReply, 'à InHouse') !== false) {
+                    $aiReply = str_replace('à InHouse', 'à InHouse, ' . $clientName, $aiReply);
+                } elseif (stripos($aiReply, 'InHouse.') !== false) {
+                    $aiReply = str_replace('InHouse.', 'InHouse, ' . $clientName . '.', $aiReply);
+                } elseif (stripos($aiReply, 'InHouse') !== false) {
+                    $aiReply = str_replace('InHouse', 'InHouse, ' . $clientName, $aiReply);
+                }
+            }
+
+            // Injeção de Segurança do Protocolo com PONTO FINAL no fim do número
+            if (!empty($protocolo) && strpos($aiReply, $protocolo) === false) {
+                $strProto = "\nSeu protocolo de atendimento é: " . $protocolo . ".";
+                $alvoBusca = (!empty($clientName) && strpos($aiReply, $clientName) !== false) ? $clientName : 'InHouse';
+                $posAlvo = strpos($aiReply, $alvoBusca);
+
+                if ($posAlvo !== false) {
+                    $posPonto = strpos($aiReply, '.', $posAlvo);
+                    if ($posPonto !== false) {
+                        $aiReply = substr_replace($aiReply, '.' . $strProto, $posPonto, 1);
+                    } else {
+                        $aiReply = str_replace($alvoBusca, $alvoBusca . $strProto, $aiReply);
+                    }
+                }
+            }
+
+            $aiReply = str_replace('..', '.', $aiReply);
+
+            // 3. REGISTRA SAÍDA DA MENSAGEM TRATADA NO OMNI (OUTPUT)
             $this->sendToOmni($aiReply, $pushName, 'output', $cleanSender);
 
             DB::table('chat_messages')->insert([
