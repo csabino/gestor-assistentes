@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Setting;
 use App\Models\Assistant;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Artisan;
+use Illuminate\Database\Schema\Blueprint;
 
 class SettingController extends Controller
 {
@@ -23,9 +23,25 @@ class SettingController extends Controller
 
     private function ensureTableExists()
     {
-        // Se a tabela não tiver a coluna assistant_id, roda o fresh/migrate force
-        if (!Schema::hasColumn('settings', 'assistant_id')) {
-            Artisan::call('migrate', ['--force' => true]);
+        if (!Schema::hasTable('settings')) {
+            Schema::create('settings', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('assistant_id')->index();
+                $table->string('key');
+                $table->text('value')->nullable();
+                $table->timestamps();
+                $table->unique(['assistant_id', 'key']);
+            });
+        } elseif (!Schema::hasColumn('settings', 'assistant_id')) {
+            Schema::dropIfExists('settings');
+            Schema::create('settings', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('assistant_id')->index();
+                $table->string('key');
+                $table->text('value')->nullable();
+                $table->timestamps();
+                $table->unique(['assistant_id', 'key']);
+            });
         }
     }
 
