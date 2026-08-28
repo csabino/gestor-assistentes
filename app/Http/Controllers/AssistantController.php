@@ -1026,12 +1026,11 @@ class AssistantController extends Controller
                 ?? $request->input('data.pushName')
                 ?? $cleanSender;
 
-            // 1. REGISTRA A ENTRADA NO OMNI PRIMEIRO E OBTE
+            // 1. CHAMA O OMNI NA ENTRADA PARA REGISTRAR / OBTER PROTOCOLO
             $omniInputRes = $this->sendToOmni($userMessage, $pushName, 'input', $cleanSender);
 
             $protocolo = null;
             $ticketId = null;
-            $isNewTicket = false;
 
             if (!empty($omniInputRes)) {
                 $dataArr = null;
@@ -1048,13 +1047,41 @@ class AssistantController extends Controller
                 }
 
                 if (is_array($dataArr)) {
-                    $protocolo   = $dataArr['protocolo'] ?? $dataArr['number'] ?? $dataArr['ticket_number'] ?? null;
-                    $ticketId    = $dataArr['ticket_id'] ?? $dataArr['id'] ?? null;
-                    $isNewTicket = !empty($dataArr['is_new_ticket']);
+                    $protocolo = $dataArr['protocolo'] ?? $dataArr['ticket_number'] ?? $dataArr['number'] ?? $dataArr['protocol'] ?? null;
+                    $ticketId  = $dataArr['ticket_id'] ?? $dataArr['id'] ?? null;
                 }
             }
 
-            // Fallback para formatar o protocolo via ID se nulo
+            // FALLBACK AUTÔNOMO 1: Consulta direta no MySQL se $protocolo veio nulo
+            if (empty($protocolo)) {
+                $ticketTables = ['ost_ticket', 'ticket', 'open_ticket', 'tickets'];
+
+                if (!empty($ticketId)) {
+                    foreach ($ticketTables as $tTable) {
+                        try {
+                            $tRow = DB::table($tTable)->where('ticket_id', $ticketId)->first();
+                            if ($tRow && !empty($tRow->number)) {
+                                $protocolo = $tRow->number;
+                                break;
+                            }
+                        } catch (\Throwable $eDb1) {}
+                    }
+                }
+
+                if (empty($protocolo)) {
+                    foreach ($ticketTables as $tTable) {
+                        try {
+                            $tRow = DB::table($tTable)->orderBy('ticket_id', 'desc')->first();
+                            if ($tRow && !empty($tRow->number)) {
+                                $protocolo = $tRow->number;
+                                break;
+                            }
+                        } catch (\Throwable $eDb2) {}
+                    }
+                }
+            }
+
+            // FALLBACK AUTÔNOMO 2: Formatação via ticket_id (ex: 865 -> 000000865)
             if (empty($protocolo) && !empty($ticketId) && is_numeric($ticketId)) {
                 $protocolo = str_pad((string)$ticketId, 9, '0', STR_PAD_LEFT);
             }
@@ -1080,7 +1107,7 @@ class AssistantController extends Controller
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
             $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
 
-            // 2. TRATA E INJETA NOME E PROTOCOLO NO TEXTO DA IA ANTES DE ENVIAR PARA O WHATSAPP
+            // 2. MONTA E INJETA NOME E PROTOCOLO NO TEXTO TRATADO
             $clientName = $pushName ?: '';
 
             if (!empty($protocolo)) {
@@ -1092,7 +1119,7 @@ class AssistantController extends Controller
                 $aiReply = str_replace([', #NOME#', ' #NOME#', ', [Nome do Cliente]', ' [Nome do Cliente]'], '', $aiReply);
             }
 
-            // Injeção de Segurança do Nome
+            // Injeção de Segurança do Nome do Cliente
             if (!empty($clientName) && strpos($aiReply, $clientName) === false) {
                 if (stripos($aiReply, 'à InHouse.') !== false) {
                     $aiReply = str_replace('à InHouse.', 'à InHouse, ' . $clientName . '.', $aiReply);
@@ -1105,9 +1132,9 @@ class AssistantController extends Controller
                 }
             }
 
-            // Injeção de Segurança do Protocolo
+            // Injeção de Segurança do Protocolo (Insere no primeiro ponto após o nome/saudação)
             if (!empty($protocolo) && strpos($aiReply, (string)$protocolo) === false) {
-                $strProto = "\nSeu protocolo de atendimento é: " . $protocolo . ".";
+                $strProto = " Seu protocolo de atendimento é: " . $protocolo . ".";
                 $alvoBusca = (!empty($clientName) && strpos($aiReply, $clientName) !== false) ? $clientName : 'InHouse';
                 $posAlvo = strpos($aiReply, $alvoBusca);
 
@@ -1116,18 +1143,16 @@ class AssistantController extends Controller
                     if ($posPonto !== false) {
                         $aiReply = substr_replace($aiReply, '.' . $strProto, $posPonto, 1);
                     } else {
-                        $aiReply = str_replace($alvoBusca, $alvoBusca . $strProto, $aiReply);
+                        $aiReply = str_replace($alvoBusca, $alvoBusca . '.' . $strProto, $aiReply);
                     }
                 } else {
-                    $lines = explode("\n", $aiReply);
-                    array_splice($lines, 1, 0, trim($strProto));
-                    $aiReply = implode("\n", $lines);
+                    $aiReply = "Seu protocolo de atendimento é: " . $protocolo . ".\n" . $aiReply;
                 }
             }
 
             $aiReply = str_replace('..', '.', $aiReply);
 
-            // 3. REGISTRA SAÍDA DA MENSAGEM TRATADA NO OMNI (OUTPUT)
+            // 3. ENVIA A MENSAGEM FINAL TRATADA COM NOME E PROTOCOLO PARA O OMNI
             $this->sendToOmni($aiReply, $pushName, 'output', $cleanSender);
 
             DB::table('chat_messages')->insert([
@@ -1149,6 +1174,7 @@ class AssistantController extends Controller
                 ]
             ]);
 
+            // 4. DISPARA A MENSAGEM FINAL TRATADA COM NOME E PROTOCOLO PARA O WHATSAPP
             if ($isAudioMessage) {
                 $separated = $audioService->separateLinksFromText($aiReply);
                 $googleKey = env('GOOGLE_API_KEY_TTS') 
