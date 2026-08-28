@@ -1026,7 +1026,7 @@ class AssistantController extends Controller
                 ?? $request->input('data.pushName')
                 ?? $cleanSender;
 
-            // 1. CHAMA O OMNI NA ENTRADA PARA REGISTRAR / OBTER PROTOCOLO
+            // 1. REGISTRA A ENTRADA NO OMNI PRIMEIRO E RECUPERA O PROTOCOLO SÍNCRONO
             $omniInputRes = $this->sendToOmni($userMessage, $pushName, 'input', $cleanSender);
 
             $protocolo = null;
@@ -1104,10 +1104,21 @@ class AssistantController extends Controller
                 ];
             }
 
+            // 2. MONTA O SYSTEM PROMPT BASE E INJETA PROTOCOLO E NOME ANTES DA IA GERAR RESPOSTA
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
+
+            $systemPrompt .= "\n\n===============================================\n";
+            $systemPrompt .= "DADOS DE CONTEXTO DO ATENDIMENTO ATUAL:\n";
+            $systemPrompt .= "• Nome do Cliente: " . ($pushName ?: 'Cliente') . "\n";
+            if (!empty($protocolo)) {
+                $systemPrompt .= "• Número do Protocolo de Atendimento: " . $protocolo . "\n";
+                $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA DE SAUDAÇÃO: Se esta for a primeira interação ou mensagem de boas-vindas, você DEVE saudar o cliente pelo nome (" . ($pushName ?: 'Cliente') . ") e informar obrigatoriamente o protocolo de atendimento: " . $protocolo . ".\n";
+            }
+            $systemPrompt .= "===============================================\n";
+
             $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
 
-            // 2. MONTA E INJETA NOME E PROTOCOLO NO TEXTO TRATADO
+            // 3. TRATA E GARANTE QUE NOME E PROTOCOLO ESTÃO NO TEXTO (SUBSTITUIÇÃO DE SEGURANÇA)
             $clientName = $pushName ?: '';
 
             if (!empty($protocolo)) {
@@ -1152,7 +1163,7 @@ class AssistantController extends Controller
 
             $aiReply = str_replace('..', '.', $aiReply);
 
-            // 3. ENVIA A MENSAGEM FINAL TRATADA COM NOME E PROTOCOLO PARA O OMNI
+            // 4. REGISTRA SAÍDA DA MENSAGEM TRATADA NO OMNI (OUTPUT)
             $this->sendToOmni($aiReply, $pushName, 'output', $cleanSender);
 
             DB::table('chat_messages')->insert([
@@ -1174,7 +1185,7 @@ class AssistantController extends Controller
                 ]
             ]);
 
-            // 4. DISPARA A MENSAGEM FINAL TRATADA COM NOME E PROTOCOLO PARA O WHATSAPP
+            // 5. DISPARA A MENSAGEM FINAL TRATADA COM NOME E PROTOCOLO PARA O WHATSAPP
             if ($isAudioMessage) {
                 $separated = $audioService->separateLinksFromText($aiReply);
                 $googleKey = env('GOOGLE_API_KEY_TTS') 
