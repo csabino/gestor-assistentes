@@ -81,7 +81,7 @@
     </aside>
 
     <main id="mainContent" class="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
-        <form id="settingsForm" action="/?view=settings" method="POST" class="container mx-auto px-6 max-w-5xl pb-12">
+        <form id="settingsForm" action="/?view=settings" method="POST" class="container mx-auto px-6 max-w-6xl pb-12">
             @csrf
 
             <!-- CABEÇALHO FIXO / CONGELADO (STICKY) -->
@@ -111,32 +111,57 @@
                 </div>
             @endif
 
-            <!-- GRID EM 2 COLUNAS PARA OS CARDS -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- GRID EM 3 COLUNAS (FUSO HORÁRIO = 1 COLUNA (1/3), WEBHOOK = 2 COLUNAS (2/3)) -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
-                <!-- Card 1: Fuso Horário -->
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-between">
+                <!-- Card 1: Fuso Horário (1/3 de largura) -->
+                <div class="md:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-between">
                     <div>
                         <h2 class="text-base font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
                             <svg class="w-5 h-5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            Fuso Horário (Timezone)
+                            Fuso Horário
                         </h2>
-                        <div class="space-y-2">
-                            <label for="timezone" class="block text-xs font-semibold text-gray-700">Fuso Horário Padrão</label>
-                            <select name="timezone" id="timezone" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs font-medium text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none">
-                                @foreach($timezones as $tz)
-                                    <option value="{{ $tz }}" {{ $currentTz === $tz ? 'selected' : '' }}>
-                                        {{ $tz }}
-                                    </option>
-                                @endforeach
-                            </select>
+                        
+                        <!-- SELECT COM FILTRO DE BUSCA (ALPINE JS) -->
+                        <div x-data="{
+                            open: false,
+                            search: '',
+                            selected: '{{ $currentTz }}',
+                            allTimezones: {{ json_encode($timezones) }},
+                            get filteredTimezones() {
+                                if (this.search.length < 3) return this.allTimezones;
+                                return this.allTimezones.filter(tz => tz.toLowerCase().includes(this.search.toLowerCase()));
+                            }
+                        }" class="relative">
+                            <input type="hidden" name="timezone" :value="selected">
+
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Fuso Padrão</label>
+
+                            <button type="button" @click="open = !open" class="w-full bg-white border border-gray-300 rounded-lg p-2.5 text-xs font-medium text-gray-800 flex justify-between items-center focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm">
+                                <span x-text="selected" class="truncate font-semibold text-indigo-600"></span>
+                                <svg class="w-4 h-4 text-gray-400 shrink-0 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+
+                            <div x-show="open" @click.away="open = false" x-cloak class="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 p-2 max-h-60 overflow-hidden flex flex-col">
+                                <input type="text" x-model="search" placeholder="Digite 3+ letras (ex: Sao)..." class="w-full border border-gray-300 rounded-md p-2 text-xs mb-2 outline-none focus:border-indigo-500">
+                                <div class="overflow-y-auto max-h-40 custom-scroll">
+                                    <template x-for="tz in filteredTimezones" :key="tz">
+                                        <button type="button" @click="selected = tz; open = false; search = ''" class="w-full text-left px-2.5 py-1.5 text-xs text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 rounded transition font-medium truncate block" :class="selected === tz ? 'bg-indigo-50 text-indigo-600 font-bold' : ''" x-text="tz"></button>
+                                    </template>
+                                    <div x-show="filteredTimezones.length === 0" class="text-xs text-gray-400 p-2 text-center">Nenhum fuso encontrado.</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <p class="text-xs text-gray-400 mt-4 leading-relaxed">Agendamentos, logs de webhook e mensagens utilizarão este fuso horário.</p>
+
+                    <!-- EXPLICAÇÃO QUEBRADA EM DUAS LINHAS -->
+                    <p class="text-xs text-gray-400 mt-4 leading-relaxed border-t border-gray-50 pt-3">
+                        Agendamentos, logs e mensagens<br>utilizarão este fuso horário oficial.
+                    </p>
                 </div>
 
-                <!-- Card 2: Webhook Multiagentes -->
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-between">
+                <!-- Card 2: Webhook Multiagentes (2/3 de largura) -->
+                <div class="md:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-between">
                     <div>
                         <h2 class="text-base font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
                             <svg class="w-5 h-5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>
@@ -144,10 +169,12 @@
                         </h2>
                         <div class="space-y-2">
                             <label for="omni_webhook_url" class="block text-xs font-semibold text-gray-700">URL / Path do Webhook (`webhook_multiagents.php`)</label>
-                            <input type="url" name="omni_webhook_url" id="omni_webhook_url" value="{{ $webhookUrl }}" placeholder="https://seu-dominio.com/webhook_multiagents.php" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs font-mono text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none">
+                            <input type="text" name="omni_webhook_url" id="omni_webhook_url" value="{{ $webhookUrl }}" placeholder="https://seu-dominio.com/caminho/" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs font-mono text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none">
                         </div>
                     </div>
-                    <p class="text-xs text-gray-400 mt-4 leading-relaxed">Deixe o campo em branco para desativar a chamada externa de webhook.</p>
+                    <p class="text-xs text-gray-400 mt-4 leading-relaxed border-t border-gray-50 pt-3">
+                        A barra final `/` será garantida automaticamente. Deixe em branco para desativar.
+                    </p>
                 </div>
 
             </div>

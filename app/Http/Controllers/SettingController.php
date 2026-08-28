@@ -42,11 +42,16 @@ class SettingController extends Controller
     {
         $request->validate([
             'timezone' => 'required|string',
-            'omni_webhook_url' => 'nullable|url',
+            'omni_webhook_url' => 'nullable|string',
         ]);
 
+        $webhookUrl = trim($request->input('omni_webhook_url') ?? '');
+        if ($webhookUrl !== '') {
+            $webhookUrl = rtrim($webhookUrl, '/') . '/';
+        }
+
         Setting::updateOrCreate(['key' => 'timezone'], ['value' => $request->input('timezone')]);
-        Setting::updateOrCreate(['key' => 'omni_webhook_url'], ['value' => $request->input('omni_webhook_url')]);
+        Setting::updateOrCreate(['key' => 'omni_webhook_url'], ['value' => $webhookUrl]);
 
         return redirect()->to('/?view=settings')->with('success', 'Configurações atualizadas!');
     }
