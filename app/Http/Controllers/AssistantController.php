@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Assistant;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -14,9 +15,18 @@ use Carbon\Carbon;
 
 class AssistantController extends Controller
 {
-    private function configureTimezone()
+    private function getTimezone($assistantId = null): string
     {
-        date_default_timezone_set('America/Sao_Paulo');
+        if ($assistantId) {
+            $tz = Setting::where('assistant_id', $assistantId)->where('key', 'timezone')->value('value');
+            if (!empty($tz)) return $tz;
+        }
+        return 'America/Sao_Paulo';
+    }
+
+    private function configureTimezone($assistantId = null)
+    {
+        date_default_timezone_set($this->getTimezone($assistantId));
     }
 
     private function ensureWebhookLogTableExists()
@@ -745,9 +755,10 @@ class AssistantController extends Controller
 
     private function chat(Request $request)
     {
-        $this->configureTimezone();
+        $assistantId = $request->input('assistant_id');
+        $this->configureTimezone($assistantId);
         try {
-            $assistant = Assistant::find($request->assistant_id);
+            $assistant = Assistant::find($assistantId);
             if (!$assistant) {
                 return response()->json(['reply' => '⚠️ Assistente não encontrado.']);
             }
@@ -843,9 +854,26 @@ class AssistantController extends Controller
         return null;
     }
 
-    private function sendToOmni(string $message, string $pushName, string $type, string $phone)
+    private function sendToOmni(string $message, string $pushName, string $type, string $phone, $assistantId = null)
     {
         try {
+            if (!$assistantId) {
+                Log::info("Integração Omni ignorada: assistante_id não fornecido.");
+                return null;
+            }
+
+            $webhookBaseUrl = Setting::where('assistant_id', $assistantId)->where('key', 'omni_webhook_url')->value('value');
+
+            if (empty(trim($webhookBaseUrl ?? ''))) {
+                Log::info("Integração Omni ignorada para assistente #{$assistantId}: URL do webhook não configurada.");
+                return null;
+            }
+
+            $url = trim($webhookBaseUrl);
+            if (!str_contains($url, 'webhook_multiagents.php')) {
+                $url = rtrim($url, '/') . '/webhook_multiagents.php';
+            }
+
             $remoteJidAlt = str_contains($phone, '@') ? $phone : ($phone . '@s.whatsapp.net');
 
             $payload = [
@@ -855,8 +883,6 @@ class AssistantController extends Controller
                 'remoteJidAlt' => $remoteJidAlt,
             ];
 
-            // 1. FAZ A CHAMADA DIRETA PARA A URL DO WEBHOOK PARA GARANTIR O RETORNO JSON
-            $url = 'https://insoft.customersys.tech/inhouse-comercial/integracao/webhook_multiagents.php';
             $response = Http::withoutVerifying()->timeout(15)->post($url, $payload);
             
             if ($response->successful()) {
@@ -865,7 +891,6 @@ class AssistantController extends Controller
                 return $json;
             }
 
-            // Fallback caso a API direta falhe
             if (class_exists('\App\Services\OmniTicketService')) {
                 return app(\App\Services\OmniTicketService::class)->sendToOmni($payload);
             } else {
@@ -880,7 +905,7 @@ class AssistantController extends Controller
 
     public function webhook(Request $request, $id)
     {
-        $this->configureTimezone();
+        $this->configureTimezone($id);
         $this->ensureWebhookLogTableExists();
         $this->ensureChatMessagesTableExists();
 
@@ -1011,7 +1036,7 @@ class AssistantController extends Controller
                 }
             }
 
-            $nowFormatted = now()->setTimezone('America/Sao_Paulo')->toDateTimeString();
+            $nowFormatted = now()->setTimezone($this->getTimezone($assistant->id))->toDateTimeString();
 
             if (empty(trim($userMessage))) {
                 DB::table('webhook_logs')->insert([
@@ -1028,7 +1053,6 @@ class AssistantController extends Controller
                 return response()->json(['status' => 'no_message']);
             }
 
-            // TRATAMENTO DO NOME DO CLIENTE
             $rawPushName = $request->input('message.senderName')
                 ?? $request->input('senderName')
                 ?? $request->input('pushName')
@@ -1042,8 +1066,7 @@ class AssistantController extends Controller
                 $displayName = $clientName;
             }
 
-            // 1. CHAMA O OMNI NA ENTRADA PARA REGISTRAR / OBTER PROTOCOLO
-            $omniInputRes = $this->sendToOmni($userMessage, $displayName !== 'Cliente' ? $displayName : $cleanSender, 'input', $cleanSender);
+            $omniInputRes = $this->sendToOmni($userMessage, $displayName !== 'Cliente' ? $displayName : $cleanSender, 'input', $cleanSender, $assistant->id);
 
             $protocolo = null;
             $isNewTicket = false;
@@ -1060,12 +1083,10 @@ class AssistantController extends Controller
                 $omniUserName = $dataArr['user_name'] ?? null;
             }
 
-            // Se o Omni tem um nome valido cadastrado para este ID de usuario, adota ele
             if (!empty($omniUserName) && !preg_match('/^[0-9]+$/', trim($omniUserName))) {
                 $displayName = trim($omniUserName);
             }
 
-            // Se o ticket for novo no Omni, limpa o historico de chat local no Laravel
             if ($isNewTicket) {
                 DB::table('chat_messages')
                     ->where('assistant_id', $assistant->id)
@@ -1098,7 +1119,6 @@ class AssistantController extends Controller
 
             $isFirstMessage = ($assistantMsgCount === 0 || $isNewTicket);
 
-            // 2. MONTA O SYSTEM PROMPT BASE
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
 
             $systemPrompt .= "\n\n===============================================\n";
@@ -1119,7 +1139,6 @@ class AssistantController extends Controller
 
             $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
 
-            // 3. TRATAMENTO E CARIMBO SEGURO DO TEXTO
             if (!empty($displayName) && $displayName !== 'Cliente') {
                 $aiReply = str_replace(['#NOME#', '[NOME]', '[Nome do Cliente]'], $displayName, $aiReply);
             } else {
@@ -1130,20 +1149,17 @@ class AssistantController extends Controller
                 if (!empty($protocolo)) {
                     $aiReply = str_replace(['#PROTOCOLO#', '[PROTOCOLO]', '[Número do Protocolo]'], $protocolo, $aiReply);
 
-                    // CARIMBO FORÇADO: Se a IA não incluiu na primeira mensagem, carimba no topo
                     if (strpos($aiReply, (string)$protocolo) === false) {
                         $aiReply = "🎫 *Protocolo:* " . $protocolo . "\n\n" . $aiReply;
                     }
                 }
             } else {
-                // Nas mensagens seguintes remove qualquer marcador remanescente
                 $aiReply = str_replace(['#PROTOCOLO#', '[PROTOCOLO]', '[Número do Protocolo]'], '', $aiReply);
             }
 
             $aiReply = str_replace('..', '.', $aiReply);
 
-            // 4. REGISTRA SAÍDA DA MENSAGEM TRATADA NO OMNI (OUTPUT)
-            $this->sendToOmni($aiReply, $displayName !== 'Cliente' ? $displayName : $cleanSender, 'output', $cleanSender);
+            $this->sendToOmni($aiReply, $displayName !== 'Cliente' ? $displayName : $cleanSender, 'output', $cleanSender, $assistant->id);
 
             DB::table('chat_messages')->insert([
                 [
@@ -1164,7 +1180,6 @@ class AssistantController extends Controller
                 ]
             ]);
 
-            // 5. DISPARA A MENSAGEM FINAL PARA O WHATSAPP
             if ($isAudioMessage) {
                 $separated = $audioService->separateLinksFromText($aiReply);
                 $googleKey = env('GOOGLE_API_KEY_TTS') 
@@ -1203,7 +1218,7 @@ class AssistantController extends Controller
 
             return response()->json(['status' => 'success', 'reply' => $aiReply]);
         } catch (\Throwable $e) {
-            $nowFormatted = now()->setTimezone('America/Sao_Paulo')->toDateTimeString();
+            $nowFormatted = now()->setTimezone($this->getTimezone($id))->toDateTimeString();
             DB::table('webhook_logs')->insert([
                 'assistant_id' => $id,
                 'sender' => 'Erro Interno',

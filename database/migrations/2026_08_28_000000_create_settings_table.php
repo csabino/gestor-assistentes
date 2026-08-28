@@ -8,11 +8,16 @@ return new class extends Migration
 {
     public function up(): void
     {
+        Schema::dropIfExists('settings');
+
         Schema::create('settings', function (Blueprint $table) {
             $table->id();
-            $table->string('key')->unique();
+            $table->unsignedBigInteger('assistant_id')->index();
+            $table->string('key');
             $table->text('value')->nullable();
             $table->timestamps();
+
+            $table->unique(['assistant_id', 'key']);
         });
     }
 
