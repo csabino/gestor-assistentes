@@ -1026,11 +1026,12 @@ class AssistantController extends Controller
                 ?? $request->input('data.pushName')
                 ?? $cleanSender;
 
-            // 1. REGISTRA ENTRADA DA MENSAGEM NO OMNI (INPUT) E CAPTURA O PROTOCOLO
+            // 1. REGISTRA A ENTRADA NO OMNI PRIMEIRO E OBTE
             $omniInputRes = $this->sendToOmni($userMessage, $pushName, 'input', $cleanSender);
 
             $protocolo = null;
             $ticketId = null;
+            $isNewTicket = false;
 
             if (!empty($omniInputRes)) {
                 $dataArr = null;
@@ -1047,41 +1048,13 @@ class AssistantController extends Controller
                 }
 
                 if (is_array($dataArr)) {
-                    $protocolo = $dataArr['protocolo'] ?? $dataArr['number'] ?? $dataArr['ticket_number'] ?? null;
-                    $ticketId = $dataArr['ticket_id'] ?? $dataArr['id'] ?? null;
+                    $protocolo   = $dataArr['protocolo'] ?? $dataArr['number'] ?? $dataArr['ticket_number'] ?? null;
+                    $ticketId    = $dataArr['ticket_id'] ?? $dataArr['id'] ?? null;
+                    $isNewTicket = !empty($dataArr['is_new_ticket']);
                 }
             }
 
-            // Fallback 1: Busca o protocolo direto no banco MySQL
-            if (empty($protocolo)) {
-                $ticketTables = ['ost_ticket', 'ticket', 'open_ticket', 'tickets', 'ost_tickets'];
-
-                if (!empty($ticketId)) {
-                    foreach ($ticketTables as $tTable) {
-                        try {
-                            $tRow = DB::table($tTable)->where('ticket_id', $ticketId)->first();
-                            if ($tRow && !empty($tRow->number)) {
-                                $protocolo = $tRow->number;
-                                break;
-                            }
-                        } catch (\Throwable $eDb1) {}
-                    }
-                }
-
-                if (empty($protocolo) && !empty($cleanSender)) {
-                    foreach ($ticketTables as $tTable) {
-                        try {
-                            $tRow = DB::table($tTable)->orderBy('ticket_id', 'desc')->first();
-                            if ($tRow && !empty($tRow->number)) {
-                                $protocolo = $tRow->number;
-                                break;
-                            }
-                        } catch (\Throwable $eDb2) {}
-                    }
-                }
-            }
-
-            // Fallback 2: Se temos ticket_id numerico, formata (ex: 865 -> 000000865)
+            // Fallback para formatar o protocolo via ID se nulo
             if (empty($protocolo) && !empty($ticketId) && is_numeric($ticketId)) {
                 $protocolo = str_pad((string)$ticketId, 9, '0', STR_PAD_LEFT);
             }
@@ -1107,7 +1080,7 @@ class AssistantController extends Controller
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
             $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
 
-            // 2. TRATA E INJETA NOME E PROTOCOLO NO TEXTO ANTES DE ENVIAR PARA WHATSAPP
+            // 2. TRATA E INJETA NOME E PROTOCOLO NO TEXTO DA IA ANTES DE ENVIAR PARA O WHATSAPP
             $clientName = $pushName ?: '';
 
             if (!empty($protocolo)) {
