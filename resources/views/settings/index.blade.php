@@ -81,71 +81,77 @@
     </aside>
 
     <main id="mainContent" class="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
-        <div class="container mx-auto px-6 max-w-4xl py-8">
-            
-            <div class="mb-6">
-                <h1 class="text-xl font-bold text-gray-800">Configurações Gerais do Sistema</h1>
-                <p class="text-xs text-gray-500 mt-1">Gerencie o fuso horário e integrações globais da aplicação.</p>
+        <form id="settingsForm" action="/?view=settings" method="POST" class="container mx-auto px-6 max-w-5xl pb-12">
+            @csrf
+
+            <!-- CABEÇALHO FIXO / CONGELADO (STICKY) -->
+            <div class="sticky top-0 z-40 bg-gray-50/90 backdrop-blur-md py-4 mb-6 border-b border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm -mx-6 px-6">
+                <div>
+                    <h1 class="text-xl font-bold text-gray-800">Configurações Gerais do Sistema</h1>
+                    <p class="text-xs text-gray-500 mt-0.5">Gerencie fuso horário e integrações globais da aplicação.</p>
+                </div>
+                
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-lg text-xs transition shadow-sm flex items-center gap-2 shrink-0">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                    Salvar Configurações
+                </button>
             </div>
 
             @if(session('success'))
                 <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-lg mb-6 text-sm flex items-center gap-2 shadow-sm">
-                    <svg class="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <svg class="w-5 h-5 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     {{ session('success') }}
                 </div>
             @endif
 
             @if(session('error'))
                 <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6 text-sm flex items-center gap-2 shadow-sm">
-                    <svg class="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+                    <svg class="w-5 h-5 text-red-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
                     {{ session('error') }}
                 </div>
             @endif
 
-            <form action="/?view=settings" method="POST" class="space-y-6">
-                @csrf
-
-                <!-- Fuso Horario -->
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                    <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
-                        <svg class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        Fuso Horário (Timezone)
-                    </h2>
-                    <div class="space-y-2">
-                        <label for="timezone" class="block text-xs font-semibold text-gray-700">Selecione o Fuso Horário do Sistema</label>
-                        <select name="timezone" id="timezone" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs font-medium text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none">
-                            @foreach($timezones as $tz)
-                                <option value="{{ $tz }}" {{ $currentTz === $tz ? 'selected' : '' }}>
-                                    {{ $tz }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <p class="text-xs text-gray-500 mt-1">Todos os agendamentos, mensagens e logs de sistema utilizarão este fuso horário.</p>
+            <!-- GRID EM 2 COLUNAS PARA OS CARDS -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- Card 1: Fuso Horário -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-between">
+                    <div>
+                        <h2 class="text-base font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            Fuso Horário (Timezone)
+                        </h2>
+                        <div class="space-y-2">
+                            <label for="timezone" class="block text-xs font-semibold text-gray-700">Fuso Horário Padrão</label>
+                            <select name="timezone" id="timezone" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs font-medium text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none">
+                                @foreach($timezones as $tz)
+                                    <option value="{{ $tz }}" {{ $currentTz === $tz ? 'selected' : '' }}>
+                                        {{ $tz }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
+                    <p class="text-xs text-gray-400 mt-4 leading-relaxed">Agendamentos, logs de webhook e mensagens utilizarão este fuso horário.</p>
                 </div>
 
-                <!-- Webhook Multiagentes -->
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                    <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
-                        <svg class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>
-                        Integração Webhook Multiagentes
-                    </h2>
-                    <div class="space-y-2">
-                        <label for="omni_webhook_url" class="block text-xs font-semibold text-gray-700">Caminho / URL do Webhook (`webhook_multiagents.php`)</label>
-                        <input type="url" name="omni_webhook_url" id="omni_webhook_url" value="{{ $webhookUrl }}" placeholder="https://seu-dominio.com/webhook_multiagents.php" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs font-mono text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none">
-                        <p class="text-xs text-gray-500 mt-1">Deixe em branco para desativar a integração de webhook.</p>
+                <!-- Card 2: Webhook Multiagentes -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-between">
+                    <div>
+                        <h2 class="text-base font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>
+                            Webhook Multiagentes
+                        </h2>
+                        <div class="space-y-2">
+                            <label for="omni_webhook_url" class="block text-xs font-semibold text-gray-700">URL / Path do Webhook (`webhook_multiagents.php`)</label>
+                            <input type="url" name="omni_webhook_url" id="omni_webhook_url" value="{{ $webhookUrl }}" placeholder="https://seu-dominio.com/webhook_multiagents.php" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs font-mono text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none">
+                        </div>
                     </div>
+                    <p class="text-xs text-gray-400 mt-4 leading-relaxed">Deixe o campo em branco para desativar a chamada externa de webhook.</p>
                 </div>
 
-                <div class="flex justify-end">
-                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-lg text-xs transition shadow-sm flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-                        Salvar Configurações
-                    </button>
-                </div>
-            </form>
-
-        </div>
+            </div>
+        </form>
     </main>
 </body>
 </html>
