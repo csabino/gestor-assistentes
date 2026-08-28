@@ -855,17 +855,25 @@ class AssistantController extends Controller
                 'remoteJidAlt' => $remoteJidAlt,
             ];
 
+            // 1. FAZ A CHAMADA DIRETA PARA A URL DO WEBHOOK PARA GARANTIR O RETORNO JSON
+            $url = 'https://insoft.customersys.tech/inhouse-comercial/integracao/webhook_multiagents.php';
+            $response = Http::withoutVerifying()->timeout(15)->post($url, $payload);
+            
+            if ($response->successful()) {
+                $json = $response->json();
+                Log::info("Registro Omni API Direta ({$type}): ", is_array($json) ? $json : []);
+                return $json;
+            }
+
+            // Fallback caso a API direta falhe
             if (class_exists('\App\Services\OmniTicketService')) {
-                $res = app(\App\Services\OmniTicketService::class)->sendToOmni($payload);
-                Log::info("Registro Omni ({$type}): ", is_array($res) ? $res : (array)$res);
-                return $res;
+                return app(\App\Services\OmniTicketService::class)->sendToOmni($payload);
             } else {
                 $omniReq = new Request($payload);
-                $res = app(\App\Http\Controllers\OmniController::class)->forwardToOmni($omniReq);
-                return $res;
+                return app(\App\Http\Controllers\OmniController::class)->forwardToOmni($omniReq);
             }
         } catch (\Throwable $e) {
-            Log::error("Erro ao registrar conversa no Omni ({$type}): " . $e->getMessage());
+            Log::error("Erro ao registrar conversa no Omni API Direta ({$type}): " . $e->getMessage());
         }
         return null;
     }
@@ -1026,64 +1034,16 @@ class AssistantController extends Controller
                 ?? $request->input('data.pushName')
                 ?? $cleanSender;
 
-            // 1. REGISTRA A ENTRADA NO OMNI PRIMEIRO E RECUPERA O PROTOCOLO SÍNCRONO
+            // 1. CHAMA O OMNI NA ENTRADA PARA REGISTRAR / OBTER PROTOCOLO (AGORA DIRETO)
             $omniInputRes = $this->sendToOmni($userMessage, $pushName, 'input', $cleanSender);
 
             $protocolo = null;
-            $ticketId = null;
 
-            if (!empty($omniInputRes)) {
-                $dataArr = null;
-                if (is_array($omniInputRes)) {
-                    $dataArr = $omniInputRes;
-                } elseif (is_string($omniInputRes)) {
-                    $dataArr = json_decode($omniInputRes, true);
-                } elseif (method_exists($omniInputRes, 'getData')) {
-                    $dataArr = $omniInputRes->getData(true);
-                } elseif (method_exists($omniInputRes, 'json')) {
-                    $dataArr = $omniInputRes->json();
-                } elseif (method_exists($omniInputRes, 'getContent')) {
-                    $dataArr = json_decode($omniInputRes->getContent(), true);
-                }
-
-                if (is_array($dataArr)) {
-                    $protocolo = $dataArr['protocolo'] ?? $dataArr['ticket_number'] ?? $dataArr['number'] ?? $dataArr['protocol'] ?? null;
-                    $ticketId  = $dataArr['ticket_id'] ?? $dataArr['id'] ?? null;
-                }
-            }
-
-            // FALLBACK AUTÔNOMO 1: Consulta direta no MySQL se $protocolo veio nulo
-            if (empty($protocolo)) {
-                $ticketTables = ['ost_ticket', 'ticket', 'open_ticket', 'tickets'];
-
-                if (!empty($ticketId)) {
-                    foreach ($ticketTables as $tTable) {
-                        try {
-                            $tRow = DB::table($tTable)->where('ticket_id', $ticketId)->first();
-                            if ($tRow && !empty($tRow->number)) {
-                                $protocolo = $tRow->number;
-                                break;
-                            }
-                        } catch (\Throwable $eDb1) {}
-                    }
-                }
-
-                if (empty($protocolo)) {
-                    foreach ($ticketTables as $tTable) {
-                        try {
-                            $tRow = DB::table($tTable)->orderBy('ticket_id', 'desc')->first();
-                            if ($tRow && !empty($tRow->number)) {
-                                $protocolo = $tRow->number;
-                                break;
-                            }
-                        } catch (\Throwable $eDb2) {}
-                    }
-                }
-            }
-
-            // FALLBACK AUTÔNOMO 2: Formatação via ticket_id (ex: 865 -> 000000865)
-            if (empty($protocolo) && !empty($ticketId) && is_numeric($ticketId)) {
-                $protocolo = str_pad((string)$ticketId, 9, '0', STR_PAD_LEFT);
+            if (!empty($omniInputRes) && is_array($omniInputRes)) {
+                $protocolo = $omniInputRes['protocolo'] ?? $omniInputRes['ticket_number'] ?? $omniInputRes['number'] ?? null;
+            } elseif (is_string($omniInputRes)) {
+                $dataArr = json_decode($omniInputRes, true);
+                $protocolo = $dataArr['protocolo'] ?? null;
             }
 
             $contextLimit = (int) ($assistant->context_limit ?? 12);
@@ -1112,13 +1072,13 @@ class AssistantController extends Controller
             $systemPrompt .= "• Nome do Cliente: " . ($pushName ?: 'Cliente') . "\n";
             if (!empty($protocolo)) {
                 $systemPrompt .= "• Número do Protocolo de Atendimento: " . $protocolo . "\n";
-                $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA DE SAUDAÇÃO: Se esta for a primeira interação ou mensagem de boas-vindas, você DEVE saudar o cliente pelo nome (" . ($pushName ?: 'Cliente') . ") e informar obrigatoriamente o protocolo de atendimento: " . $protocolo . ".\n";
+                $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA: Em TODAS as suas respostas que sejam saudações, você DEVE saudar o cliente pelo nome e informar obrigatoriamente o protocolo de atendimento (" . $protocolo . "). Exemplo: 'Olá Sabino, seu protocolo é 000000865'.\n";
             }
             $systemPrompt .= "===============================================\n";
 
             $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
 
-            // 3. TRATA E GARANTE QUE NOME E PROTOCOLO ESTÃO NO TEXTO (SUBSTITUIÇÃO DE SEGURANÇA)
+            // 3. TRATA E GARANTE QUE O PROTOCOLO ESTÁ NO TEXTO
             $clientName = $pushName ?: '';
 
             if (!empty($protocolo)) {
@@ -1126,39 +1086,11 @@ class AssistantController extends Controller
             }
             if (!empty($clientName)) {
                 $aiReply = str_replace(['#NOME#', '[NOME]', '[Nome do Cliente]'], $clientName, $aiReply);
-            } else {
-                $aiReply = str_replace([', #NOME#', ' #NOME#', ', [Nome do Cliente]', ' [Nome do Cliente]'], '', $aiReply);
             }
 
-            // Injeção de Segurança do Nome do Cliente
-            if (!empty($clientName) && strpos($aiReply, $clientName) === false) {
-                if (stripos($aiReply, 'à InHouse.') !== false) {
-                    $aiReply = str_replace('à InHouse.', 'à InHouse, ' . $clientName . '.', $aiReply);
-                } elseif (stripos($aiReply, 'à InHouse') !== false) {
-                    $aiReply = str_replace('à InHouse', 'à InHouse, ' . $clientName, $aiReply);
-                } elseif (stripos($aiReply, 'InHouse.') !== false) {
-                    $aiReply = str_replace('InHouse.', 'InHouse, ' . $clientName . '.', $aiReply);
-                } elseif (stripos($aiReply, 'InHouse') !== false) {
-                    $aiReply = str_replace('InHouse', 'InHouse, ' . $clientName, $aiReply);
-                }
-            }
-
-            // Injeção de Segurança do Protocolo (Insere no primeiro ponto após o nome/saudação)
+            // CARIMBO FORÇADO: Se a IA não colocou o protocolo, joga no topo absoluto da mensagem
             if (!empty($protocolo) && strpos($aiReply, (string)$protocolo) === false) {
-                $strProto = " Seu protocolo de atendimento é: " . $protocolo . ".";
-                $alvoBusca = (!empty($clientName) && strpos($aiReply, $clientName) !== false) ? $clientName : 'InHouse';
-                $posAlvo = strpos($aiReply, $alvoBusca);
-
-                if ($posAlvo !== false) {
-                    $posPonto = strpos($aiReply, '.', $posAlvo);
-                    if ($posPonto !== false) {
-                        $aiReply = substr_replace($aiReply, '.' . $strProto, $posPonto, 1);
-                    } else {
-                        $aiReply = str_replace($alvoBusca, $alvoBusca . '.' . $strProto, $aiReply);
-                    }
-                } else {
-                    $aiReply = "Seu protocolo de atendimento é: " . $protocolo . ".\n" . $aiReply;
-                }
+                $aiReply = "🎫 *Protocolo:* " . $protocolo . "\n\n" . $aiReply;
             }
 
             $aiReply = str_replace('..', '.', $aiReply);
