@@ -95,7 +95,9 @@ class AssistantController extends Controller
 
     public function index(Request $request)
     {
-        $this->configureTimezone();
+        $assistantIdForTz = $request->input('configure') ?? $request->input('conversations_id') ?? $request->input('chat_id');
+        $this->configureTimezone($assistantIdForTz);
+
         $this->ensureWebhookLogTableExists();
         $this->ensureAssistantColumnsExist();
         $this->ensureChatMessagesTableExists();
@@ -508,7 +510,7 @@ class AssistantController extends Controller
 
     private function update(Request $request)
     {
-        $this->configureTimezone();
+        $this->configureTimezone($request->assistant_id);
         $assistant = Assistant::findOrFail($request->assistant_id);
 
         $data = $request->only([
@@ -858,14 +860,14 @@ class AssistantController extends Controller
     {
         try {
             if (!$assistantId) {
-                Log::info("Integração Omni ignorada: assistante_id não fornecido.");
+                Log::info("Integração Omni ignorada: ID do assistente não informado.");
                 return null;
             }
 
             $webhookBaseUrl = Setting::where('assistant_id', $assistantId)->where('key', 'omni_webhook_url')->value('value');
 
             if (empty(trim($webhookBaseUrl ?? ''))) {
-                Log::info("Integração Omni ignorada para assistente #{$assistantId}: URL do webhook não configurada.");
+                Log::info("Integração Omni ignorada para o assistente #{$assistantId}: URL do webhook não configurada.");
                 return null;
             }
 
