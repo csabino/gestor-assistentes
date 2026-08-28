@@ -1038,12 +1038,15 @@ class AssistantController extends Controller
             $omniInputRes = $this->sendToOmni($userMessage, $pushName, 'input', $cleanSender);
 
             $protocolo = null;
+            $isNewTicket = false;
 
             if (!empty($omniInputRes) && is_array($omniInputRes)) {
                 $protocolo = $omniInputRes['protocolo'] ?? $omniInputRes['ticket_number'] ?? $omniInputRes['number'] ?? null;
+                $isNewTicket = !empty($omniInputRes['is_new_ticket']);
             } elseif (is_string($omniInputRes)) {
                 $dataArr = json_decode($omniInputRes, true);
                 $protocolo = $dataArr['protocolo'] ?? null;
+                $isNewTicket = !empty($dataArr['is_new_ticket']);
             }
 
             $contextLimit = (int) ($assistant->context_limit ?? 12);
@@ -1064,21 +1067,30 @@ class AssistantController extends Controller
                 ];
             }
 
-            // 2. MONTA O SYSTEM PROMPT BASE E INJETA PROTOCOLO E NOME ANTES DA IA GERAR RESPOSTA
+            // VERIFICA SE É A MENSAGEM INICIAL DA CONVERSA
+            $isFirstMessage = $historyRecords->isEmpty() || $isNewTicket || ($historyRecords->where('role', 'assistant')->count() === 0);
+
+            // 2. MONTA O SYSTEM PROMPT BASE E INJETA PROTOCOLO APENAS NA MENSAGEM INICIAL
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
 
             $systemPrompt .= "\n\n===============================================\n";
             $systemPrompt .= "DADOS DE CONTEXTO DO ATENDIMENTO ATUAL:\n";
             $systemPrompt .= "• Nome do Cliente: " . ($pushName ?: 'Cliente') . "\n";
+
             if (!empty($protocolo)) {
                 $systemPrompt .= "• Número do Protocolo de Atendimento: " . $protocolo . "\n";
-                $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA: Em TODAS as suas respostas que sejam saudações, você DEVE saudar o cliente pelo nome e informar obrigatoriamente o protocolo de atendimento (" . $protocolo . "). Exemplo: 'Olá Sabino, seu protocolo é 000000865'.\n";
+
+                if ($isFirstMessage) {
+                    $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA DE PRIMEIRO ATENDIMENTO: Esta é a PRIMEIRA mensagem do atendimento. Você DEVE saudar o cliente pelo nome e informar o protocolo de atendimento (" . $protocolo . ").\n";
+                } else {
+                    $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA PARA RESPOSTAS SEGUINTES: A conversa já está em andamento. É ESTRITAMENTE PROIBIDO saudar novamente o cliente como se fosse o início da conversa e É ESTRITAMENTE PROIBIDO mencionar ou repetir o número de protocolo a menos que o cliente peça explicitamente por ele.\n";
+                }
             }
             $systemPrompt .= "===============================================\n";
 
             $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
 
-            // 3. TRATA E GARANTE QUE O PROTOCOLO ESTÁ NO TEXTO
+            // 3. TRATA E REEMPLAÇA PLACEHOLDERS
             $clientName = $pushName ?: '';
 
             if (!empty($protocolo)) {
@@ -1088,8 +1100,8 @@ class AssistantController extends Controller
                 $aiReply = str_replace(['#NOME#', '[NOME]', '[Nome do Cliente]'], $clientName, $aiReply);
             }
 
-            // CARIMBO FORÇADO: Se a IA não colocou o protocolo, joga no topo absoluto da mensagem
-            if (!empty($protocolo) && strpos($aiReply, (string)$protocolo) === false) {
+            // CARIMBO FORÇADO: Apenas se for a PRIMEIRA MENSAGEM e o protocolo não constar no texto
+            if ($isFirstMessage && !empty($protocolo) && strpos($aiReply, (string)$protocolo) === false) {
                 $aiReply = "🎫 *Protocolo:* " . $protocolo . "\n\n" . $aiReply;
             }
 
@@ -1117,7 +1129,7 @@ class AssistantController extends Controller
                 ]
             ]);
 
-            // 5. DISPARA A MENSAGEM FINAL TRATADA COM NOME E PROTOCOLO PARA O WHATSAPP
+            // 5. DISPARA A MENSAGEM FINAL PARA O WHATSAPP
             if ($isAudioMessage) {
                 $separated = $audioService->separateLinksFromText($aiReply);
                 $googleKey = env('GOOGLE_API_KEY_TTS') 
