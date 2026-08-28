@@ -33,8 +33,9 @@ class SettingController extends Controller
 
         $currentTz = Setting::where('key', 'timezone')->value('value') ?? 'America/Sao_Paulo';
         $webhookUrl = Setting::where('key', 'omni_webhook_url')->value('value') ?? '';
+        $currentView = 'settings';
 
-        return view('settings.index', compact('timezones', 'currentTz', 'webhookUrl'));
+        return view('settings.index', compact('timezones', 'currentTz', 'webhookUrl', 'currentView'));
     }
 
     public function update(Request $request)
