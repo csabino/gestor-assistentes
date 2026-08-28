@@ -1028,28 +1028,36 @@ class AssistantController extends Controller
                 return response()->json(['status' => 'no_message']);
             }
 
-            $pushName = $request->input('message.senderName')
+            // TRATAMENTO REFORÇADO DO NOME DO CLIENTE
+            $rawPushName = $request->input('message.senderName')
                 ?? $request->input('senderName')
                 ?? $request->input('pushName')
                 ?? $request->input('data.pushName')
-                ?? $cleanSender;
+                ?? '';
 
-            // 1. CHAMA O OMNI NA ENTRADA PARA REGISTRAR / OBTER PROTOCOLO (AGORA DIRETO)
-            $omniInputRes = $this->sendToOmni($userMessage, $pushName, 'input', $cleanSender);
+            $clientName = trim((string)$rawPushName);
+            if (empty($clientName) || preg_match('/^[0-9]+$/', $clientName)) {
+                $displayName = 'Cliente';
+            } else {
+                $displayName = $clientName;
+            }
+
+            // 1. CHAMA O OMNI NA ENTRADA PARA REGISTRAR / OBTER PROTOCOLO
+            $omniInputRes = $this->sendToOmni($userMessage, $displayName !== 'Cliente' ? $displayName : $cleanSender, 'input', $cleanSender);
 
             $protocolo = null;
             $isNewTicket = false;
 
             if (!empty($omniInputRes) && is_array($omniInputRes)) {
-                $protocolo = $omniInputRes['protocolo'] ?? $omniInputRes['ticket_number'] ?? $omniInputRes['number'] ?? null;
+                $protocolo   = $omniInputRes['protocolo'] ?? $omniInputRes['ticket_number'] ?? $omniInputRes['number'] ?? null;
                 $isNewTicket = !empty($omniInputRes['is_new_ticket']);
             } elseif (is_string($omniInputRes)) {
-                $dataArr = json_decode($omniInputRes, true);
-                $protocolo = $dataArr['protocolo'] ?? null;
+                $dataArr     = json_decode($omniInputRes, true);
+                $protocolo   = $dataArr['protocolo'] ?? null;
                 $isNewTicket = !empty($dataArr['is_new_ticket']);
             }
-            
-            // SE O OMNI GEROU UM TICKET NOVO, APAGAMOS O HISTÓRICO LOCAL PARA A IA SABER QUE É O INÍCIO!
+
+            // Se o ticket for novo no Omni, limpa o histórico de chat local no Laravel
             if ($isNewTicket) {
                 DB::table('chat_messages')
                     ->where('assistant_id', $assistant->id)
@@ -1080,56 +1088,54 @@ class AssistantController extends Controller
                 ];
             }
 
-            // Agora sim: se a IA nunca falou, é a primeira mensagem de fato!
-            $isFirstMessage = ($assistantMsgCount === 0);
+            $isFirstMessage = ($assistantMsgCount === 0 || $isNewTicket);
 
             // 2. MONTA O SYSTEM PROMPT BASE
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
 
             $systemPrompt .= "\n\n===============================================\n";
             $systemPrompt .= "DADOS DO ATENDIMENTO ATUAL:\n";
-            $systemPrompt .= "• Cliente: " . ($pushName ?: 'Cliente') . "\n";
 
-            // Só libera a instrução de protocolo para a IA se for a primeira mensagem
-            if (!empty($protocolo)) {
-                if ($isFirstMessage) {
-                    $systemPrompt .= "• Protocolo: " . $protocolo . "\n";
-                    $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA: Esta é a SUA PRIMEIRA MENSAGEM na conversa. Você DEVE dar boas-vindas ao cliente pelo nome e INFORMAR OBRIGATORIAMENTE o número do protocolo (" . $protocolo . ").\n";
+            if ($isFirstMessage) {
+                $systemPrompt .= "• Nome do Cliente: " . $displayName . "\n";
+                if (!empty($protocolo)) {
+                    $systemPrompt .= "• Número do Protocolo: " . $protocolo . "\n";
+                    $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA DE SAUDAÇÃO: Esta é a PRIMEIRA MENSAGEM do atendimento. Você DEVE obrigatoriamente saudar o cliente pelo nome (" . $displayName . ") e informar o número do protocolo (" . $protocolo . ").\n";
                 } else {
-                    $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA: A conversa já está em andamento. NÃO repita a saudação inicial e É ESTRITAMENTE PROIBIDO enviar ou mencionar o número de protocolo na sua resposta.\n";
+                    $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA DE SAUDAÇÃO: Esta é a PRIMEIRA MENSAGEM do atendimento. Você DEVE obrigatoriamente saudar o cliente pelo nome (" . $displayName . ").\n";
                 }
+            } else {
+                $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA: A conversa já está em andamento. NÃO repita a saudação de boas-vindas e É ESTRITAMENTE PROIBIDO enviar ou mencionar o número do protocolo.\n";
             }
             $systemPrompt .= "===============================================\n";
 
             $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
 
-            // 3. TRATAMENTO SEGURO
-            $clientName = $pushName ?: '';
-
-            if (!empty($clientName)) {
-                $aiReply = str_replace(['#NOME#', '[NOME]', '[Nome do Cliente]'], $clientName, $aiReply);
+            // 3. TRATAMENTO E CARIMBO SEGURO DO TEXTO
+            if (!empty($displayName) && $displayName !== 'Cliente') {
+                $aiReply = str_replace(['#NOME#', '[NOME]', '[Nome do Cliente]'], $displayName, $aiReply);
+            } else {
+                $aiReply = str_replace(['#NOME#', '[NOME]', '[Nome do Cliente]'], 'Cliente', $aiReply);
             }
 
-            // APENAS NA PRIMEIRA MENSAGEM nós tentamos dar REPLACE ou inserir o CARIMBO do protocolo
-            if (!empty($protocolo)) {
-                if ($isFirstMessage) {
+            if ($isFirstMessage) {
+                if (!empty($protocolo)) {
                     $aiReply = str_replace(['#PROTOCOLO#', '[PROTOCOLO]', '[Número do Protocolo]'], $protocolo, $aiReply);
-                    
-                    // CARIMBO FORÇADO: Se a IA não colocou na primeira mensagem, a gente carimba
+
+                    // CARIMBO FORÇADO: Se a IA não incluiu na primeira mensagem, carimba no topo
                     if (strpos($aiReply, (string)$protocolo) === false) {
                         $aiReply = "🎫 *Protocolo:* " . $protocolo . "\n\n" . $aiReply;
                     }
-                } else {
-                    // Nas mensagens seguintes, se a IA tiver enviado placeholders vazios, a gente apaga.
-                    $aiReply = str_replace(['#PROTOCOLO#', '[PROTOCOLO]', '[Número do Protocolo]'], '', $aiReply);
-                    // Não damos str_replace cego no número pra não sobrar sujeira!
                 }
+            } else {
+                // Nas mensagens seguintes remove qualquer marcador remanescente
+                $aiReply = str_replace(['#PROTOCOLO#', '[PROTOCOLO]', '[Número do Protocolo]'], '', $aiReply);
             }
 
             $aiReply = str_replace('..', '.', $aiReply);
 
             // 4. REGISTRA SAÍDA DA MENSAGEM TRATADA NO OMNI (OUTPUT)
-            $this->sendToOmni($aiReply, $pushName, 'output', $cleanSender);
+            $this->sendToOmni($aiReply, $displayName !== 'Cliente' ? $displayName : $cleanSender, 'output', $cleanSender);
 
             DB::table('chat_messages')->insert([
                 [
