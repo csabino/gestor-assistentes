@@ -245,34 +245,6 @@
                     </div>
                 </div>
 
-            @elseif($currentView === 'settings')
-                <div class="space-y-6">
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h2 class="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
-                            <svg class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            Fuso Horário do Sistema (Timezone)
-                        </h2>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-700 mb-1">Fuso Horário Padrão</label>
-                                <input type="text" readonly value="America/Sao_Paulo (UTC-03:00 - Horário de Brasília)" class="w-full bg-slate-50 border border-gray-300 rounded-lg p-2.5 text-xs font-medium text-gray-800 outline-none">
-                            </div>
-                            <p class="text-xs text-gray-500 mt-4 md:mt-0">Todos os registros de logs, mensagens do WhatsApp e agendamentos usam o Horário de Brasília de forma automática.</p>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 opacity-60">
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                            <h3 class="font-bold text-gray-800 text-sm mb-1">🔑 Controle de Usuários & Perfis</h3>
-                            <p class="text-xs text-gray-500">Módulo de autenticação e permissões em preparação.</p>
-                        </div>
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                            <h3 class="font-bold text-gray-800 text-sm mb-1">🎫 Integração InSoft Omni</h3>
-                            <p class="text-xs text-gray-500">Configuração de chave de API e endpoints do InSoft Omni.</p>
-                        </div>
-                    </div>
-                </div>
-
             @elseif($configuring)
                 
                 <div class="sticky top-0 z-40 bg-gray-50/90 backdrop-blur-md py-4 mb-6 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm -mx-6 px-6">
@@ -913,7 +885,7 @@
                                 <div class="bg-slate-900 text-slate-100 p-4 rounded-xl text-[11px] font-mono border border-slate-800 max-h-72 overflow-y-auto space-y-2">
                                     @if($lastWebhook)
                                         @php
-                                            $whDate = \Carbon\Carbon::parse($lastWebhook['timestamp'] ?? now())->setTimezone('America/Sao_Paulo')->format('d/m/Y H:i:s');
+                                            $whDate = \Carbon\Carbon::parse($lastWebhook['timestamp'] ?? now())->setTimezone($assistantTz ?? 'America/Sao_Paulo')->format('d/m/Y H:i:s');
                                         @endphp
                                         <div class="flex justify-between border-b border-slate-800 pb-2 mb-2">
                                             <span class="text-slate-400">Data/Hora: {{ $whDate }}</span>
@@ -1251,7 +1223,7 @@
                                 <div class="divide-y divide-slate-100">
                                     @forelse($conversationThreads ?? [] as $thread)
                                         @php
-                                            $threadDateObj = \Carbon\Carbon::parse($thread->last_activity)->setTimezone('America/Sao_Paulo')->locale('pt_BR');
+                                            $threadDateObj = \Carbon\Carbon::parse($thread->last_activity)->setTimezone($assistantTz ?? 'America/Sao_Paulo')->locale('pt_BR');
                                             $threadDisplayDate = $threadDateObj->format('d/m/Y H:i');
                                         @endphp
                                         <a href="/?conversations_id={{ $conversationsAssistant->id }}&phone={{ $thread->phone_number }}" 
@@ -1284,7 +1256,7 @@
 
                                         @foreach($activeThreadMessages as $msg)
                                             @php
-                                                $carbonDate = \Carbon\Carbon::parse($msg->created_at)->setTimezone('America/Sao_Paulo')->locale('pt_BR');
+                                                $carbonDate = \Carbon\Carbon::parse($msg->created_at)->setTimezone($assistantTz ?? 'America/Sao_Paulo')->locale('pt_BR');
                                                 $currentDate = $carbonDate->format('Y-m-d');
                                                 $displayDate = ucfirst($carbonDate->translatedFormat('l, d \d\e F \d\e Y'));
                                                 $displayTime = $carbonDate->format('H:i:s');

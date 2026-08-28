@@ -137,10 +137,12 @@ class AssistantController extends Controller
         $conversationThreads = [];
         $activeThreadMessages = [];
         $activePhone = $request->input('phone');
+        $assistantTz = 'America/Sao_Paulo';
 
         if ($request->has('conversations_id')) {
             $conversationsAssistant = Assistant::find($request->conversations_id);
             if ($conversationsAssistant) {
+                $assistantTz = $this->getTimezone($conversationsAssistant->id);
                 $conversationThreads = DB::table('chat_messages')
                     ->where('assistant_id', $conversationsAssistant->id)
                     ->select('phone_number', DB::raw('MAX(created_at) as last_activity'), DB::raw('COUNT(id) as total_messages'))
@@ -165,6 +167,7 @@ class AssistantController extends Controller
         if ($request->has('configure')) {
             $configuring = Assistant::find($request->configure);
             if ($configuring) {
+                $assistantTz = $this->getTimezone($configuring->id);
                 if (is_string($configuring->lead_fields)) {
                     $configuring->lead_fields = json_decode($configuring->lead_fields, true);
                 }
@@ -185,7 +188,7 @@ class AssistantController extends Controller
         return view('assistants.index', compact(
             'assistants', 'configuring', 'lastWebhook',
             'conversationsAssistant', 'conversationThreads', 'activeThreadMessages', 'activePhone', 'currentView',
-            'departments', 'agents'
+            'departments', 'agents', 'assistantTz'
         ));
     }
 
@@ -891,13 +894,9 @@ class AssistantController extends Controller
                 $json = $response->json();
                 Log::info("Registro Omni API Direta ({$type}): ", is_array($json) ? $json : []);
                 return $json;
-            }
-
-            if (class_exists('\App\Services\OmniTicketService')) {
-                return app(\App\Services\OmniTicketService::class)->sendToOmni($payload);
             } else {
-                $omniReq = new Request($payload);
-                return app(\App\Http\Controllers\OmniController::class)->forwardToOmni($omniReq);
+                Log::error("Erro na integração Omni para {$url}: Status HTTP " . $response->status());
+                return null;
             }
         } catch (\Throwable $e) {
             Log::error("Erro ao registrar conversa no Omni API Direta ({$type}): " . $e->getMessage());
