@@ -1034,16 +1034,27 @@ class AssistantController extends Controller
                 ?? $request->input('data.pushName')
                 ?? $cleanSender;
 
-            // 1. CHAMA O OMNI NA ENTRADA PARA REGISTRAR / OBTER PROTOCOLO
+            // 1. CHAMA O OMNI NA ENTRADA PARA REGISTRAR / OBTER PROTOCOLO (AGORA DIRETO)
             $omniInputRes = $this->sendToOmni($userMessage, $pushName, 'input', $cleanSender);
 
             $protocolo = null;
+            $isNewTicket = false;
 
             if (!empty($omniInputRes) && is_array($omniInputRes)) {
                 $protocolo = $omniInputRes['protocolo'] ?? $omniInputRes['ticket_number'] ?? $omniInputRes['number'] ?? null;
+                $isNewTicket = !empty($omniInputRes['is_new_ticket']);
             } elseif (is_string($omniInputRes)) {
                 $dataArr = json_decode($omniInputRes, true);
                 $protocolo = $dataArr['protocolo'] ?? null;
+                $isNewTicket = !empty($dataArr['is_new_ticket']);
+            }
+            
+            // SE O OMNI GEROU UM TICKET NOVO, APAGAMOS O HISTÓRICO LOCAL PARA A IA SABER QUE É O INÍCIO!
+            if ($isNewTicket) {
+                DB::table('chat_messages')
+                    ->where('assistant_id', $assistant->id)
+                    ->where('phone_number', $cleanSender)
+                    ->delete();
             }
 
             $contextLimit = (int) ($assistant->context_limit ?? 12);
@@ -1059,7 +1070,6 @@ class AssistantController extends Controller
             $history = [];
             $assistantMsgCount = 0;
 
-            // Conta as mensagens da IA no histórico para saber se é início de conversa
             foreach ($historyRecords as $msg) {
                 if (isset($msg->role) && $msg->role === 'assistant') {
                     $assistantMsgCount++;
@@ -1070,7 +1080,7 @@ class AssistantController extends Controller
                 ];
             }
 
-            // DEFINE "PRIMEIRA MENSAGEM" APENAS SE A IA AINDA NÃO FALOU NESTE CONTEXTO
+            // Agora sim: se a IA nunca falou, é a primeira mensagem de fato!
             $isFirstMessage = ($assistantMsgCount === 0);
 
             // 2. MONTA O SYSTEM PROMPT BASE
@@ -1086,32 +1096,34 @@ class AssistantController extends Controller
                     $systemPrompt .= "• Protocolo: " . $protocolo . "\n";
                     $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA: Esta é a SUA PRIMEIRA MENSAGEM na conversa. Você DEVE dar boas-vindas ao cliente pelo nome e INFORMAR OBRIGATORIAMENTE o número do protocolo (" . $protocolo . ").\n";
                 } else {
-                    $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA: A conversa já está em andamento. NÃO repita a saudação inicial e É ESTRITAMENTE PROIBIDO enviar ou mencionar o número de protocolo novamente na sua resposta.\n";
+                    $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA: A conversa já está em andamento. NÃO repita a saudação inicial e É ESTRITAMENTE PROIBIDO enviar ou mencionar o número de protocolo na sua resposta.\n";
                 }
             }
             $systemPrompt .= "===============================================\n";
 
             $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
 
-            // 3. TRATA O TEXTO PARA GARANTIR QUE NADA VAI VAZAR
+            // 3. TRATAMENTO SEGURO
             $clientName = $pushName ?: '';
 
             if (!empty($clientName)) {
                 $aiReply = str_replace(['#NOME#', '[NOME]', '[Nome do Cliente]'], $clientName, $aiReply);
             }
 
+            // APENAS NA PRIMEIRA MENSAGEM nós tentamos dar REPLACE ou inserir o CARIMBO do protocolo
             if (!empty($protocolo)) {
                 if ($isFirstMessage) {
                     $aiReply = str_replace(['#PROTOCOLO#', '[PROTOCOLO]', '[Número do Protocolo]'], $protocolo, $aiReply);
+                    
+                    // CARIMBO FORÇADO: Se a IA não colocou na primeira mensagem, a gente carimba
+                    if (strpos($aiReply, (string)$protocolo) === false) {
+                        $aiReply = "🎫 *Protocolo:* " . $protocolo . "\n\n" . $aiReply;
+                    }
                 } else {
-                    // Limpa marcadores de protocolo se a IA teimar em colocar no meio da conversa
-                    $aiReply = str_replace(['#PROTOCOLO#', '[PROTOCOLO]', '[Número do Protocolo]', 'Protocolo: ' . $protocolo, $protocolo], '', $aiReply);
+                    // Nas mensagens seguintes, se a IA tiver enviado placeholders vazios, a gente apaga.
+                    $aiReply = str_replace(['#PROTOCOLO#', '[PROTOCOLO]', '[Número do Protocolo]'], '', $aiReply);
+                    // Não damos str_replace cego no número pra não sobrar sujeira!
                 }
-            }
-
-            // CARIMBO FORÇADO: Apenas se for a PRIMEIRA MENSAGEM e o protocolo não constar no texto
-            if ($isFirstMessage && !empty($protocolo) && strpos($aiReply, (string)$protocolo) === false) {
-                $aiReply = "🎫 *Protocolo:* " . $protocolo . "\n\n" . $aiReply;
             }
 
             $aiReply = str_replace('..', '.', $aiReply);
