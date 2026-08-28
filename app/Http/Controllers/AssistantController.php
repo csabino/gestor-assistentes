@@ -1028,7 +1028,7 @@ class AssistantController extends Controller
                 return response()->json(['status' => 'no_message']);
             }
 
-            // TRATAMENTO REFORÇADO DO NOME DO CLIENTE
+            // TRATAMENTO DO NOME DO CLIENTE
             $rawPushName = $request->input('message.senderName')
                 ?? $request->input('senderName')
                 ?? $request->input('pushName')
@@ -1047,17 +1047,25 @@ class AssistantController extends Controller
 
             $protocolo = null;
             $isNewTicket = false;
+            $omniUserName = null;
 
             if (!empty($omniInputRes) && is_array($omniInputRes)) {
-                $protocolo   = $omniInputRes['protocolo'] ?? $omniInputRes['ticket_number'] ?? $omniInputRes['number'] ?? null;
-                $isNewTicket = !empty($omniInputRes['is_new_ticket']);
+                $protocolo    = $omniInputRes['protocolo'] ?? $omniInputRes['ticket_number'] ?? $omniInputRes['number'] ?? null;
+                $isNewTicket  = !empty($omniInputRes['is_new_ticket']);
+                $omniUserName = $omniInputRes['user_name'] ?? null;
             } elseif (is_string($omniInputRes)) {
-                $dataArr     = json_decode($omniInputRes, true);
-                $protocolo   = $dataArr['protocolo'] ?? null;
-                $isNewTicket = !empty($dataArr['is_new_ticket']);
+                $dataArr      = json_decode($omniInputRes, true);
+                $protocolo    = $dataArr['protocolo'] ?? null;
+                $isNewTicket  = !empty($dataArr['is_new_ticket']);
+                $omniUserName = $dataArr['user_name'] ?? null;
             }
 
-            // Se o ticket for novo no Omni, limpa o histórico de chat local no Laravel
+            // Se o Omni tem um nome valido cadastrado para este ID de usuario, adota ele
+            if (!empty($omniUserName) && !preg_match('/^[0-9]+$/', trim($omniUserName))) {
+                $displayName = trim($omniUserName);
+            }
+
+            // Se o ticket for novo no Omni, limpa o historico de chat local no Laravel
             if ($isNewTicket) {
                 DB::table('chat_messages')
                     ->where('assistant_id', $assistant->id)
