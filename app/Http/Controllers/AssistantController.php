@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Database\Schema\Blueprint;
 use Carbon\Carbon;
 
@@ -27,6 +28,17 @@ class AssistantController extends Controller
     private function configureTimezone($assistantId = null)
     {
         date_default_timezone_set($this->getTimezone($assistantId));
+    }
+
+    private function ensureStorageLinkExists()
+    {
+        if (!file_exists(public_path('storage'))) {
+            try {
+                Artisan::call('storage:link');
+            } catch (\Throwable $e) {
+                Log::error("Erro ao criar atalho público do storage: " . $e->getMessage());
+            }
+        }
     }
 
     private function ensureWebhookLogTableExists()
@@ -962,6 +974,7 @@ class AssistantController extends Controller
         $this->configureTimezone($id);
         $this->ensureWebhookLogTableExists();
         $this->ensureChatMessagesTableExists();
+        $this->ensureStorageLinkExists();
 
         try {
             $assistant = Assistant::find($id);
@@ -1124,20 +1137,16 @@ class AssistantController extends Controller
                             ?? $request->input('message.fileName') 
                             ?? '';
                         
-                        // 1. Tenta extrair extensão do nome do arquivo
                         $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
 
-                        // 2. Se não achar, lê a Assinatura Binária (Magic Bytes) direto do arquivo baixado
                         if (!$ext || $ext === 'bin') {
                             $ext = $this->detectExtensionFromBytes($mediaBytes);
                         }
 
-                        // 3. Se ainda não achar, adivinha pelo mimetype
                         if (!$ext) {
                             $ext = $this->guessExtension($mimetype);
                         }
 
-                        // 4. Fallback por categoria da mensagem
                         if (!$ext) {
                             $mediaTypeClean = strtolower($msgType);
                             if (str_contains($mediaTypeClean, 'video')) $ext = 'mp4';
@@ -1155,34 +1164,47 @@ class AssistantController extends Controller
                             $mediaErrorDetails = "Tipo de arquivo (.{$ext}) não permitido pelo administrador.";
                         } else {
                             $folderPath = 'uploads/assistants/' . $assistant->id;
-                            
-                            Storage::disk('public')->makeDirectory($folderPath);
+                            $fullDir = storage_path('app/public/' . $folderPath);
+
+                            if (!file_exists($fullDir)) {
+                                @mkdir($fullDir, 0777, true);
+                            }
 
                             $newFileName = time() . '_' . rand(1000, 9999) . '.' . $ext;
                             $relativePath = $folderPath . '/' . $newFileName;
-                            
-                            Storage::disk('public')->put($relativePath, $mediaBytes);
-                            
-                            $mediaUrlPublic = $request->getSchemeAndHttpHost() . '/storage/' . $relativePath;
-                            $savePath = Storage::disk('public')->path($relativePath);
-                            $mediaSaved = true;
+                            $fullFilePath = $fullDir . '/' . $newFileName;
 
-                            if ($isAudioMessage) {
-                                $transcriptionKey = trim($assistant->openai_api_key ?? '');
-                                if ($transcriptionKey) {
-                                    $transcribedText = $audioService->transcribeAudio($savePath, $transcriptionKey, 'openai');
-                                    if (!empty($transcribedText)) {
-                                        $userMessage = $transcribedText;
+                            // Gravação e verificação explícita do arquivo físico no servidor
+                            $writtenSuccess = Storage::disk('public')->put($relativePath, $mediaBytes);
+                            if (!$writtenSuccess || !file_exists($fullFilePath)) {
+                                @file_put_contents($fullFilePath, $mediaBytes);
+                            }
+
+                            if (file_exists($fullFilePath) && filesize($fullFilePath) > 100) {
+                                $mediaUrlPublic = $request->getSchemeAndHttpHost() . '/storage/' . $relativePath;
+                                $savePath = $fullFilePath;
+                                $mediaSaved = true;
+
+                                if ($isAudioMessage) {
+                                    $transcriptionKey = trim($assistant->openai_api_key ?? '');
+                                    if ($transcriptionKey) {
+                                        $transcribedText = $audioService->transcribeAudio($savePath, $transcriptionKey, 'openai');
+                                        if (!empty($transcribedText)) {
+                                            $userMessage = $transcribedText;
+                                        } else {
+                                            $userMessage = "[Áudio sem transcrição]";
+                                        }
                                     } else {
-                                        $userMessage = "[Áudio sem transcrição]";
+                                        $userMessage = "[Áudio recebido]";
                                     }
-                                } else {
-                                    $userMessage = "[Áudio recebido]";
                                 }
+                            } else {
+                                $mediaErrorDetails = "Falha de gravação do arquivo no disco do servidor.";
+                                Log::error("Erro ao gravar arquivo em: {$fullFilePath}");
                             }
                         }
                     } else {
-                        $mediaErrorDetails = "Falha ao baixar anexo da API do WhatsApp.";
+                        $mediaErrorDetails = "Falha ao baixar anexo da API do WhatsApp (bytes vazios).";
                     }
                 } catch (\Throwable $e) {
                     $mediaErrorDetails = "Exceção ao processar anexo: " . $e->getMessage();
