@@ -803,7 +803,35 @@ class AssistantController extends Controller
         return trim($text);
     }
 
-    private function extractAudioBytesFromResponse($response): ?string
+    private function guessExtension(?string $mime): ?string
+    {
+        if (empty($mime)) return null;
+        $mime = strtolower(trim(explode(';', $mime)[0]));
+        $map = [
+            'image/jpeg' => 'jpg',
+            'image/jpg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            'application/pdf' => 'pdf',
+            'application/msword' => 'doc',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+            'application/vnd.ms-excel' => 'xls',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
+            'text/csv' => 'csv',
+            'text/plain' => 'txt',
+            'audio/mpeg' => 'mp3',
+            'audio/mp3' => 'mp3',
+            'audio/ogg' => 'ogg',
+            'audio/wav' => 'wav',
+            'audio/mp4' => 'mp4',
+            'video/mp4' => 'mp4',
+            'video/avi' => 'avi',
+            'video/quicktime' => 'mov',
+        ];
+        return $map[$mime] ?? null;
+    }
+
+    private function extractMediaBytesFromResponse($response): ?string
     {
         if (!$response || !$response->successful()) {
             return null;
@@ -820,7 +848,7 @@ class AssistantController extends Controller
                 ?? null;
 
             if (is_string($b64) && strlen($b64) > 100 && !str_starts_with($b64, 'http')) {
-                $cleanB64 = preg_replace('#^data:audio/\w+;base64,#i', '', $b64);
+                $cleanB64 = preg_replace('#^data:[^;]+;base64,#i', '', $b64);
                 $decoded = base64_decode($cleanB64);
                 if ($decoded && strlen($decoded) > 100) {
                     return $decoded;
@@ -846,7 +874,7 @@ class AssistantController extends Controller
                         return $dl->body();
                     }
                 } catch (\Throwable $eUrl) {
-                    Log::error("Erro no download da fileURL da UaZapi: " . $eUrl->getMessage());
+                    Log::error("Erro no download da fileURL de mídia: " . $eUrl->getMessage());
                 }
             }
         }
@@ -857,6 +885,11 @@ class AssistantController extends Controller
         }
 
         return null;
+    }
+
+    private function extractAudioBytesFromResponse($response): ?string
+    {
+        return $this->extractMediaBytesFromResponse($response);
     }
 
     private function sendToOmni(string $message, string $pushName, string $type, string $phone, $assistantId = null)
@@ -948,17 +981,21 @@ class AssistantController extends Controller
                 ?? ''
             );
 
-            $audioUrl = $request->input('message.content.URL')
+            $mediaUrl = $request->input('message.content.URL')
                 ?? $request->input('message.content.url')
                 ?? $request->input('message.media_url')
                 ?? $request->input('message.url')
                 ?? null;
 
             $isAudioMessage = in_array($msgType, ['ptt', 'audio', 'audiomessage', 'voice']) 
-                || (!empty($audioUrl) && (str_contains($audioUrl, '.og') || str_contains($audioUrl, '.mp3') || str_contains($audioUrl, 'audio') || str_contains($audioUrl, '.enc')));
+                || (!empty($mediaUrl) && (str_contains($mediaUrl, '.og') || str_contains($mediaUrl, '.mp3') || str_contains($mediaUrl, 'audio') || str_contains($mediaUrl, '.enc')));
+
+            $isMediaMessage = in_array($msgType, ['image', 'video', 'document', 'audio', 'ptt', 'voice', 'sticker', 'imagemessage', 'videomessage', 'documentmessage', 'audiomessage', 'documentwithcaptionmessage']) 
+                || (!empty($mediaUrl) && str_contains($mediaUrl, 'http'));
 
             $rawMessage = $request->input('message.content')
                 ?? $request->input('message.text')
+                ?? $request->input('message.caption')
                 ?? $request->input('data.message.conversation')
                 ?? $request->input('data.message.extendedTextMessage.text')
                 ?? $request->input('message.conversation')
@@ -970,10 +1007,21 @@ class AssistantController extends Controller
 
             $userMessage = is_array($rawMessage) ? ($rawMessage['text'] ?? $rawMessage['body'] ?? '') : (string)$rawMessage;
 
-            $audioErrorDetails = null;
+            $mediaErrorDetails = null;
+            $mediaSaved = false;
+            $mediaUrlPublic = null;
+            $mediaExt = '';
 
-            if ($isAudioMessage) {
+            // PROCESSAMENTO DE ANEXOS E ÁUDIOS
+            if ($isMediaMessage) {
                 try {
+                    $maxFileSizeMb = (int)(Setting::where('assistant_id', $assistant->id)->where('key', 'max_file_size_mb')->value('value') ?? 4);
+                    $maxFileSizeBytes = $maxFileSizeMb * 1024 * 1024;
+                    
+                    $allowedExtRaw = Setting::where('assistant_id', $assistant->id)->where('key', 'allowed_extensions')->value('value');
+                    $allowedExtensions = $allowedExtRaw ? json_decode($allowedExtRaw, true) : [];
+                    if (!is_array($allowedExtensions)) $allowedExtensions = [];
+
                     $token = trim($assistant->whatsapp_token ?? '');
                     $baseUrl = rtrim($assistant->whatsapp_url ?? '', '/');
                     $msgPayload = $request->input('message') ?? [];
@@ -987,11 +1035,10 @@ class AssistantController extends Controller
                         'Content-Type' => 'application/json'
                     ];
 
-                    $audioBytes = null;
+                    $mediaBytes = null;
 
                     if ($baseUrl && $token) {
                         $url = $baseUrl . '/message/download?token=' . urlencode($token);
-                        
                         $payloads = [
                             ['token' => $token, 'id' => $msgId, 'messageid' => $msgId, 'message' => $msgPayload],
                             ['token' => $token, 'id' => $msgId]
@@ -1000,11 +1047,11 @@ class AssistantController extends Controller
                         foreach ($payloads as $payload) {
                             if (empty($payload['id'])) continue;
                             try {
-                                $res = Http::withHeaders($headers)->timeout(20)->post($url, $payload);
+                                $res = Http::withHeaders($headers)->timeout(25)->post($url, $payload);
                                 if ($res->successful()) {
-                                    $bytes = $this->extractAudioBytesFromResponse($res);
+                                    $bytes = $this->extractMediaBytesFromResponse($res);
                                     if ($bytes) {
-                                        $audioBytes = $bytes;
+                                        $mediaBytes = $bytes;
                                         break;
                                     }
                                 }
@@ -1012,28 +1059,85 @@ class AssistantController extends Controller
                         }
                     }
 
-                    if ($audioBytes && strlen($audioBytes) > 100) {
-                        $tempPath = storage_path('app/temp_audio_' . time() . '_' . rand(1000, 9999) . '.ogg');
-                        file_put_contents($tempPath, $audioBytes);
+                    if ($mediaBytes && strlen($mediaBytes) > 100) {
+                        $fileSize = strlen($mediaBytes);
+                        $mimetype = $msgPayload['mimetype'] ?? $msgPayload['mediaType'] ?? $request->input('mimetype') ?? '';
+                        $fileName = $msgPayload['fileName'] ?? $msgPayload['title'] ?? '';
+                        
+                        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+                        if (!$ext) $ext = $this->guessExtension($mimetype);
+                        if (!$ext) $ext = $isAudioMessage ? 'ogg' : 'bin';
+                        $mediaExt = $ext;
 
-                        $transcriptionKey = trim($assistant->openai_api_key ?? '');
-                        if ($transcriptionKey) {
-                            $transcribedText = $audioService->transcribeAudio($tempPath, $transcriptionKey, 'openai');
-                            if (!empty($transcribedText)) {
-                                $userMessage = $transcribedText;
-                            } else {
-                                $audioErrorDetails = "Whisper nao retornou transcricao para o audio.";
-                            }
+                        if ($fileSize > $maxFileSizeBytes) {
+                            $mediaErrorDetails = "O anexo excede o limite permitido de {$maxFileSizeMb}MB.";
+                        } elseif (!empty($allowedExtensions) && !in_array($ext, $allowedExtensions)) {
+                            $mediaErrorDetails = "Tipo de arquivo (.{$ext}) não permitido pelo administrador.";
                         } else {
-                            $audioErrorDetails = "Chave OpenAI nao configurada para transcricao.";
+                            $dir = public_path('uploads/assistants/' . $assistant->id);
+                            if (!file_exists($dir)) {
+                                mkdir($dir, 0777, true);
+                            }
+                            $newFileName = time() . '_' . rand(1000, 9999) . '.' . $ext;
+                            $savePath = $dir . '/' . $newFileName;
+                            file_put_contents($savePath, $mediaBytes);
+                            
+                            $mediaUrlPublic = $request->getSchemeAndHttpHost() . '/uploads/assistants/' . $assistant->id . '/' . $newFileName;
+                            $mediaSaved = true;
+
+                            if ($isAudioMessage) {
+                                $transcriptionKey = trim($assistant->openai_api_key ?? '');
+                                if ($transcriptionKey) {
+                                    $transcribedText = $audioService->transcribeAudio($savePath, $transcriptionKey, 'openai');
+                                    if (!empty($transcribedText)) {
+                                        $userMessage = $transcribedText;
+                                    } else {
+                                        $userMessage = "[Áudio sem transcrição]";
+                                    }
+                                } else {
+                                    $userMessage = "[Áudio recebido]";
+                                }
+                            }
                         }
-                        @unlink($tempPath);
-                    } else if (!$audioErrorDetails) {
-                        $audioErrorDetails = "Falha ao baixar arquivo da fileURL fornecida pela UaZapi.";
+                    } else {
+                        $mediaErrorDetails = "Falha ao baixar anexo da API do WhatsApp.";
                     }
                 } catch (\Throwable $e) {
-                    $audioErrorDetails = "Excecao no processamento do audio: " . $e->getMessage();
-                    Log::error("Erro no audio: " . $e->getMessage());
+                    $mediaErrorDetails = "Exceção ao processar anexo: " . $e->getMessage();
+                    Log::error("Erro no anexo: " . $e->getMessage());
+                }
+
+                if ($mediaErrorDetails && !$mediaSaved) {
+                    $nowFormatted = now()->setTimezone($this->getTimezone($assistant->id))->toDateTimeString();
+                    $rejectMsg = "⚠️ " . $mediaErrorDetails;
+                    $waResult = $this->sendWhatsappMessage($assistant, $sender, $rejectMsg);
+
+                    DB::table('webhook_logs')->insert([
+                        'assistant_id' => $assistant->id,
+                        'sender' => substr($sender, 0, 255),
+                        'user_message' => '[Anexo Rejeitado]',
+                        'ai_reply' => 'Rejeitado: ' . $mediaErrorDetails,
+                        'wa_send_result' => json_encode($waResult, JSON_INVALID_UTF8_IGNORE),
+                        'raw_snippet' => json_encode($request->all(), JSON_INVALID_UTF8_IGNORE),
+                        'timestamp' => $nowFormatted,
+                        'created_at' => $nowFormatted,
+                        'updated_at' => $nowFormatted,
+                    ]);
+
+                    return response()->json(['status' => 'media_rejected', 'reason' => $mediaErrorDetails]);
+                }
+
+                if ($mediaSaved) {
+                    $caption = trim($userMessage);
+                    if ($isAudioMessage) {
+                        $userMessage = (!empty($caption) && !str_starts_with($caption, '[')) ? "Mensagem de Voz: \"" . $caption . "\"" : $caption;
+                        $userMessage .= "\n🔊 Link do Áudio: " . $mediaUrlPublic;
+                    } else {
+                        $userMessage = "📎 Anexo Recebido (.{$mediaExt})\n🔗 Link: " . $mediaUrlPublic;
+                        if (!empty($caption)) {
+                            $userMessage .= "\n📝 Legenda do Usuário: \"" . $caption . "\"";
+                        }
+                    }
                 }
             }
 
@@ -1043,9 +1147,9 @@ class AssistantController extends Controller
                 DB::table('webhook_logs')->insert([
                     'assistant_id' => $assistant->id,
                     'sender' => substr($sender, 0, 255),
-                    'user_message' => $isAudioMessage ? '[Audio Nao Transcrito]' : '[Midia / Sem Texto]',
-                    'ai_reply' => 'Ignorado (' . ($audioErrorDetails ?? 'Falha na leitura do audio') . ')',
-                    'wa_send_result' => json_encode(['info' => 'Nenhuma resposta enviada', 'debug' => $audioErrorDetails]),
+                    'user_message' => $isMediaMessage ? '[Mídia sem conteúdo]' : '[Sem Texto]',
+                    'ai_reply' => 'Ignorado',
+                    'wa_send_result' => json_encode(['info' => 'Nenhuma resposta enviada']),
                     'raw_snippet' => json_encode($request->all(), JSON_INVALID_UTF8_IGNORE),
                     'timestamp' => $nowFormatted,
                     'created_at' => $nowFormatted,
@@ -1167,7 +1271,7 @@ class AssistantController extends Controller
                     'assistant_id' => $assistant->id,
                     'phone_number' => $cleanSender,
                     'role' => 'user',
-                    'content' => $isAudioMessage ? '[🎙️ Audio]: ' . $userMessage : $userMessage,
+                    'content' => $userMessage,
                     'created_at' => $nowFormatted,
                     'updated_at' => $nowFormatted,
                 ],
@@ -1208,7 +1312,7 @@ class AssistantController extends Controller
             DB::table('webhook_logs')->insert([
                 'assistant_id' => $assistant->id,
                 'sender' => substr($sender, 0, 255),
-                'user_message' => $isAudioMessage ? '[🎙️ Audio]: ' . $userMessage : $userMessage,
+                'user_message' => $userMessage,
                 'ai_reply' => $aiReply,
                 'wa_send_result' => json_encode($waResult, JSON_INVALID_UTF8_IGNORE),
                 'raw_snippet' => json_encode($request->all(), JSON_INVALID_UTF8_IGNORE),
