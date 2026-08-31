@@ -85,7 +85,7 @@
                     <div class="h-6 w-px bg-gray-300 hidden md:block"></div>
                     <div>
                         <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">Configurações Avançadas — {{ $assistant->name }}</h1>
-                        <p class="text-xs text-gray-500 mt-0.5">Gerencie fuso horário e integrações externas para este assistente.</p>
+                        <p class="text-xs text-gray-500 mt-0.5">Gerencie fuso horário, integrações e anexos para este assistente.</p>
                     </div>
                 </div>
                 
@@ -119,7 +119,6 @@
                 </div>
             @endif
 
-            <!-- GRID EM 3 COLUNAS (FUSO HORÁRIO = 1 COLUNA (1/3), WEBHOOK = 2 COLUNAS (2/3)) -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
                 <!-- Card 1: Fuso Horário (1/3 de largura) -->
@@ -182,6 +181,88 @@
                     <p class="text-xs text-gray-400 mt-4 leading-relaxed border-t border-gray-50 pt-3">
                         A barra final `/` será garantida automaticamente. Deixe em branco para desativar.
                     </p>
+                </div>
+
+                <!-- Card 3: Controle de Anexos (Largura Total = md:col-span-3) -->
+                <div class="md:col-span-3 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h2 class="text-base font-bold text-gray-800 border-b border-gray-100 pb-3 mb-5 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" /></svg>
+                        Controle de Anexos
+                    </h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <!-- Tamanho Máximo em MB -->
+                        <div class="md:col-span-1 border-r border-gray-100 pr-4">
+                            <label class="block text-xs font-semibold text-gray-700 mb-2">Tamanho Máximo por Anexo</label>
+                            <select name="max_file_size_mb" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs font-medium text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm cursor-pointer bg-white">
+                                <option value="1" {{ ($maxFileSize ?? '4') == '1' ? 'selected' : '' }}>1 MB</option>
+                                <option value="2" {{ ($maxFileSize ?? '4') == '2' ? 'selected' : '' }}>2 MB</option>
+                                <option value="4" {{ ($maxFileSize ?? '4') == '4' ? 'selected' : '' }}>4 MB</option>
+                                <option value="6" {{ ($maxFileSize ?? '4') == '6' ? 'selected' : '' }}>6 MB</option>
+                                <option value="8" {{ ($maxFileSize ?? '4') == '8' ? 'selected' : '' }}>8 MB</option>
+                            </select>
+                            <p class="text-[10px] text-gray-400 mt-2 leading-relaxed">
+                                Arquivos maiores que o limite selecionado serão recusados automaticamente.
+                            </p>
+                        </div>
+
+                        <!-- Extensões Permitidas -->
+                        <div class="md:col-span-3">
+                            <label class="block text-xs font-semibold text-gray-700 mb-3">Extensões Permitidas (Recebimento / Envio)</label>
+                            
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                
+                                <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                                    <h4 class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 border-b border-gray-200 pb-1">Imagens</h4>
+                                    <div class="space-y-1.5">
+                                        @foreach(['jpg', 'jpeg', 'png', 'webp'] as $ext)
+                                        <label class="flex items-center gap-2 text-xs text-gray-700 cursor-pointer hover:text-indigo-600 transition">
+                                            <input type="checkbox" name="allowed_extensions[]" value="{{ $ext }}" {{ in_array($ext, $allowedExtensions ?? []) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer">
+                                            <span class="font-medium uppercase">{{ $ext }}</span>
+                                        </label>
+                                        @endforeach
+                                    </div>
+                                </div>
+
+                                <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                                    <h4 class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 border-b border-gray-200 pb-1">Documentos</h4>
+                                    <div class="space-y-1.5">
+                                        @foreach(['pdf', 'doc', 'docx', 'txt'] as $ext)
+                                        <label class="flex items-center gap-2 text-xs text-gray-700 cursor-pointer hover:text-indigo-600 transition">
+                                            <input type="checkbox" name="allowed_extensions[]" value="{{ $ext }}" {{ in_array($ext, $allowedExtensions ?? []) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer">
+                                            <span class="font-medium uppercase">{{ $ext }}</span>
+                                        </label>
+                                        @endforeach
+                                    </div>
+                                </div>
+
+                                <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                                    <h4 class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 border-b border-gray-200 pb-1">Planilhas</h4>
+                                    <div class="space-y-1.5">
+                                        @foreach(['xls', 'xlsx', 'csv'] as $ext)
+                                        <label class="flex items-center gap-2 text-xs text-gray-700 cursor-pointer hover:text-indigo-600 transition">
+                                            <input type="checkbox" name="allowed_extensions[]" value="{{ $ext }}" {{ in_array($ext, $allowedExtensions ?? []) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer">
+                                            <span class="font-medium uppercase">{{ $ext }}</span>
+                                        </label>
+                                        @endforeach
+                                    </div>
+                                </div>
+
+                                <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                                    <h4 class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 border-b border-gray-200 pb-1">Áudio / Vídeo</h4>
+                                    <div class="space-y-1.5">
+                                        @foreach(['mp3', 'ogg', 'wav', 'mp4'] as $ext)
+                                        <label class="flex items-center gap-2 text-xs text-gray-700 cursor-pointer hover:text-indigo-600 transition">
+                                            <input type="checkbox" name="allowed_extensions[]" value="{{ $ext }}" {{ in_array($ext, $allowedExtensions ?? []) ? 'checked' : '' }} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer">
+                                            <span class="font-medium uppercase">{{ $ext }}</span>
+                                        </label>
+                                        @endforeach
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
             </div>

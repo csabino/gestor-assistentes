@@ -59,9 +59,24 @@ class SettingController extends Controller
         $currentTz = Setting::where('assistant_id', $assistantId)->where('key', 'timezone')->value('value') ?? 'America/Sao_Paulo';
         $webhookUrl = Setting::where('assistant_id', $assistantId)->where('key', 'omni_webhook_url')->value('value') ?? '';
         
+        $maxFileSize = Setting::where('assistant_id', $assistantId)->where('key', 'max_file_size_mb')->value('value') ?? '4';
+        $allowedExtRaw = Setting::where('assistant_id', $assistantId)->where('key', 'allowed_extensions')->value('value');
+        $allowedExtensions = $allowedExtRaw ? json_decode($allowedExtRaw, true) : [];
+        if (!is_array($allowedExtensions)) {
+            $allowedExtensions = [];
+        }
+
         $currentView = 'settings';
 
-        return view('settings.index', compact('timezones', 'currentTz', 'webhookUrl', 'currentView', 'assistant'));
+        return view('settings.index', compact(
+            'timezones', 
+            'currentTz', 
+            'webhookUrl', 
+            'maxFileSize', 
+            'allowedExtensions', 
+            'currentView', 
+            'assistant'
+        ));
     }
 
     public function update(Request $request)
@@ -70,6 +85,8 @@ class SettingController extends Controller
             'assistant_id' => 'required|exists:assistants,id',
             'timezone' => 'required|string',
             'omni_webhook_url' => 'nullable|string',
+            'max_file_size_mb' => 'required|in:1,2,4,6,8',
+            'allowed_extensions' => 'nullable|array',
         ]);
 
         $assistantId = $request->input('assistant_id');
@@ -87,6 +104,17 @@ class SettingController extends Controller
         Setting::updateOrCreate(
             ['assistant_id' => $assistantId, 'key' => 'omni_webhook_url'],
             ['value' => $webhookUrl]
+        );
+
+        Setting::updateOrCreate(
+            ['assistant_id' => $assistantId, 'key' => 'max_file_size_mb'],
+            ['value' => $request->input('max_file_size_mb', '4')]
+        );
+
+        $allowedExtensions = $request->input('allowed_extensions', []);
+        Setting::updateOrCreate(
+            ['assistant_id' => $assistantId, 'key' => 'allowed_extensions'],
+            ['value' => json_encode(array_values($allowedExtensions))]
         );
 
         return redirect()->to('/?view=settings&assistant_id=' . $assistantId)->with('success', 'Configurações atualizadas para este assistente!');
