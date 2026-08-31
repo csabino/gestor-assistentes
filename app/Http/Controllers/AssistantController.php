@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Database\Schema\Blueprint;
 use Carbon\Carbon;
 
@@ -28,17 +27,6 @@ class AssistantController extends Controller
     private function configureTimezone($assistantId = null)
     {
         date_default_timezone_set($this->getTimezone($assistantId));
-    }
-
-    private function ensureStorageLinkExists()
-    {
-        if (!file_exists(public_path('storage'))) {
-            try {
-                Artisan::call('storage:link');
-            } catch (\Throwable $e) {
-                Log::error("Erro ao criar atalho público do storage: " . $e->getMessage());
-            }
-        }
     }
 
     private function ensureWebhookLogTableExists()
@@ -107,6 +95,10 @@ class AssistantController extends Controller
 
     public function index(Request $request)
     {
+        if ($request->has('view_file')) {
+            return $this->servePublicFile($request->input('view_file'));
+        }
+
         $assistantIdForTz = $request->input('configure') ?? $request->input('conversations_id') ?? $request->input('chat_id');
         $this->configureTimezone($assistantIdForTz);
 
@@ -202,6 +194,49 @@ class AssistantController extends Controller
             'conversationsAssistant', 'conversationThreads', 'activeThreadMessages', 'activePhone', 'currentView',
             'departments', 'agents', 'assistantTz'
         ));
+    }
+
+    private function servePublicFile($relativePath)
+    {
+        $cleanPath = ltrim(str_replace(['..', '\\'], ['', '/'], (string)$relativePath), '/');
+
+        $candidates = [
+            storage_path('app/public/' . $cleanPath),
+            storage_path('app/' . $cleanPath),
+            public_path($cleanPath),
+        ];
+
+        $targetFile = null;
+        foreach ($candidates as $candidate) {
+            if (file_exists($candidate) && is_file($candidate)) {
+                $targetFile = $candidate;
+                break;
+            }
+        }
+
+        if (!$targetFile) {
+            return response()->json([
+                'error' => 'Arquivo não encontrado no servidor',
+                'caminho_buscado' => $cleanPath
+            ], 404);
+        }
+
+        $ext = strtolower(pathinfo($targetFile, PATHINFO_EXTENSION));
+        $mime = 'application/octet-stream';
+
+        if ($ext === 'mp4') $mime = 'video/mp4';
+        elseif ($ext === 'pdf') $mime = 'application/pdf';
+        elseif (in_array($ext, ['jpg', 'jpeg'])) $mime = 'image/jpeg';
+        elseif ($ext === 'png') $mime = 'image/png';
+        elseif ($ext === 'webp') $mime = 'image/webp';
+        elseif ($ext === 'mp3') $mime = 'audio/mpeg';
+        elseif ($ext === 'ogg') $mime = 'audio/ogg';
+        elseif ($ext === 'txt') $mime = 'text/plain';
+
+        return response()->file($targetFile, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'inline; filename="' . basename($targetFile) . '"'
+        ]);
     }
 
     private function checkWhatsappStatus(Request $request, $isTest = false)
@@ -974,7 +1009,6 @@ class AssistantController extends Controller
         $this->configureTimezone($id);
         $this->ensureWebhookLogTableExists();
         $this->ensureChatMessagesTableExists();
-        $this->ensureStorageLinkExists();
 
         try {
             $assistant = Assistant::find($id);
@@ -1174,14 +1208,14 @@ class AssistantController extends Controller
                             $relativePath = $folderPath . '/' . $newFileName;
                             $fullFilePath = $fullDir . '/' . $newFileName;
 
-                            // Gravação e verificação explícita do arquivo físico no servidor
                             $writtenSuccess = Storage::disk('public')->put($relativePath, $mediaBytes);
                             if (!$writtenSuccess || !file_exists($fullFilePath)) {
                                 @file_put_contents($fullFilePath, $mediaBytes);
                             }
 
                             if (file_exists($fullFilePath) && filesize($fullFilePath) > 100) {
-                                $mediaUrlPublic = $request->getSchemeAndHttpHost() . '/storage/' . $relativePath;
+                                // ROTA DIRETA QUE EVITA 404 DO DOCKER / NGINX
+                                $mediaUrlPublic = $request->getSchemeAndHttpHost() . '/?view_file=' . $relativePath;
                                 $savePath = $fullFilePath;
                                 $mediaSaved = true;
 
@@ -1204,7 +1238,7 @@ class AssistantController extends Controller
                             }
                         }
                     } else {
-                        $mediaErrorDetails = "Falha ao baixar anexo da API do WhatsApp (bytes vazios).";
+                        $mediaErrorDetails = "Falha ao baixar anexo da API do WhatsApp.";
                     }
                 } catch (\Throwable $e) {
                     $mediaErrorDetails = "Exceção ao processar anexo: " . $e->getMessage();
@@ -1214,7 +1248,9 @@ class AssistantController extends Controller
                 if ($mediaErrorDetails && !$mediaSaved) {
                     $nowFormatted = now()->setTimezone($this->getTimezone($assistant->id))->toDateTimeString();
                     $rejectMsg = "⚠️ " . $mediaErrorDetails;
-                    $waResult = $this->sendWhatsappMessage($assistant, $sender, $rejectMsg);
+                    
+                    // ENVIA MENSAGEM COM O NÚMERO LIMPO DO WHATSAPP
+                    $waResult = $this->sendWhatsappMessage($assistant, $cleanSender, $rejectMsg);
 
                     DB::table('webhook_logs')->insert([
                         'assistant_id' => $assistant->id,
@@ -1399,18 +1435,18 @@ class AssistantController extends Controller
                 $audioData = $audioService->textToSpeech($separated['audio_text'], $googleKey);
 
                 if ($audioData) {
-                    $waResult = $this->sendWhatsappAudioMessage($assistant, $sender, $audioData);
+                    $waResult = $this->sendWhatsappAudioMessage($assistant, $cleanSender, $audioData);
 
                     if (!empty($separated['extracted_links'])) {
-                        $this->sendWhatsappMessage($assistant, $sender, $separated['extracted_links']);
+                        $this->sendWhatsappMessage($assistant, $cleanSender, $separated['extracted_links']);
                     }
                 } else {
                     $formattedReply = $this->formatTextForWhatsapp($aiReply);
-                    $waResult = $this->sendWhatsappMessage($assistant, $sender, $formattedReply);
+                    $waResult = $this->sendWhatsappMessage($assistant, $cleanSender, $formattedReply);
                 }
             } else {
                 $formattedReply = $this->formatTextForWhatsapp($aiReply);
-                $waResult = $this->sendWhatsappMessage($assistant, $sender, $formattedReply);
+                $waResult = $this->sendWhatsappMessage($assistant, $cleanSender, $formattedReply);
             }
 
             DB::table('webhook_logs')->insert([
