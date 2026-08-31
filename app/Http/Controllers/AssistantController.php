@@ -803,6 +803,26 @@ class AssistantController extends Controller
         return trim($text);
     }
 
+    private function detectExtensionFromBytes(string $bytes): ?string
+    {
+        if (strlen($bytes) < 12) return null;
+
+        $header = substr($bytes, 0, 16);
+
+        if (str_starts_with($header, '%PDF')) return 'pdf';
+        if (str_starts_with($header, "\x89PNG")) return 'png';
+        if (str_starts_with($header, "\xFF\xD8\xFF")) return 'jpg';
+        if (str_starts_with($header, "GIF8")) return 'gif';
+        if (str_starts_with($header, 'RIFF') && substr($bytes, 8, 4) === 'WEBP') return 'webp';
+        if (substr($bytes, 4, 4) === 'ftyp') return 'mp4';
+        if (str_starts_with($header, 'OggS')) return 'ogg';
+        if (str_starts_with($header, 'ID3') || str_starts_with($header, "\xFF\xFB") || str_starts_with($header, "\xFF\xF3")) return 'mp3';
+        if (str_starts_with($header, 'RIFF') && substr($bytes, 8, 4) === 'WAVE') return 'wav';
+        if (str_starts_with($header, "PK\x03\x04")) return 'docx';
+
+        return null;
+    }
+
     private function guessExtension(?string $mime): ?string
     {
         if (empty($mime)) return null;
@@ -987,11 +1007,9 @@ class AssistantController extends Controller
                 ?? $request->input('message.url')
                 ?? null;
 
-            // Áudios restritos a mídias explícitas de voz (sem checar a extensão .enc)
             $isAudioMessage = in_array($msgType, ['ptt', 'audio', 'audiomessage', 'voice']) 
                 || (!empty($mediaUrl) && (str_contains($mediaUrl, '.og') || str_contains($mediaUrl, '.mp3') || str_contains($mediaUrl, 'audio')));
 
-            // Mídias em geral (imagens, vídeos, áudios, documentos e figurinhas)
             $isMediaMessage = $isAudioMessage 
                 || in_array($msgType, ['image', 'video', 'document', 'sticker', 'imagemessage', 'videomessage', 'documentmessage', 'documentwithcaptionmessage']) 
                 || (!empty($mediaUrl) && str_contains($mediaUrl, 'http'));
@@ -1090,11 +1108,44 @@ class AssistantController extends Controller
 
                     if ($mediaBytes && strlen($mediaBytes) > 100) {
                         $fileSize = strlen($mediaBytes);
-                        $mimetype = $msgPayload['mimetype'] ?? $msgPayload['mediaType'] ?? $request->input('mimetype') ?? '';
-                        $fileName = $msgPayload['fileName'] ?? $msgPayload['title'] ?? '';
                         
+                        $mimetype = $msgPayload['mimetype'] 
+                            ?? $msgPayload['documentMessage']['mimetype'] 
+                            ?? $msgPayload['videoMessage']['mimetype'] 
+                            ?? $msgPayload['imageMessage']['mimetype'] 
+                            ?? $msgPayload['audioMessage']['mimetype'] 
+                            ?? $request->input('message.mimetype') 
+                            ?? $request->input('mimetype') 
+                            ?? '';
+
+                        $fileName = $msgPayload['fileName'] 
+                            ?? $msgPayload['documentMessage']['fileName'] 
+                            ?? $msgPayload['title'] 
+                            ?? $request->input('message.fileName') 
+                            ?? '';
+                        
+                        // 1. Tenta extrair extensão do nome do arquivo
                         $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-                        if (!$ext) $ext = $this->guessExtension($mimetype);
+
+                        // 2. Se não achar, lê a Assinatura Binária (Magic Bytes) direto do arquivo baixado
+                        if (!$ext || $ext === 'bin') {
+                            $ext = $this->detectExtensionFromBytes($mediaBytes);
+                        }
+
+                        // 3. Se ainda não achar, adivinha pelo mimetype
+                        if (!$ext) {
+                            $ext = $this->guessExtension($mimetype);
+                        }
+
+                        // 4. Fallback por categoria da mensagem
+                        if (!$ext) {
+                            $mediaTypeClean = strtolower($msgType);
+                            if (str_contains($mediaTypeClean, 'video')) $ext = 'mp4';
+                            elseif (str_contains($mediaTypeClean, 'image')) $ext = 'jpg';
+                            elseif (str_contains($mediaTypeClean, 'document')) $ext = 'pdf';
+                            elseif (str_contains($mediaTypeClean, 'audio') || str_contains($mediaTypeClean, 'voice') || str_contains($mediaTypeClean, 'ptt')) $ext = 'ogg';
+                        }
+
                         if (!$ext) $ext = $isAudioMessage ? 'ogg' : 'bin';
                         $mediaExt = $ext;
 
@@ -1105,7 +1156,6 @@ class AssistantController extends Controller
                         } else {
                             $folderPath = 'uploads/assistants/' . $assistant->id;
                             
-                            // Garante explicitamente a criação da subpasta no Storage Public
                             Storage::disk('public')->makeDirectory($folderPath);
 
                             $newFileName = time() . '_' . rand(1000, 9999) . '.' . $ext;
