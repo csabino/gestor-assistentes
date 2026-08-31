@@ -1074,15 +1074,13 @@ class AssistantController extends Controller
                         } elseif (!empty($allowedExtensions) && !in_array($ext, $allowedExtensions)) {
                             $mediaErrorDetails = "Tipo de arquivo (.{$ext}) não permitido pelo administrador.";
                         } else {
-                            $dir = public_path('uploads/assistants/' . $assistant->id);
-                            if (!file_exists($dir)) {
-                                mkdir($dir, 0777, true);
-                            }
                             $newFileName = time() . '_' . rand(1000, 9999) . '.' . $ext;
-                            $savePath = $dir . '/' . $newFileName;
-                            file_put_contents($savePath, $mediaBytes);
+                            $relativePath = 'uploads/assistants/' . $assistant->id . '/' . $newFileName;
                             
-                            $mediaUrlPublic = $request->getSchemeAndHttpHost() . '/uploads/assistants/' . $assistant->id . '/' . $newFileName;
+                            Storage::disk('public')->put($relativePath, $mediaBytes);
+                            
+                            $mediaUrlPublic = $request->getSchemeAndHttpHost() . '/storage/' . $relativePath;
+                            $savePath = Storage::disk('public')->path($relativePath);
                             $mediaSaved = true;
 
                             if ($isAudioMessage) {
