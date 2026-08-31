@@ -987,10 +987,13 @@ class AssistantController extends Controller
                 ?? $request->input('message.url')
                 ?? null;
 
+            // Áudios restritos a mídias explícitas de voz (sem checar a extensão .enc)
             $isAudioMessage = in_array($msgType, ['ptt', 'audio', 'audiomessage', 'voice']) 
-                || (!empty($mediaUrl) && (str_contains($mediaUrl, '.og') || str_contains($mediaUrl, '.mp3') || str_contains($mediaUrl, 'audio') || str_contains($mediaUrl, '.enc')));
+                || (!empty($mediaUrl) && (str_contains($mediaUrl, '.og') || str_contains($mediaUrl, '.mp3') || str_contains($mediaUrl, 'audio')));
 
-            $isMediaMessage = in_array($msgType, ['image', 'video', 'document', 'audio', 'ptt', 'voice', 'sticker', 'imagemessage', 'videomessage', 'documentmessage', 'audiomessage', 'documentwithcaptionmessage']) 
+            // Mídias em geral (imagens, vídeos, áudios, documentos e figurinhas)
+            $isMediaMessage = $isAudioMessage 
+                || in_array($msgType, ['image', 'video', 'document', 'sticker', 'imagemessage', 'videomessage', 'documentmessage', 'documentwithcaptionmessage']) 
                 || (!empty($mediaUrl) && str_contains($mediaUrl, 'http'));
 
             $rawMessage = $request->input('message.content')
@@ -1027,17 +1030,31 @@ class AssistantController extends Controller
                     $msgPayload = $request->input('message') ?? [];
                     $msgId = $msgPayload['messageid'] ?? $msgPayload['id'] ?? null;
 
-                    $headers = [
-                        'token' => $token,
-                        'Client-Token' => $token,
-                        'client-token' => $token,
-                        'apikey' => $token,
-                        'Content-Type' => 'application/json'
-                    ];
-
                     $mediaBytes = null;
 
-                    if ($baseUrl && $token) {
+                    // CAMADA 1: Leitura via Base64 enviado direto no webhook
+                    $rawB64 = $msgPayload['base64'] 
+                        ?? $msgPayload['content']['base64'] 
+                        ?? $request->input('base64') 
+                        ?? null;
+
+                    if (is_string($rawB64) && strlen($rawB64) > 100) {
+                        $cleanB64 = preg_replace('#^data:[^;]+;base64,#i', '', $rawB64);
+                        $decodedB64 = base64_decode($cleanB64);
+                        if ($decodedB64 && strlen($decodedB64) > 100) {
+                            $mediaBytes = $decodedB64;
+                        }
+                    }
+
+                    // CAMADA 2: Chamada do endpoint oficial de download (/message/download)
+                    if (!$mediaBytes && $baseUrl && $token) {
+                        $headers = [
+                            'token' => $token,
+                            'Client-Token' => $token,
+                            'client-token' => $token,
+                            'apikey' => $token,
+                            'Content-Type' => 'application/json'
+                        ];
                         $url = $baseUrl . '/message/download?token=' . urlencode($token);
                         $payloads = [
                             ['token' => $token, 'id' => $msgId, 'messageid' => $msgId, 'message' => $msgPayload],
@@ -1059,6 +1076,18 @@ class AssistantController extends Controller
                         }
                     }
 
+                    // CAMADA 3: Fallback por GET na URL direta da mídia
+                    if (!$mediaBytes && !empty($mediaUrl) && str_starts_with($mediaUrl, 'http')) {
+                        try {
+                            $dl = Http::timeout(25)->get($mediaUrl);
+                            if ($dl->successful() && strlen($dl->body()) > 100) {
+                                $mediaBytes = $dl->body();
+                            }
+                        } catch (\Throwable $eUrl) {
+                            Log::error("Erro no download direto da mediaUrl: " . $eUrl->getMessage());
+                        }
+                    }
+
                     if ($mediaBytes && strlen($mediaBytes) > 100) {
                         $fileSize = strlen($mediaBytes);
                         $mimetype = $msgPayload['mimetype'] ?? $msgPayload['mediaType'] ?? $request->input('mimetype') ?? '';
@@ -1074,8 +1103,13 @@ class AssistantController extends Controller
                         } elseif (!empty($allowedExtensions) && !in_array($ext, $allowedExtensions)) {
                             $mediaErrorDetails = "Tipo de arquivo (.{$ext}) não permitido pelo administrador.";
                         } else {
+                            $folderPath = 'uploads/assistants/' . $assistant->id;
+                            
+                            // Garante explicitamente a criação da subpasta no Storage Public
+                            Storage::disk('public')->makeDirectory($folderPath);
+
                             $newFileName = time() . '_' . rand(1000, 9999) . '.' . $ext;
-                            $relativePath = 'uploads/assistants/' . $assistant->id . '/' . $newFileName;
+                            $relativePath = $folderPath . '/' . $newFileName;
                             
                             Storage::disk('public')->put($relativePath, $mediaBytes);
                             
