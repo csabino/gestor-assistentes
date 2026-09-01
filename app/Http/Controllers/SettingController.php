@@ -174,7 +174,6 @@ class SettingController extends Controller
             return redirect()->to('/?view=settings&assistant_id=' . $assistantId)->with('error', 'Preencha e salve o Google Client ID antes de conectar.');
         }
 
-        // Força HTTPS para alinhar com o proxy do EasyPanel
         $redirectUri = 'https://' . $request->getHost() . '/?view=settings&action=google_callback';
         
         $params = http_build_query([
@@ -206,57 +205,7 @@ class SettingController extends Controller
             return redirect()->to('/?view=settings&assistant_id=' . $assistantId)->with('error', 'Credenciais de Client ID e Client Secret não encontradas para este assistente.');
         }
 
-        // Força HTTPS para alinhar com a troca de token no Google
         $redirectUri = 'https://' . $request->getHost() . '/?view=settings&action=google_callback';
-
-        try {
-            $response = Http::asForm()->post('https://oauth2.googleapis.com/token', [
-                'client_id' => $clientId,
-                'client_secret' => $clientSecret,
-                'code' => $code,
-                'grant_type' => 'authorization_code',
-                'redirect_uri' => $redirectUri,
-            ]);
-
-            if ($response->successful()) {
-                $refreshToken = $response->json('refresh_token');
-
-                if ($refreshToken) {
-                    Setting::updateOrCreate(
-                        ['assistant_id' => $assistantId, 'key' => 'google_refresh_token'],
-                        ['value' => $refreshToken]
-                    );
-                    return redirect()->to('/?view=settings&assistant_id=' . $assistantId)->with('success', 'Conta do Google autenticada e vinculada com sucesso!');
-                } else {
-                    return redirect()->to('/?view=settings&assistant_id=' . $assistantId)->with('error', 'O Google não retornou o Refresh Token. Certifique-se de revogar a permissão no Google e tentar novamente.');
-                }
-            }
-
-            Log::error('Erro ao obter token do Google: ' . $response->body());
-            return redirect()->to('/?view=settings&assistant_id=' . $assistantId)->with('error', 'Erro ao trocar código por token junto ao Google.');
-        } catch (\Throwable $e) {
-            Log::error('Exceção no callback do Google: ' . $e->getMessage());
-            return redirect()->to('/?view=settings&assistant_id=' . $assistantId)->with('error', 'Exceção na autenticação do Google: ' . $e->getMessage());
-        }
-    }
-
-    private function handleGoogleCallback(Request $request)
-    {
-        $code = $request->input('code');
-        $assistantId = $request->input('state');
-
-        if (!$code || !$assistantId) {
-            return redirect('/')->with('error', 'Falha na autenticação do Google: Código de autorização não recebido.');
-        }
-
-        $clientId = Setting::where('assistant_id', $assistantId)->where('key', 'google_client_id')->value('value');
-        $clientSecret = Setting::where('assistant_id', $assistantId)->where('key', 'google_client_secret')->value('value');
-
-        if (!$clientId || !$clientSecret) {
-            return redirect()->to('/?view=settings&assistant_id=' . $assistantId)->with('error', 'Credenciais de Client ID e Client Secret não encontradas para este assistente.');
-        }
-
-        $redirectUri = $request->getSchemeAndHttpHost() . '/?view=settings&action=google_callback';
 
         try {
             $response = Http::asForm()->post('https://oauth2.googleapis.com/token', [
