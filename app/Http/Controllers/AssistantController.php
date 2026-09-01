@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Assistant;
 use App\Models\Setting;
+use App\Services\GoogleCalendarService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -77,17 +78,36 @@ class AssistantController extends Controller
         if (!Schema::hasTable('departments')) {
             Schema::create('departments', function (Blueprint $table) {
                 $table->id();
+                $table->unsignedBigInteger('assistant_id')->nullable();
                 $table->string('name');
                 $table->timestamps();
             });
         }
 
-        if (!Schema::hasTable('department_members')) {
-            Schema::create('department_members', function (Blueprint $table) {
+        if (!Schema::hasTable('human_agents')) {
+            Schema::create('human_agents', function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('department_id');
                 $table->string('name');
                 $table->string('email');
+                $table->boolean('is_active')->default(true);
+                $table->timestamps();
+            });
+        }
+    }
+
+    private function ensureAppointmentsTableExists()
+    {
+        if (!Schema::hasTable('appointments')) {
+            Schema::create('appointments', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('human_agent_id');
+                $table->dateTime('start_time');
+                $table->dateTime('end_time');
+                $table->string('client_name');
+                $table->string('client_phone');
+                $table->string('client_email');
+                $table->string('status')->default('scheduled');
                 $table->timestamps();
             });
         }
@@ -106,6 +126,7 @@ class AssistantController extends Controller
         $this->ensureAssistantColumnsExist();
         $this->ensureChatMessagesTableExists();
         $this->ensureDepartmentTablesExist();
+        $this->ensureAppointmentsTableExists();
 
         $currentView = $request->input('view', 'robots');
 
@@ -133,7 +154,7 @@ class AssistantController extends Controller
 
         $assistants = Assistant::orderBy('name', 'asc')->get();
         $departments = DB::table('departments')->get();
-        $agents = DB::table('department_members')->get();
+        $agents = DB::table('human_agents')->get();
 
         $configuring = null;
         $lastWebhook = null;
@@ -521,7 +542,7 @@ class AssistantController extends Controller
             return redirect('/?view=equipe')->with('error', 'Preencha todos os campos do agente.');
         }
 
-        $duplicate = DB::table('department_members')
+        $duplicate = DB::table('human_agents')
             ->where('department_id', $departmentId)
             ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
             ->first();
@@ -530,10 +551,11 @@ class AssistantController extends Controller
             return redirect('/?view=equipe')->with('error', "Operação Bloqueada: O e-mail '{$email}' já está cadastrado para o agente '{$duplicate->name}' neste departamento.");
         }
 
-        DB::table('department_members')->insert([
+        DB::table('human_agents')->insert([
             'department_id' => $departmentId,
             'name' => $name,
             'email' => $email,
+            'is_active' => true,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -719,6 +741,27 @@ class AssistantController extends Controller
                 }
             }
             $prompt .= "Solicite estas informações de forma natural e gradual durante a conversa. Não exija tudo de uma vez de forma robótica.\n";
+            $prompt .= "===============================================\n";
+        }
+
+        // MÓDULO DE DEPARTAMENTOS E AGENDAMENTO AUTOMÁTICO DE REUNIÕES
+        $depts = DB::table('departments')->where('assistant_id', $assistant->id)->get();
+        if ($depts->isNotEmpty()) {
+            $prompt .= "\n\n===============================================\n";
+            $prompt .= "MÓDULO DE AGENDAMENTO DE REUNIÕES E DEPARTAMENTOS:\n";
+            $prompt .= "Sempre que o usuário demonstrar interesse em agendar uma reunião, demonstração, orçamento ou tirar dúvidas com um atendente humano, proponha o agendamento.\n";
+            $prompt .= "Departamentos disponíveis para este assistente:\n";
+            foreach ($depts as $d) {
+                $prompt .= "• Setor/Departamento: {$d->name}\n";
+            }
+            $prompt .= "\nPara realizar o agendamento, você DEVE coletar cordialmente do usuário:\n";
+            $prompt .= "1. Data e Horário desejados (ex: 15/09/2026 às 14:00)\n";
+            $prompt .= "2. E-mail principal do cliente (para recebimento do convite do Google Meet)\n";
+            $prompt .= "3. E-mails adicionais de outros participantes da empresa dele (opcional)\n";
+            $prompt .= "4. Qual dos setores acima melhor atende a necessidade dele.\n\n";
+            $prompt .= "Assim que o cliente CONFIRMAR a data, horário, e-mail e setor, você DEVE OBRIGATORIAMENTE incluir no FINAL da sua resposta a tag formatada exatamente assim:\n";
+            $prompt .= '[AGENDAR_REUNIAO: departamento="NOME_DO_SETOR", data_hora_inicio="YYYY-MM-DD HH:MM:SS", email_cliente="email@cliente.com", emails_adicionais="email2@empresa.com,email3@empresa.com"]' . "\n";
+            $prompt .= "Nota: O formato de data_hora_inicio deve ser impreterivelmente YYYY-MM-DD HH:MM:SS (exemplo: 2026-09-05 14:00:00).\n";
             $prompt .= "===============================================\n";
         }
 
@@ -954,11 +997,6 @@ class AssistantController extends Controller
         return null;
     }
 
-    private function extractAudioBytesFromResponse($response): ?string
-    {
-        return $this->extractMediaBytesFromResponse($response);
-    }
-
     private function sendToOmni(string $message, string $pushName, string $type, string $phone, $assistantId = null)
     {
         try {
@@ -1004,11 +1042,168 @@ class AssistantController extends Controller
         return null;
     }
 
+    private function allocateAgentRoundRobin(int $assistantId, int $departmentId, string $startDateTime, string $endDateTime)
+    {
+        $agents = DB::table('human_agents')
+            ->where('department_id', $departmentId)
+            ->where('is_active', 1)
+            ->get();
+
+        if ($agents->isEmpty()) {
+            return null;
+        }
+
+        $availableAgents = [];
+
+        foreach ($agents as $agent) {
+            $hasConflict = DB::table('appointments')
+                ->where('human_agent_id', $agent->id)
+                ->where('status', '!=', 'cancelled')
+                ->where(function ($q) use ($startDateTime, $endDateTime) {
+                    $q->where('start_time', '<', $endDateTime)
+                      ->where('end_time', '>', $startDateTime);
+                })
+                ->exists();
+
+            if (!$hasConflict) {
+                $appointmentCount = DB::table('appointments')
+                    ->where('human_agent_id', $agent->id)
+                    ->where('status', '!=', 'cancelled')
+                    ->count();
+
+                $availableAgents[] = [
+                    'agent' => $agent,
+                    'count' => $appointmentCount
+                ];
+            }
+        }
+
+        if (empty($availableAgents)) {
+            return null;
+        }
+
+        usort($availableAgents, function ($a, $b) {
+            return $a['count'] <=> $b['count'];
+        });
+
+        return $availableAgents[0]['agent'];
+    }
+
+    private function processAppointmentTag(Assistant $assistant, string $aiReply, string $displayName, string $cleanSender): string
+    {
+        if (!preg_match('/\[AGENDAR_REUNIAO:(.*?)\]/s', $aiReply, $matches)) {
+            return $aiReply;
+        }
+
+        $tagContent = $matches[1];
+        
+        $deptName = null;
+        $startDateTimeStr = null;
+        $clientEmail = null;
+        $additionalEmails = [];
+
+        if (preg_match('/departamento=["\']([^"\']+)["\']/i', $tagContent, $m)) {
+            $deptName = trim($m[1]);
+        }
+        if (preg_match('/data_hora_inicio=["\']([^"\']+)["\']/i', $tagContent, $m)) {
+            $startDateTimeStr = trim($m[1]);
+        }
+        if (preg_match('/email_cliente=["\']([^"\']+)["\']/i', $tagContent, $m)) {
+            $clientEmail = trim($m[1]);
+        }
+        if (preg_match('/emails_adicionais=["\']([^"\']+)["\']/i', $tagContent, $m)) {
+            $rawAdd = trim($m[1]);
+            if (!empty($rawAdd)) {
+                $additionalEmails = array_map('trim', explode(',', $rawAdd));
+            }
+        }
+
+        $cleanReply = trim(preg_replace('/\[AGENDAR_REUNIAO:.*?\]/s', '', $aiReply));
+
+        if (!$deptName || !$startDateTimeStr || !$clientEmail) {
+            return $cleanReply;
+        }
+
+        try {
+            $startTime = Carbon::parse($startDateTimeStr);
+            $endTime = (clone $startTime)->addMinutes(30);
+
+            $dept = DB::table('departments')
+                ->where('assistant_id', $assistant->id)
+                ->whereRaw('LOWER(TRIM(name)) = ?', [strtolower($deptName)])
+                ->first();
+
+            if (!$dept) {
+                $dept = DB::table('departments')->where('assistant_id', $assistant->id)->first();
+            }
+
+            if (!$dept) {
+                return $cleanReply . "\n\n⚠️ Desculpe, não foi possível localizar um setor de atendimento configurado para este agendamento.";
+            }
+
+            $allocatedAgent = $this->allocateAgentRoundRobin(
+                $assistant->id,
+                $dept->id,
+                $startTime->toDateTimeString(),
+                $endTime->toDateTimeString()
+            );
+
+            if (!$allocatedAgent) {
+                return $cleanReply . "\n\n⚠️ Não encontramos horários disponíveis com nossa equipe do setor *" . $dept->name . "* para " . $startTime->format('d/m/Y \à\s H:i') . ". Poderia escolher outro horário ou data?";
+            }
+
+            $googleService = new GoogleCalendarService();
+            $meetingResult = $googleService->createMeeting(
+                $assistant->id,
+                "Reunião de Atendimento - " . $displayName,
+                "Agendamento automatizado via WhatsApp para o setor: " . $dept->name,
+                $startTime->toDateTimeString(),
+                $endTime->toDateTimeString(),
+                $allocatedAgent->email,
+                $clientEmail,
+                $additionalEmails
+            );
+
+            $meetLink = $meetingResult['meet_link'] ?? null;
+
+            DB::table('appointments')->insert([
+                'human_agent_id' => $allocatedAgent->id,
+                'start_time' => $startTime->toDateTimeString(),
+                'end_time' => $endTime->toDateTimeString(),
+                'client_name' => $displayName,
+                'client_phone' => $cleanSender,
+                'client_email' => $clientEmail,
+                'status' => 'scheduled',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            $confirmation = "\n\n===============================\n";
+            $confirmation .= "✅ *REUNIÃO CONFIRMADA COM SUCESSO!*\n";
+            $confirmation .= "👤 *Atendente:* " . $allocatedAgent->name . "\n";
+            $confirmation .= "🏢 *Setor:* " . $dept->name . "\n";
+            $confirmation .= "📅 *Data/Hora:* " . $startTime->format('d/m/Y \à\s H:i') . "\n";
+            $confirmation .= "✉️ *Convites enviados para:* " . implode(', ', array_unique(array_filter(array_merge([$clientEmail], $additionalEmails)))) . "\n";
+
+            if ($meetLink) {
+                $confirmation .= "🎥 *Link do Google Meet:* " . $meetLink . "\n";
+            }
+            $confirmation .= "===============================";
+
+            return $cleanReply . $confirmation;
+
+        } catch (\Throwable $e) {
+            Log::error("Erro ao processar tag de agendamento: " . $e->getMessage());
+            return $cleanReply . "\n\n⚠️ Ocorreu um erro ao gerar a reunião no calendário. Por favor, tente novamente em instantes.";
+        }
+    }
+
     public function webhook(Request $request, $id)
     {
         $this->configureTimezone($id);
         $this->ensureWebhookLogTableExists();
         $this->ensureChatMessagesTableExists();
+        $this->ensureAppointmentsTableExists();
 
         try {
             $assistant = Assistant::find($id);
@@ -1080,7 +1275,6 @@ class AssistantController extends Controller
             $mediaUrlPublic = null;
             $mediaExt = '';
 
-            // PROCESSAMENTO DE ANEXOS E ÁUDIOS
             if ($isMediaMessage) {
                 try {
                     $maxFileSizeMb = (int)(Setting::where('assistant_id', $assistant->id)->where('key', 'max_file_size_mb')->value('value') ?? 4);
@@ -1097,7 +1291,6 @@ class AssistantController extends Controller
 
                     $mediaBytes = null;
 
-                    // CAMADA 1: Leitura via Base64 enviado direto no webhook
                     $rawB64 = $msgPayload['base64'] 
                         ?? $msgPayload['content']['base64'] 
                         ?? $request->input('base64') 
@@ -1111,7 +1304,6 @@ class AssistantController extends Controller
                         }
                     }
 
-                    // CAMADA 2: Chamada do endpoint oficial de download (/message/download)
                     if (!$mediaBytes && $baseUrl && $token) {
                         $headers = [
                             'token' => $token,
@@ -1141,7 +1333,6 @@ class AssistantController extends Controller
                         }
                     }
 
-                    // CAMADA 3: Fallback por GET na URL direta da mídia
                     if (!$mediaBytes && !empty($mediaUrl) && str_starts_with($mediaUrl, 'http')) {
                         try {
                             $dl = Http::timeout(25)->get($mediaUrl);
@@ -1214,7 +1405,6 @@ class AssistantController extends Controller
                             }
 
                             if (file_exists($fullFilePath) && filesize($fullFilePath) > 100) {
-                                // ROTA DIRETA QUE EVITA 404 DO DOCKER / NGINX
                                 $mediaUrlPublic = $request->getSchemeAndHttpHost() . '/?view_file=' . $relativePath;
                                 $savePath = $fullFilePath;
                                 $mediaSaved = true;
@@ -1249,7 +1439,6 @@ class AssistantController extends Controller
                     $nowFormatted = now()->setTimezone($this->getTimezone($assistant->id))->toDateTimeString();
                     $rejectMsg = "⚠️ " . $mediaErrorDetails;
                     
-                    // ENVIA MENSAGEM COM O NÚMERO LIMPO DO WHATSAPP
                     $waResult = $this->sendWhatsappMessage($assistant, $cleanSender, $rejectMsg);
 
                     DB::table('webhook_logs')->insert([
@@ -1403,6 +1592,9 @@ class AssistantController extends Controller
             }
 
             $aiReply = str_replace('..', '.', $aiReply);
+
+            // PROCESSAMENTO DA TAG DE AGENDAMENTO AUTOMÁTICO
+            $aiReply = $this->processAppointmentTag($assistant, $aiReply, $displayName, $cleanSender);
 
             $this->sendToOmni($aiReply, $displayName !== 'Cliente' ? $displayName : $cleanSender, 'output', $cleanSender, $assistant->id);
 

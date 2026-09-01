@@ -7,12 +7,22 @@ use App\Models\Setting;
 use App\Models\Assistant;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class SettingController extends Controller
 {
     public function handle(Request $request)
     {
         $this->ensureTableExists();
+
+        if ($request->has('code') || $request->input('action') === 'google_callback') {
+            return $this->handleGoogleCallback($request);
+        }
+
+        if ($request->input('action') === 'google_redirect') {
+            return $this->redirectToGoogle($request);
+        }
 
         if ($request->isMethod('post')) {
             return $this->update($request);
@@ -66,6 +76,12 @@ class SettingController extends Controller
             $allowedExtensions = [];
         }
 
+        // Credenciais do Google Calendar por Assistente
+        $googleClientId = Setting::where('assistant_id', $assistantId)->where('key', 'google_client_id')->value('value') ?? '';
+        $googleClientSecret = Setting::where('assistant_id', $assistantId)->where('key', 'google_client_secret')->value('value') ?? '';
+        $googleCalendarId = Setting::where('assistant_id', $assistantId)->where('key', 'google_calendar_id')->value('value') ?? 'primary';
+        $googleRefreshToken = Setting::where('assistant_id', $assistantId)->where('key', 'google_refresh_token')->value('value') ?? '';
+
         $currentView = 'settings';
 
         return view('settings.index', compact(
@@ -74,6 +90,10 @@ class SettingController extends Controller
             'webhookUrl', 
             'maxFileSize', 
             'allowedExtensions', 
+            'googleClientId',
+            'googleClientSecret',
+            'googleCalendarId',
+            'googleRefreshToken',
             'currentView', 
             'assistant'
         ));
@@ -87,6 +107,10 @@ class SettingController extends Controller
             'omni_webhook_url' => 'nullable|string',
             'max_file_size_mb' => 'required|in:1,2,4,6,8',
             'allowed_extensions' => 'nullable|array',
+            'google_client_id' => 'nullable|string',
+            'google_client_secret' => 'nullable|string',
+            'google_calendar_id' => 'nullable|string',
+            'google_refresh_token' => 'nullable|string',
         ]);
 
         $assistantId = $request->input('assistant_id');
@@ -117,6 +141,100 @@ class SettingController extends Controller
             ['value' => json_encode(array_values($allowedExtensions))]
         );
 
+        // Salvamento das Configurações do Google Calendar
+        Setting::updateOrCreate(
+            ['assistant_id' => $assistantId, 'key' => 'google_client_id'],
+            ['value' => trim($request->input('google_client_id') ?? '')]
+        );
+
+        Setting::updateOrCreate(
+            ['assistant_id' => $assistantId, 'key' => 'google_client_secret'],
+            ['value' => trim($request->input('google_client_secret') ?? '')]
+        );
+
+        Setting::updateOrCreate(
+            ['assistant_id' => $assistantId, 'key' => 'google_calendar_id'],
+            ['value' => trim($request->input('google_calendar_id') ?? 'primary')]
+        );
+
+        Setting::updateOrCreate(
+            ['assistant_id' => $assistantId, 'key' => 'google_refresh_token'],
+            ['value' => trim($request->input('google_refresh_token') ?? '')]
+        );
+
         return redirect()->to('/?view=settings&assistant_id=' . $assistantId)->with('success', 'Configurações atualizadas para este assistente!');
+    }
+
+    private function redirectToGoogle(Request $request)
+    {
+        $assistantId = $request->input('assistant_id');
+        $clientId = Setting::where('assistant_id', $assistantId)->where('key', 'google_client_id')->value('value');
+
+        if (!$clientId) {
+            return redirect()->to('/?view=settings&assistant_id=' . $assistantId)->with('error', 'Preencha e salve o Google Client ID antes de conectar.');
+        }
+
+        $redirectUri = $request->getSchemeAndHttpHost() . '/?view=settings&action=google_callback';
+        
+        $params = http_build_query([
+            'client_id' => $clientId,
+            'redirect_uri' => $redirectUri,
+            'response_type' => 'code',
+            'scope' => 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
+            'access_type' => 'offline',
+            'prompt' => 'consent',
+            'state' => $assistantId,
+        ]);
+
+        return redirect()->to('https://accounts.google.com/o/oauth2/v2/auth?' . $params);
+    }
+
+    private function handleGoogleCallback(Request $request)
+    {
+        $code = $request->input('code');
+        $assistantId = $request->input('state');
+
+        if (!$code || !$assistantId) {
+            return redirect('/')->with('error', 'Falha na autenticação do Google: Código de autorização não recebido.');
+        }
+
+        $clientId = Setting::where('assistant_id', $assistantId)->where('key', 'google_client_id')->value('value');
+        $clientSecret = Setting::where('assistant_id', $assistantId)->where('key', 'google_client_secret')->value('value');
+
+        if (!$clientId || !$clientSecret) {
+            return redirect()->to('/?view=settings&assistant_id=' . $assistantId)->with('error', 'Credenciais de Client ID e Client Secret não encontradas para este assistente.');
+        }
+
+        $redirectUri = $request->getSchemeAndHttpHost() . '/?view=settings&action=google_callback';
+
+        try {
+            $response = Http::asForm()->post('https://oauth2.googleapis.com/token', [
+                'client_id' => $clientId,
+                'client_secret' => $clientSecret,
+                'code' => $code,
+                'grant_type' => 'authorization_code',
+                'redirect_uri' => $redirectUri,
+            ]);
+
+            if ($response->successful()) {
+                $refreshToken = $response->json('refresh_token');
+
+                if ($refreshToken) {
+                    Setting::updateOrCreate(
+                        ['assistant_id' => $assistantId, 'key' => 'google_refresh_token'],
+                        ['value' => $refreshToken]
+                    );
+                    return redirect()->to('/?view=settings&assistant_id=' . $assistantId)->with('success', 'Conta do Google autenticada e vinculada com sucesso!');
+                } else {
+                    return redirect()->to('/?view=settings&assistant_id=' . $assistantId)->with('error', 'O Google não retornou o Refresh Token. Certifique-se de revogar a permissão no Google e tentar novamente.');
+                }
+            }
+
+            Log::error('Erro ao obter token do Google: ' . $response->body());
+            return redirect()->to('/?view=settings&assistant_id=' . $assistantId)->with('error', 'Erro ao trocar código por token junto ao Google.');
+        } catch (\Throwable $e) {
+            Log::error('Exceção no callback do Google: ' . $e->getMessage());
+            return redirect()->to('/?view=settings&assistant_id=' . $assistantId)->with('error', 'Exceção na autenticação do Google: ' . $e->getMessage());
+        }
     }
 }
