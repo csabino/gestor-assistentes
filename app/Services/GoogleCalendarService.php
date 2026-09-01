@@ -56,7 +56,6 @@ class GoogleCalendarService
         $calendarId = Setting::where('assistant_id', $assistantId)->where('key', 'google_calendar_id')->value('value') ?? 'primary';
         if (empty($calendarId)) $calendarId = 'primary';
 
-        // Prepara lista única de e-mails convidados
         $attendees = [];
         $allEmails = array_unique(array_filter(array_merge([$agentEmail, $clientEmail], $additionalEmails)));
 
@@ -113,5 +112,32 @@ class GoogleCalendarService
         }
 
         return null;
+    }
+
+    public function cancelMeeting(int $assistantId, string $eventId): bool
+    {
+        if (empty($eventId)) return false;
+
+        $accessToken = $this->getAccessToken($assistantId);
+        if (!$accessToken) return false;
+
+        $calendarId = Setting::where('assistant_id', $assistantId)->where('key', 'google_calendar_id')->value('value') ?? 'primary';
+        if (empty($calendarId)) $calendarId = 'primary';
+
+        try {
+            $url = "https://www.googleapis.com/calendar/v3/calendars/" . urlencode($calendarId) . "/events/" . urlencode($eventId) . "?sendUpdates=all";
+            
+            $response = Http::withToken($accessToken)->delete($url);
+
+            if ($response->successful() || $response->status() === 404) {
+                return true;
+            }
+
+            Log::error("Erro ao cancelar evento Google Calendar: " . $response->body());
+        } catch (\Throwable $e) {
+            Log::error("Exceção ao cancelar evento no Google Calendar: " . $e->getMessage());
+        }
+
+        return false;
     }
 }

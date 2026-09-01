@@ -102,6 +102,7 @@ class AssistantController extends Controller
             Schema::create('appointments', function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('human_agent_id');
+                $table->string('google_event_id')->nullable();
                 $table->dateTime('start_time');
                 $table->dateTime('end_time');
                 $table->string('client_name');
@@ -110,6 +111,12 @@ class AssistantController extends Controller
                 $table->string('status')->default('scheduled');
                 $table->timestamps();
             });
+        } else {
+            if (!Schema::hasColumn('appointments', 'google_event_id')) {
+                Schema::table('appointments', function (Blueprint $table) {
+                    $table->string('google_event_id')->nullable()->after('human_agent_id');
+                });
+            }
         }
     }
 
@@ -770,20 +777,28 @@ class AssistantController extends Controller
         $depts = DB::table('departments')->where('assistant_id', $assistant->id)->get();
         if ($depts->isNotEmpty()) {
             $prompt .= "\n\n===============================================\n";
-            $prompt .= "MÓDULO DE AGENDAMENTO DE REUNIÕES E DEPARTAMENTOS:\n";
-            $prompt .= "Sempre que o usuário demonstrar interesse em agendar uma reunião, demonstração, orçamento ou tirar dúvidas com um atendente humano, proponha o agendamento.\n";
+            $prompt .= "MÓDULO DE AGENDAMENTO, CANCELAMENTO E REAGENDAMENTO:\n";
             $prompt .= "Departamentos disponíveis para este assistente:\n";
             foreach ($depts as $d) {
                 $prompt .= "• Setor/Departamento: {$d->name}\n";
             }
-            $prompt .= "\nPara realizar o agendamento, você DEVE coletar cordialmente do usuário:\n";
-            $prompt .= "1. Data e Horário desejados (ex: 15/09/2026 às 14:00)\n";
-            $prompt .= "2. E-mail principal do cliente (para recebimento do convite do Google Meet)\n";
-            $prompt .= "3. E-mails adicionais de outros participantes da empresa dele (opcional)\n";
-            $prompt .= "4. Qual dos setores acima melhor atende a necessidade dele.\n\n";
-            $prompt .= "Assim que o cliente CONFIRMAR a data, horário, e-mail e setor, você DEVE OBRIGATORIAMENTE incluir no FINAL da sua resposta a tag formatada exatamente assim:\n";
+
+            $prompt .= "\n1. AGENDAMENTO DE NOVA REUNIÃO:\n";
+            $prompt .= "Para realizar um agendamento, solicite: Data e Horário, E-mail principal do cliente, E-mails adicionais (opcional) e o Setor desejado.\n";
+            $prompt .= "REGRA DE RESPOSTA AO AGENDAR: Responda de forma NEUTRA antes da checagem do sistema (ex: 'Certo! Vou verificar a disponibilidade na agenda do setor e confirmar em seguida.') e adicione no FINAL da mensagem a tag:\n";
             $prompt .= '[AGENDAR_REUNIAO: departamento="NOME_DO_SETOR", data_hora_inicio="YYYY-MM-DD HH:MM:SS", email_cliente="email@cliente.com", emails_adicionais="email2@empresa.com,email3@empresa.com"]' . "\n";
-            $prompt .= "Nota: O formato de data_hora_inicio deve ser impreterivelmente YYYY-MM-DD HH:MM:SS (exemplo: 2026-09-05 14:00:00).\n";
+
+            $prompt .= "\n2. CANCELAMENTO DE REUNIÃO EXISTENTE:\n";
+            $prompt .= "Se o cliente solicitar o cancelamento, solicite obrigatoriamente o e-mail cadastrado e a data/horário do agendamento.\n";
+            $prompt .= "Após a confirmação dos dados, responda de forma neutra e adicione no FINAL da mensagem a tag:\n";
+            $prompt .= '[CANCELAR_REUNIAO: email_cliente="email@cliente.com", data_hora="YYYY-MM-DD HH:MM:SS"]' . "\n";
+
+            $prompt .= "\n3. REAGENDAMENTO / ALTERAÇÃO DE DATA E HORA:\n";
+            $prompt .= "Se o cliente solicitar alterar a data ou horário de uma reunião existente, solicite o e-mail cadastrado, o setor e a NOVA data/horário desejada.\n";
+            $prompt .= "Após a confirmação dos dados, responda de forma neutra e adicione no FINAL da mensagem a tag:\n";
+            $prompt .= '[REAGENDAR_REUNIAO: departamento="NOME_DO_SETOR", nova_data_hora="YYYY-MM-DD HH:MM:SS", email_cliente="email@cliente.com"]' . "\n";
+
+            $prompt .= "Nota: O formato das datas em todas as tags deve ser impreterivelmente YYYY-MM-DD HH:MM:SS.\n";
             $prompt .= "===============================================\n";
         }
 
@@ -1113,6 +1128,137 @@ class AssistantController extends Controller
 
     private function processAppointmentTag(Assistant $assistant, string $aiReply, string $displayName, string $cleanSender): string
     {
+        // 1. PROCESSA CANCELAMENTO DE REUNIÃO
+        if (preg_match('/\[CANCELAR_REUNIAO:(.*?)\]/s', $aiReply, $matches)) {
+            $tagContent = $matches[1];
+            preg_match('/email_cliente=["\']([^"\']+)["\']/i', $tagContent, $mEmail);
+            $emailInput = trim($mEmail[1] ?? '');
+
+            // Validação de Segurança: WhatsApp + E-mail precisam pertencer a um agendamento ativo
+            $appointment = DB::table('appointments')
+                ->where('client_phone', $cleanSender)
+                ->whereRaw('LOWER(TRIM(client_email)) = ?', [strtolower($emailInput)])
+                ->where('status', 'scheduled')
+                ->first();
+
+            if (!$appointment) {
+                return "⚠️ Não encontramos nenhuma reunião ativa para o seu número com o e-mail *{$emailInput}*. Por favor, verifique os dados e tente novamente.";
+            }
+
+            if (!empty($appointment->google_event_id)) {
+                $googleService = new GoogleCalendarService();
+                $googleService->cancelMeeting($assistant->id, $appointment->google_event_id);
+            }
+
+            DB::table('appointments')->where('id', $appointment->id)->update([
+                'status' => 'cancelled',
+                'updated_at' => now()
+            ]);
+
+            return "❌ *REUNIÃO CANCELADA COM SUCESSO!*\n\nO agendamento do dia " . Carbon::parse($appointment->start_time)->format('d/m/Y \à\s H:i') . " foi cancelado. Um e-mail de notificação foi enviado para os participantes.";
+        }
+
+        // 2. PROCESSA REAGENDAMENTO / ALTERAÇÃO DE REUNIÃO
+        if (preg_match('/\[REAGENDAR_REUNIAO:(.*?)\]/s', $aiReply, $matches)) {
+            $tagContent = $matches[1];
+            preg_match('/email_cliente=["\']([^"\']+)["\']/i', $tagContent, $mEmail);
+            preg_match('/nova_data_hora=["\']([^"\']+)["\']/i', $tagContent, $mDate);
+            preg_match('/departamento=["\']([^"\']+)["\']/i', $tagContent, $mDept);
+
+            $emailInput = trim($mEmail[1] ?? '');
+            $newDateStr = trim($mDate[1] ?? '');
+            $deptName = trim($mDept[1] ?? '');
+
+            $existingAppointment = DB::table('appointments')
+                ->where('client_phone', $cleanSender)
+                ->whereRaw('LOWER(TRIM(client_email)) = ?', [strtolower($emailInput)])
+                ->where('status', 'scheduled')
+                ->first();
+
+            if (!$existingAppointment) {
+                return "⚠️ Não encontramos nenhuma reunião ativa para o seu número com o e-mail *{$emailInput}*. Não foi possível alterar a data.";
+            }
+
+            try {
+                $newStartTime = Carbon::parse($newDateStr);
+                $newEndTime = (clone $newStartTime)->addMinutes(30);
+
+                $dept = DB::table('departments')
+                    ->where('assistant_id', $assistant->id)
+                    ->whereRaw('LOWER(TRIM(name)) = ?', [strtolower($deptName)])
+                    ->first() ?? DB::table('departments')->where('assistant_id', $assistant->id)->first();
+
+                if (!$dept) {
+                    return "⚠️ O setor informado não foi localizado para alteração de agendamento.";
+                }
+
+                // Checa disponibilidade no novo horário pelo Round-Robin
+                $allocatedAgent = $this->allocateAgentRoundRobin(
+                    $assistant->id,
+                    $dept->id,
+                    $newStartTime->toDateTimeString(),
+                    $newEndTime->toDateTimeString()
+                );
+
+                if (!$allocatedAgent) {
+                    return "⚠️ Não encontramos horários disponíveis na equipe do setor *" . $dept->name . "* para a nova data/horário (" . $newStartTime->format('d/m/Y \à\s H:i') . "). Sua reunião original permanece mantida sem alterações.";
+                }
+
+                // Cancela o evento anterior no Google e atualiza no banco
+                if (!empty($existingAppointment->google_event_id)) {
+                    $googleService = new GoogleCalendarService();
+                    $googleService->cancelMeeting($assistant->id, $existingAppointment->google_event_id);
+                }
+
+                DB::table('appointments')->where('id', $existingAppointment->id)->update([
+                    'status' => 'rescheduled',
+                    'updated_at' => now()
+                ]);
+
+                // Cria o novo evento
+                $googleService = new GoogleCalendarService();
+                $meetingResult = $googleService->createMeeting(
+                    $assistant->id,
+                    "Reunião de Atendimento (Reagendada) - " . $displayName,
+                    "Agendamento reagendado via WhatsApp para o setor: " . $dept->name,
+                    $newStartTime->toDateTimeString(),
+                    $newEndTime->toDateTimeString(),
+                    $allocatedAgent->email,
+                    $emailInput
+                );
+
+                $meetLink = $meetingResult['meet_link'] ?? null;
+
+                DB::table('appointments')->insert([
+                    'human_agent_id' => $allocatedAgent->id,
+                    'google_event_id' => $meetingResult['event_id'] ?? null,
+                    'start_time' => $newStartTime->toDateTimeString(),
+                    'end_time' => $newEndTime->toDateTimeString(),
+                    'client_name' => $displayName,
+                    'client_phone' => $cleanSender,
+                    'client_email' => $emailInput,
+                    'status' => 'scheduled',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                $confirmation = "🔄 *REUNIÃO REAGENDADA COM SUCESSO!*\n\n";
+                $confirmation .= "👤 *Atendente:* " . $allocatedAgent->name . "\n";
+                $confirmation .= "🏢 *Setor:* " . $dept->name . "\n";
+                $confirmation .= "📅 *Nova Data/Hora:* " . $newStartTime->format('d/m/Y \à\s H:i') . "\n";
+                if ($meetLink) {
+                    $confirmation .= "🎥 *Novo Link do Google Meet:* " . $meetLink . "\n";
+                }
+
+                return $confirmation;
+
+            } catch (\Throwable $e) {
+                Log::error("Erro no reagendamento: " . $e->getMessage());
+                return "⚠️ Ocorreu uma falha ao alterar o agendamento. Tente novamente em instantes.";
+            }
+        }
+
+        // 3. PROCESSA NOVO AGENDAMENTO
         if (!preg_match('/\[AGENDAR_REUNIAO:(.*?)\]/s', $aiReply, $matches)) {
             return $aiReply;
         }
@@ -1140,10 +1286,8 @@ class AssistantController extends Controller
             }
         }
 
-        $cleanReply = trim(preg_replace('/\[AGENDAR_REUNIAO:.*?\]/s', '', $aiReply));
-
         if (!$deptName || !$startDateTimeStr || !$clientEmail) {
-            return $cleanReply;
+            return trim(preg_replace('/\[AGENDAR_REUNIAO:.*?\]/s', '', $aiReply));
         }
 
         try {
@@ -1153,14 +1297,10 @@ class AssistantController extends Controller
             $dept = DB::table('departments')
                 ->where('assistant_id', $assistant->id)
                 ->whereRaw('LOWER(TRIM(name)) = ?', [strtolower($deptName)])
-                ->first();
+                ->first() ?? DB::table('departments')->where('assistant_id', $assistant->id)->first();
 
             if (!$dept) {
-                $dept = DB::table('departments')->where('assistant_id', $assistant->id)->first();
-            }
-
-            if (!$dept) {
-                return $cleanReply . "\n\n⚠️ Desculpe, não foi possível localizar um setor de atendimento configurado para este agendamento.";
+                return "⚠️ Desculpe, não foi possível localizar um setor de atendimento configurado para este agendamento.";
             }
 
             $allocatedAgent = $this->allocateAgentRoundRobin(
@@ -1170,8 +1310,9 @@ class AssistantController extends Controller
                 $endTime->toDateTimeString()
             );
 
+            // Se não houver agente disponível, SUBSTITUI a resposta inicial pelo alerta de indisponibilidade
             if (!$allocatedAgent) {
-                return $cleanReply . "\n\n⚠️ Não encontramos horários disponíveis com nossa equipe do setor *" . $dept->name . "* para " . $startTime->format('d/m/Y \à\s H:i') . ". Poderia escolher outro horário ou data?";
+                return "⚠️ Não encontramos horários disponíveis com nossa equipe do setor *" . $dept->name . "* para " . $startTime->format('d/m/Y \à\s H:i') . ". Poderia escolher outro horário ou data?";
             }
 
             $googleService = new GoogleCalendarService();
@@ -1187,9 +1328,11 @@ class AssistantController extends Controller
             );
 
             $meetLink = $meetingResult['meet_link'] ?? null;
+            $eventId = $meetingResult['event_id'] ?? null;
 
             DB::table('appointments')->insert([
                 'human_agent_id' => $allocatedAgent->id,
+                'google_event_id' => $eventId,
                 'start_time' => $startTime->toDateTimeString(),
                 'end_time' => $endTime->toDateTimeString(),
                 'client_name' => $displayName,
@@ -1200,8 +1343,7 @@ class AssistantController extends Controller
                 'updated_at' => now(),
             ]);
 
-            $confirmation = "\n\n===============================\n";
-            $confirmation .= "✅ *REUNIÃO CONFIRMADA COM SUCESSO!*\n";
+            $confirmation = "✅ *REUNIÃO CONFIRMADA COM SUCESSO!*\n\n";
             $confirmation .= "👤 *Atendente:* " . $allocatedAgent->name . "\n";
             $confirmation .= "🏢 *Setor:* " . $dept->name . "\n";
             $confirmation .= "📅 *Data/Hora:* " . $startTime->format('d/m/Y \à\s H:i') . "\n";
@@ -1210,13 +1352,12 @@ class AssistantController extends Controller
             if ($meetLink) {
                 $confirmation .= "🎥 *Link do Google Meet:* " . $meetLink . "\n";
             }
-            $confirmation .= "===============================";
 
-            return $cleanReply . $confirmation;
+            return $confirmation;
 
         } catch (\Throwable $e) {
             Log::error("Erro ao processar tag de agendamento: " . $e->getMessage());
-            return $cleanReply . "\n\n⚠️ Ocorreu um erro ao gerar a reunião no calendário. Por favor, tente novamente em instantes.";
+            return "⚠️ Ocorreu um erro ao gerar a reunião no calendário. Por favor, tente novamente em instantes.";
         }
     }
 
@@ -1539,6 +1680,12 @@ class AssistantController extends Controller
                 $omniUserName = $dataArr['user_name'] ?? null;
             }
 
+            // REMOÇÃO DOS ZEROS À ESQUERDA DO PROTOCOLO
+            if (!empty($protocolo)) {
+                $protocolo = ltrim((string)$protocolo, '0');
+                if ($protocolo === '') $protocolo = '0';
+            }
+
             if (!empty($omniUserName) && !preg_match('/^[0-9]+$/', trim($omniUserName))) {
                 $displayName = trim($omniUserName);
             }
@@ -1615,7 +1762,7 @@ class AssistantController extends Controller
 
             $aiReply = str_replace('..', '.', $aiReply);
 
-            // PROCESSAMENTO DA TAG DE AGENDAMENTO AUTOMÁTICO
+            // PROCESSAMENTO DAS TAGS DE AGENDAMENTO, CANCELAMENTO E REAGENDAMENTO
             $aiReply = $this->processAppointmentTag($assistant, $aiReply, $displayName, $cleanSender);
 
             $this->sendToOmni($aiReply, $displayName !== 'Cliente' ? $displayName : $cleanSender, 'output', $cleanSender, $assistant->id);
