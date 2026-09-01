@@ -182,7 +182,7 @@ class SettingController extends Controller
             'response_type' => 'code',
             'scope' => 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
             'access_type' => 'offline',
-            'prompt' => 'consent',
+            'prompt' => 'select_account consent', // FORÇA A SELEÇÃO DE CONTAS
             'state' => $assistantId,
         ]);
 
