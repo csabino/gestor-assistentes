@@ -723,7 +723,29 @@ class AssistantController extends Controller
 
     private function buildSystemPromptWithKnowledge(Assistant $assistant): string
     {
-        $prompt = $assistant->system_prompt ?? '';
+        $tz = $this->getTimezone($assistant->id);
+        $now = Carbon::now($tz);
+
+        $diasSemana = [
+            'Sunday' => 'Domingo',
+            'Monday' => 'Segunda-feira',
+            'Tuesday' => 'Terça-feira',
+            'Wednesday' => 'Quarta-feira',
+            'Thursday' => 'Quinta-feira',
+            'Friday' => 'Sexta-feira',
+            'Saturday' => 'Sábado'
+        ];
+        $diaPt = $diasSemana[$now->format('l')] ?? $now->format('l');
+
+        $prompt = "===============================================\n";
+        $prompt .= "CONTEXTO TEMPORAL DO SISTEMA (OBRIGATÓRIO):\n";
+        $prompt .= "• Data e Hora Atual: " . $now->format('d/m/Y \à\s H:i:s') . " ({$diaPt})\n";
+        $prompt .= "• Data Formato ISO: " . $now->format('Y-m-d') . "\n";
+        $prompt .= "• Ano Corrente: " . $now->year . "\n";
+        $prompt .= "DIRETRIZ TEMPORAL: Utilize SEMPRE a data e hora atual acima como referência absoluta para calcular datas relativas mencionadas pelo usuário (ex: 'hoje', 'amanhã', 'depois de amanhã', 'próxima quinta-feira', etc.). Nunca invente ou use anos/datas fictícias.\n";
+        $prompt .= "===============================================\n\n";
+
+        $prompt .= $assistant->system_prompt ?? '';
 
         $leadFields = is_array($assistant->lead_fields) 
             ? $assistant->lead_fields 
