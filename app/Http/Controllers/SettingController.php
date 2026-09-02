@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class SettingController extends Controller
 {
@@ -82,6 +83,14 @@ class SettingController extends Controller
         $googleCalendarId = Setting::where('assistant_id', $assistantId)->where('key', 'google_calendar_id')->value('value') ?? 'primary';
         $googleRefreshToken = Setting::where('assistant_id', $assistantId)->where('key', 'google_refresh_token')->value('value') ?? '';
 
+        // Novas Regras Dinâmicas de Agendamento
+        $schedulingEnabled = Setting::where('assistant_id', $assistantId)->where('key', 'scheduling_enabled')->value('value') ?? '1';
+        $defaultDepartmentId = Setting::where('assistant_id', $assistantId)->where('key', 'default_department_id')->value('value') ?? '';
+        $schedulingCustomPrompt = Setting::where('assistant_id', $assistantId)->where('key', 'scheduling_custom_prompt')->value('value') ?? '';
+
+        // Carrega departamentos cadastrados no sistema
+        $departments = DB::table('departments')->get();
+
         $currentView = 'settings';
 
         return view('settings.index', compact(
@@ -94,6 +103,10 @@ class SettingController extends Controller
             'googleClientSecret',
             'googleCalendarId',
             'googleRefreshToken',
+            'schedulingEnabled',
+            'defaultDepartmentId',
+            'schedulingCustomPrompt',
+            'departments',
             'currentView', 
             'assistant'
         ));
@@ -111,6 +124,9 @@ class SettingController extends Controller
             'google_client_secret' => 'nullable|string',
             'google_calendar_id' => 'nullable|string',
             'google_refresh_token' => 'nullable|string',
+            'scheduling_enabled' => 'required|in:0,1',
+            'default_department_id' => 'nullable|string',
+            'scheduling_custom_prompt' => 'nullable|string',
         ]);
 
         $assistantId = $request->input('assistant_id');
@@ -160,6 +176,22 @@ class SettingController extends Controller
         Setting::updateOrCreate(
             ['assistant_id' => $assistantId, 'key' => 'google_refresh_token'],
             ['value' => trim($request->input('google_refresh_token') ?? '')]
+        );
+
+        // Salvamento das Regras Dinâmicas de Agendamento
+        Setting::updateOrCreate(
+            ['assistant_id' => $assistantId, 'key' => 'scheduling_enabled'],
+            ['value' => $request->input('scheduling_enabled', '1')]
+        );
+
+        Setting::updateOrCreate(
+            ['assistant_id' => $assistantId, 'key' => 'default_department_id'],
+            ['value' => trim($request->input('default_department_id') ?? '')]
+        );
+
+        Setting::updateOrCreate(
+            ['assistant_id' => $assistantId, 'key' => 'scheduling_custom_prompt'],
+            ['value' => trim($request->input('scheduling_custom_prompt') ?? '')]
         );
 
         return redirect()->to('/?view=settings&assistant_id=' . $assistantId)->with('success', 'Configurações atualizadas para este assistente!');

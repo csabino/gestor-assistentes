@@ -73,10 +73,9 @@
         <form id="settingsForm" action="/?view=settings" method="POST" class="container mx-auto px-6 max-w-6xl pb-12">
             @csrf
             
-            <!-- CAMPO OCULTO QUE RESOLVE O PROBLEMA DE SALVAR -->
             <input type="hidden" name="assistant_id" value="{{ $assistant->id }}">
 
-            <!-- CABEÇALHO FIXO / CONGELADO (STICKY) COM VOLTAR -->
+            <!-- CABEÇALHO FIXO -->
             <div class="sticky top-0 z-40 bg-gray-50/90 backdrop-blur-md py-4 mb-6 border-b border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm -mx-6 px-6">
                 <div class="flex items-center gap-4">
                     <a href="/?configure={{ $assistant->id }}" class="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1.5 text-sm transition bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-100 shadow-sm">
@@ -85,7 +84,7 @@
                     <div class="h-6 w-px bg-gray-300 hidden md:block"></div>
                     <div>
                         <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">Configurações Avançadas — {{ $assistant->name }}</h1>
-                        <p class="text-xs text-gray-500 mt-0.5">Gerencie fuso horário, integrações e anexos para este assistente.</p>
+                        <p class="text-xs text-gray-500 mt-0.5">Gerencie fuso horário, agendamento, integrações e anexos para este assistente.</p>
                     </div>
                 </div>
                 
@@ -121,7 +120,7 @@
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
-                <!-- Card 1: Fuso Horário (1/3 de largura) -->
+                <!-- Card 1: Fuso Horário -->
                 <div class="md:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-between">
                     <div>
                         <h2 class="text-base font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
@@ -129,7 +128,6 @@
                             Fuso Horário
                         </h2>
                         
-                        <!-- SELECT COM FILTRO DE BUSCA (ALPINE JS) -->
                         <div x-data="{
                             open: false,
                             search: '',
@@ -150,7 +148,7 @@
                             </button>
 
                             <div x-show="open" @click.away="open = false" x-cloak class="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 p-2 max-h-60 overflow-hidden flex flex-col">
-                                <input type="text" x-model="search" placeholder="Digite 3+ letras (ex: Sao)..." class="w-full border border-gray-300 rounded-md p-2 text-xs mb-2 outline-none focus:border-indigo-500">
+                                <input type="text" x-model="search" placeholder="Digite 3+ letras..." class="w-full border border-gray-300 rounded-md p-2 text-xs mb-2 outline-none focus:border-indigo-500">
                                 <div class="overflow-y-auto max-h-40 custom-scroll">
                                     <template x-for="tz in filteredTimezones" :key="tz">
                                         <button type="button" @click="selected = tz; open = false; search = ''" class="w-full text-left px-2.5 py-1.5 text-xs text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 rounded transition font-medium truncate block" :class="selected === tz ? 'bg-indigo-50 text-indigo-600 font-bold' : ''" x-text="tz"></button>
@@ -162,11 +160,11 @@
                     </div>
 
                     <p class="text-xs text-gray-400 mt-4 leading-relaxed border-t border-gray-50 pt-3">
-                        Agendamentos, logs e mensagens<br>utilizarão este fuso horário oficial.
+                        Agendamentos, logs e mensagens utilizarão este fuso horário oficial.
                     </p>
                 </div>
 
-                <!-- Card 2: Webhook Multiagentes (2/3 de largura) -->
+                <!-- Card 2: Webhook Multiagentes -->
                 <div class="md:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-between">
                     <div>
                         <h2 class="text-base font-bold text-gray-800 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
@@ -183,7 +181,50 @@
                     </p>
                 </div>
 
-                <!-- Card 3: Integração Google Calendar & Meet (Largura Total = md:col-span-3) -->
+                <!-- CARD NOVO: Regras & Diretrizes de Agendamento de Reuniões -->
+                <div class="md:col-span-3 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h2 class="text-base font-bold text-gray-800 border-b border-gray-100 pb-3 mb-5 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008z" />
+                        </svg>
+                        Regras & Diretrizes de Agendamento
+                    </h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Ativar/Desativar Agendamento -->
+                        <div class="md:col-span-1">
+                            <label for="scheduling_enabled" class="block text-xs font-semibold text-gray-700 mb-1">Módulo de Agendamento</label>
+                            <select name="scheduling_enabled" id="scheduling_enabled" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs font-medium text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                                <option value="1" {{ ($schedulingEnabled ?? '1') == '1' ? 'selected' : '' }}>Habilitado</option>
+                                <option value="0" {{ ($schedulingEnabled ?? '1') == '0' ? 'selected' : '' }}>Desabilitado</option>
+                            </select>
+                            <p class="text-[11px] text-gray-400 mt-1">Define se o assistente deve propor reuniões ativamente.</p>
+                        </div>
+
+                        <!-- Setor Padrão / Prioritário -->
+                        <div class="md:col-span-2">
+                            <label for="default_department_id" class="block text-xs font-semibold text-gray-700 mb-1">Setor Padrão / Prioritário para Agendamentos</label>
+                            <select name="default_department_id" id="default_department_id" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs font-medium text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                                <option value="">Nenhum (Deixar a IA perguntar sem assumir padrão)</option>
+                                @foreach($departments as $dept)
+                                    <option value="{{ $dept->id }}" {{ ($defaultDepartmentId ?? '') == $dept->id ? 'selected' : '' }}>
+                                        {{ $dept->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <p class="text-[11px] text-gray-400 mt-1">O setor selecionado será assumido como padrão pela IA durante o fluxo de agendamento.</p>
+                        </div>
+
+                        <!-- Prompt/Diretriz Customizada do Agendamento -->
+                        <div class="md:col-span-3">
+                            <label for="scheduling_custom_prompt" class="block text-xs font-semibold text-gray-700 mb-1">Instruções Customizadas para Agendamento (Opcional)</label>
+                            <textarea name="scheduling_custom_prompt" id="scheduling_custom_prompt" rows="3" placeholder="Ex: Sempre reforce que nossas reuniões duram 30 minutos. Se o cliente for do setor de TI, informe que a equipe de Produtos também pode participar." class="w-full border border-gray-300 rounded-lg p-2.5 text-xs font-sans text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none resize-y">{{ $schedulingCustomPrompt ?? '' }}</textarea>
+                            <p class="text-[11px] text-gray-400 mt-1">Orientações específicas que serão injetadas dinamicamente no prompt do assistente para conduzir os agendamentos.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 3: Integração Google Calendar & Meet -->
                 <div class="md:col-span-3 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-3 mb-5 gap-3">
                         <h2 class="text-base font-bold text-gray-800 flex items-center gap-2">
@@ -193,7 +234,6 @@
                             Integração Google Calendar & Meet
                         </h2>
 
-                        <!-- BOTÃO CONECTAR OAUTH GOOGLE -->
                         <a href="/?view=settings&action=google_redirect&assistant_id={{ $assistant->id }}" class="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 font-bold py-2 px-4 rounded-lg text-xs transition shadow-sm flex items-center justify-center gap-2 shrink-0">
                             <svg class="w-4 h-4" viewBox="0 0 24 24">
                                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -239,7 +279,7 @@
                     </p>
                 </div>
 
-                <!-- Card 4: Controle de Anexos (Largura Total = md:col-span-3) -->
+                <!-- Card 4: Controle de Anexos -->
                 <div class="md:col-span-3 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                     <h2 class="text-base font-bold text-gray-800 border-b border-gray-100 pb-3 mb-5 flex items-center gap-2">
                         <svg class="w-5 h-5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" /></svg>
@@ -247,7 +287,6 @@
                     </h2>
 
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <!-- Tamanho Máximo em MB -->
                         <div class="md:col-span-1 border-r border-gray-100 pr-4">
                             <label class="block text-xs font-semibold text-gray-700 mb-2">Tamanho Máximo por Anexo</label>
                             <select name="max_file_size_mb" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs font-medium text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm cursor-pointer bg-white">
@@ -262,12 +301,10 @@
                             </p>
                         </div>
 
-                        <!-- Extensões Permitidas -->
                         <div class="md:col-span-3">
                             <label class="block text-xs font-semibold text-gray-700 mb-3">Extensões Permitidas (Recebimento / Envio)</label>
                             
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                
                                 <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
                                     <h4 class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 border-b border-gray-200 pb-1">Imagens</h4>
                                     <div class="space-y-1.5">
@@ -315,7 +352,6 @@
                                         @endforeach
                                     </div>
                                 </div>
-
                             </div>
                         </div>
                     </div>
