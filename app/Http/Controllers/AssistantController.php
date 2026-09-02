@@ -773,38 +773,56 @@ class AssistantController extends Controller
             $prompt .= "===============================================\n";
         }
 
-        // MÓDULO DE DEPARTAMENTOS E AGENDAMENTO AUTOMÁTICO DE REUNIÕES
-        $depts = DB::table('departments')->where('assistant_id', $assistant->id)->get();
-        if ($depts->isNotEmpty()) {
-            $prompt .= "\n\n===============================================\n";
-            $prompt .= "MÓDULO DE AGENDAMENTO, CANCELAMENTO E REAGENDAMENTO:\n";
-            $prompt .= "Departamentos disponíveis para este assistente:\n";
-            foreach ($depts as $d) {
-                $prompt .= "• Setor/Departamento: {$d->name}\n";
+        // MÓDULO DINÂMICO DE DEPARTAMENTOS E AGENDAMENTO DE REUNIÕES
+        $schedulingEnabled = Setting::where('assistant_id', $assistant->id)->where('key', 'scheduling_enabled')->value('value') ?? '1';
+
+        if ($schedulingEnabled === '1') {
+            $depts = DB::table('departments')->get();
+            if ($depts->isNotEmpty()) {
+                $deptNames = $depts->pluck('name')->toArray();
+                $defaultDeptId = Setting::where('assistant_id', $assistant->id)->where('key', 'default_department_id')->value('value');
+                $defaultDept = $defaultDeptId ? DB::table('departments')->where('id', $defaultDeptId)->first() : null;
+                $schedulingCustomPrompt = Setting::where('assistant_id', $assistant->id)->where('key', 'scheduling_custom_prompt')->value('value');
+
+                $prompt .= "\n\n===============================================\n";
+                $prompt .= "MÓDULO DE AGENDAMENTO, CANCELAMENTO E REAGENDAMENTO:\n";
+                $prompt .= "Departamentos disponíveis no sistema:\n";
+                foreach ($depts as $d) {
+                    $prompt .= "• Setor/Departamento: {$d->name}\n";
+                }
+
+                if ($defaultDept) {
+                    $otherDepts = array_diff($deptNames, [$defaultDept->name]);
+                    $prompt .= "\nDIRETRIZ DE SETOR PADRÃO: Assuma por padrão que o agendamento é para o setor '{$defaultDept->name}'. ";
+                    if (!empty($otherDepts)) {
+                        $prompt .= "Mencione ao cliente que o setor padrão sugerido é '{$defaultDept->name}', mas informe que também estão disponíveis os setores: " . implode(', ', $otherDepts) . ".\n";
+                    } else {
+                        $prompt .= "Informe ao cliente que o agendamento será realizado com o setor '{$defaultDept->name}'.\n";
+                    }
+                } else {
+                    $prompt .= "\nDIRETRIZ DE SETOR: Apresente os setores disponíveis acima ao cliente para que ele escolha, sem assumir nenhum padrão prévio.\n";
+                }
+
+                if (!empty(trim($schedulingCustomPrompt ?? ''))) {
+                    $prompt .= "\nINSTRUÇÕES CUSTOMIZADAS DA EMPRESA PARA O FLUXO DE AGENDAMENTO:\n";
+                    $prompt .= trim($schedulingCustomPrompt) . "\n";
+                }
+
+                $prompt .= "\n1. AGENDAMENTO DE NOVA REUNIÃO:\n";
+                $prompt .= "Após obter a confirmação final dos dados do cliente, responda com uma frase neutra antes da checagem do sistema e inclua no FINAL da mensagem a tag:\n";
+                $prompt .= '[AGENDAR_REUNIAO: departamento="NOME_DO_SETOR", data_hora_inicio="YYYY-MM-DD HH:MM:SS", email_cliente="email@cliente.com", emails_adicionais="email2@empresa.com,email3@empresa.com"]' . "\n";
+
+                $prompt .= "\n2. CANCELAMENTO DE REUNIÃO EXISTENTE:\n";
+                $prompt .= "Se o cliente solicitar cancelamento e confirmar o e-mail e data/horário, adicione no FINAL da mensagem a tag:\n";
+                $prompt .= '[CANCELAR_REUNIAO: email_cliente="email@cliente.com", data_hora="YYYY-MM-DD HH:MM:SS"]' . "\n";
+
+                $prompt .= "\n3. REAGENDAMENTO / ALTERAÇÃO DE DATA E HORA:\n";
+                $prompt .= "Se o cliente solicitar alterar data/horário e confirmar os novos dados, adicione no FINAL da mensagem a tag:\n";
+                $prompt .= '[REAGENDAR_REUNIAO: departamento="NOME_DO_SETOR", nova_data_hora="YYYY-MM-DD HH:MM:SS", email_cliente="email@cliente.com"]' . "\n";
+
+                $prompt .= "\nNota: O formato das datas em todas as tags deve ser impreterivelmente YYYY-MM-DD HH:MM:SS.\n";
+                $prompt .= "===============================================\n";
             }
-
-            $prompt .= "\n1. AGENDAMENTO DE NOVA REUNIÃO:\n";
-            $prompt .= "Para realizar um agendamento, solicite em etapas:\n";
-            $prompt .= "a) Setor desejado;\n";
-            $prompt .= "b) Data e Horário;\n";
-            $prompt .= "c) E-mail principal do cliente;\n";
-            $prompt .= "d) PERGUNTA OBRIGATÓRIA DE CONVITADOS: Assim que o cliente fornecer o e-mail principal, você DEVE perguntar se ele deseja incluir o e-mail de mais algum participante ou colega de equipe no convite da reunião.\n";
-            $prompt .= "REGRA DE DISPARO: É ESTRITAMENTE PROIBIDO incluir a tag [AGENDAR_REUNIAO:...] antes de fazer essa pergunta e receber a resposta do cliente (seja ele informando novos e-mails ou dizendo que é apenas ele).\n";
-            $prompt .= "Após a confirmação final dos convidados, responda de forma neutra (ex: 'Certo! Vou verificar a disponibilidade na agenda do setor e confirmar em seguida.') e adicione no FINAL da mensagem a tag:\n";
-            $prompt .= '[AGENDAR_REUNIAO: departamento="NOME_DO_SETOR", data_hora_inicio="YYYY-MM-DD HH:MM:SS", email_cliente="email@cliente.com", emails_adicionais="email2@empresa.com,email3@empresa.com"]' . "\n";
-
-            $prompt .= "\n2. CANCELAMENTO DE REUNIÃO EXISTENTE:\n";
-            $prompt .= "Se o cliente solicitar o cancelamento, solicite obrigatoriamente o e-mail cadastrado e a data/horário do agendamento.\n";
-            $prompt .= "Após a confirmação dos dados, responda de forma neutra e adicione no FINAL da mensagem a tag:\n";
-            $prompt .= '[CANCELAR_REUNIAO: email_cliente="email@cliente.com", data_hora="YYYY-MM-DD HH:MM:SS"]' . "\n";
-
-            $prompt .= "\n3. REAGENDAMENTO / ALTERAÇÃO DE DATA E HORA:\n";
-            $prompt .= "Se o cliente solicitar alterar a data ou horário de uma reunião existente, solicite o e-mail cadastrado, o setor e a NOVA data/horário desejada.\n";
-            $prompt .= "Após a confirmação dos dados, responda de forma neutra e adicione no FINAL da mensagem a tag:\n";
-            $prompt .= '[REAGENDAR_REUNIAO: departamento="NOME_DO_SETOR", nova_data_hora="YYYY-MM-DD HH:MM:SS", email_cliente="email@cliente.com"]' . "\n";
-
-            $prompt .= "Nota: O formato das datas em todas as tags deve ser impreterivelmente YYYY-MM-DD HH:MM:SS.\n";
-            $prompt .= "===============================================\n";
         }
 
         $files = $assistant->knowledge_files;
@@ -1139,7 +1157,6 @@ class AssistantController extends Controller
             preg_match('/email_cliente=["\']([^"\']+)["\']/i', $tagContent, $mEmail);
             $emailInput = trim($mEmail[1] ?? '');
 
-            // Validação de Segurança: WhatsApp + E-mail precisam pertencer a um agendamento ativo
             $appointment = DB::table('appointments')
                 ->where('client_phone', $cleanSender)
                 ->whereRaw('LOWER(TRIM(client_email)) = ?', [strtolower($emailInput)])
@@ -1189,15 +1206,13 @@ class AssistantController extends Controller
                 $newEndTime = (clone $newStartTime)->addMinutes(30);
 
                 $dept = DB::table('departments')
-                    ->where('assistant_id', $assistant->id)
                     ->whereRaw('LOWER(TRIM(name)) = ?', [strtolower($deptName)])
-                    ->first() ?? DB::table('departments')->where('assistant_id', $assistant->id)->first();
+                    ->first() ?? DB::table('departments')->first();
 
                 if (!$dept) {
                     return "⚠️ O setor informado não foi localizado para alteração de agendamento.";
                 }
 
-                // Checa disponibilidade no novo horário pelo Round-Robin
                 $allocatedAgent = $this->allocateAgentRoundRobin(
                     $assistant->id,
                     $dept->id,
@@ -1209,7 +1224,6 @@ class AssistantController extends Controller
                     return "⚠️ Não encontramos horários disponíveis na equipe do setor *" . $dept->name . "* para a nova data/horário (" . $newStartTime->format('d/m/Y \à\s H:i') . "). Sua reunião original permanece mantida sem alterações.";
                 }
 
-                // Cancela o evento anterior no Google e atualiza no banco
                 if (!empty($existingAppointment->google_event_id)) {
                     $googleService = new GoogleCalendarService();
                     $googleService->cancelMeeting($assistant->id, $existingAppointment->google_event_id);
@@ -1220,7 +1234,6 @@ class AssistantController extends Controller
                     'updated_at' => now()
                 ]);
 
-                // Cria o novo evento
                 $googleService = new GoogleCalendarService();
                 $meetingResult = $googleService->createMeeting(
                     $assistant->id,
@@ -1300,9 +1313,8 @@ class AssistantController extends Controller
             $endTime = (clone $startTime)->addMinutes(30);
 
             $dept = DB::table('departments')
-                ->where('assistant_id', $assistant->id)
                 ->whereRaw('LOWER(TRIM(name)) = ?', [strtolower($deptName)])
-                ->first() ?? DB::table('departments')->where('assistant_id', $assistant->id)->first();
+                ->first() ?? DB::table('departments')->first();
 
             if (!$dept) {
                 return "⚠️ Desculpe, não foi possível localizar um setor de atendimento configurado para este agendamento.";
@@ -1315,7 +1327,6 @@ class AssistantController extends Controller
                 $endTime->toDateTimeString()
             );
 
-            // Se não houver agente disponível, SUBSTITUI a resposta inicial pelo alerta de indisponibilidade
             if (!$allocatedAgent) {
                 return "⚠️ Não encontramos horários disponíveis com nossa equipe do setor *" . $dept->name . "* para " . $startTime->format('d/m/Y \à\s H:i') . ". Poderia escolher outro horário ou data?";
             }
@@ -1685,7 +1696,6 @@ class AssistantController extends Controller
                 $omniUserName = $dataArr['user_name'] ?? null;
             }
 
-            // REMOÇÃO DOS ZEROS À ESQUERDA DO PROTOCOLO
             if (!empty($protocolo)) {
                 $protocolo = ltrim((string)$protocolo, '0');
                 if ($protocolo === '') $protocolo = '0';
@@ -1767,7 +1777,6 @@ class AssistantController extends Controller
 
             $aiReply = str_replace('..', '.', $aiReply);
 
-            // PROCESSAMENTO DAS TAGS DE AGENDAMENTO, CANCELAMENTO E REAGENDAMENTO
             $aiReply = $this->processAppointmentTag($assistant, $aiReply, $displayName, $cleanSender);
 
             $this->sendToOmni($aiReply, $displayName !== 'Cliente' ? $displayName : $cleanSender, 'output', $cleanSender, $assistant->id);
