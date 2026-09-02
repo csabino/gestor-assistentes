@@ -218,7 +218,21 @@
                         <!-- Prompt/Diretriz Customizada do Agendamento -->
                         <div class="md:col-span-3">
                             <label for="scheduling_custom_prompt" class="block text-xs font-semibold text-gray-700 mb-1">Instruções Customizadas para Agendamento (Opcional)</label>
-                            <textarea name="scheduling_custom_prompt" id="scheduling_custom_prompt" rows="3" placeholder="Ex: Sempre reforce que nossas reuniões duram 30 minutos. Se o cliente for do setor de TI, informe que a equipe de Produtos também pode participar." class="w-full border border-gray-300 rounded-lg p-2.5 text-xs font-sans text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none resize-y">{{ $schedulingCustomPrompt ?? '' }}</textarea>
+                            <textarea 
+                                name="scheduling_custom_prompt" 
+                                id="scheduling_custom_prompt" 
+                                x-data="{ 
+                                    resize() { 
+                                        $el.style.height = 'auto'; 
+                                        $el.style.height = Math.max($el.scrollHeight, 90) + 'px'; 
+                                    } 
+                                }"
+                                x-init="$nextTick(() => resize())"
+                                @input="resize()"
+                                rows="3" 
+                                placeholder="Ex: Sempre reforce que nossas reuniões duram 30 minutos. Se o cliente for do setor de TI, informe que a equipe de Produtos também pode participar." 
+                                class="w-full border border-gray-300 rounded-lg p-2.5 text-xs font-sans text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none resize-y transition-all"
+                            >{{ $schedulingCustomPrompt ?? '' }}</textarea>
                             <p class="text-[11px] text-gray-400 mt-1">Orientações específicas que serão injetadas dinamicamente no prompt do assistente para conduzir os agendamentos.</p>
                         </div>
                     </div>
