@@ -784,8 +784,13 @@ class AssistantController extends Controller
             }
 
             $prompt .= "\n1. AGENDAMENTO DE NOVA REUNIÃO:\n";
-            $prompt .= "Para realizar um agendamento, solicite: Data e Horário, E-mail principal do cliente, E-mails adicionais (opcional) e o Setor desejado.\n";
-            $prompt .= "REGRA DE RESPOSTA AO AGENDAR: Responda de forma NEUTRA antes da checagem do sistema (ex: 'Certo! Vou verificar a disponibilidade na agenda do setor e confirmar em seguida.') e adicione no FINAL da mensagem a tag:\n";
+            $prompt .= "Para realizar um agendamento, solicite em etapas:\n";
+            $prompt .= "a) Setor desejado;\n";
+            $prompt .= "b) Data e Horário;\n";
+            $prompt .= "c) E-mail principal do cliente;\n";
+            $prompt .= "d) PERGUNTA OBRIGATÓRIA DE CONVITADOS: Assim que o cliente fornecer o e-mail principal, você DEVE perguntar se ele deseja incluir o e-mail de mais algum participante ou colega de equipe no convite da reunião.\n";
+            $prompt .= "REGRA DE DISPARO: É ESTRITAMENTE PROIBIDO incluir a tag [AGENDAR_REUNIAO:...] antes de fazer essa pergunta e receber a resposta do cliente (seja ele informando novos e-mails ou dizendo que é apenas ele).\n";
+            $prompt .= "Após a confirmação final dos convidados, responda de forma neutra (ex: 'Certo! Vou verificar a disponibilidade na agenda do setor e confirmar em seguida.') e adicione no FINAL da mensagem a tag:\n";
             $prompt .= '[AGENDAR_REUNIAO: departamento="NOME_DO_SETOR", data_hora_inicio="YYYY-MM-DD HH:MM:SS", email_cliente="email@cliente.com", emails_adicionais="email2@empresa.com,email3@empresa.com"]' . "\n";
 
             $prompt .= "\n2. CANCELAMENTO DE REUNIÃO EXISTENTE:\n";
