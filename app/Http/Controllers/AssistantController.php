@@ -1696,20 +1696,15 @@ class AssistantController extends Controller
                 $omniUserName = $dataArr['user_name'] ?? null;
             }
 
+            // LIMPEZA DOS ZEROS À ESQUERDA DO PROTOCOLO
+            $protocoloClean = null;
             if (!empty($protocolo)) {
-                $protocolo = ltrim((string)$protocolo, '0');
-                if ($protocolo === '') $protocolo = '0';
+                $protocoloClean = ltrim((string)$protocolo, '0');
+                if ($protocoloClean === '') $protocoloClean = '0';
             }
 
             if (!empty($omniUserName) && !preg_match('/^[0-9]+$/', trim($omniUserName))) {
                 $displayName = trim($omniUserName);
-            }
-
-            if ($isNewTicket) {
-                DB::table('chat_messages')
-                    ->where('assistant_id', $assistant->id)
-                    ->where('phone_number', $cleanSender)
-                    ->delete();
             }
 
             $contextLimit = (int) ($assistant->context_limit ?? 12);
@@ -1735,7 +1730,15 @@ class AssistantController extends Controller
                 ];
             }
 
-            $isFirstMessage = ($assistantMsgCount === 0 || $isNewTicket);
+            // DADOS DO ATENDIMENTO E PROTOCOLO APENAS SE FOR A PRIMEIRA MENSAGEM DO ASSISTENTE
+            $isFirstMessage = ($assistantMsgCount === 0);
+
+            if ($isNewTicket && $assistantMsgCount === 0) {
+                DB::table('chat_messages')
+                    ->where('assistant_id', $assistant->id)
+                    ->where('phone_number', $cleanSender)
+                    ->delete();
+            }
 
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
 
@@ -1744,9 +1747,8 @@ class AssistantController extends Controller
 
             if ($isFirstMessage) {
                 $systemPrompt .= "• Nome do Cliente: " . $displayName . "\n";
-                if (!empty($protocolo)) {
-                    $systemPrompt .= "• Número do Protocolo: " . $protocolo . "\n";
-                    $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA DE SAUDAÇÃO: Esta é a PRIMEIRA MENSAGEM do atendimento. Você DEVE obrigatoriamente saudar o cliente pelo nome (" . $displayName . ") e informar o número do protocolo (" . $protocolo . ").\n";
+                if (!empty($protocoloClean)) {
+                    $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA DE SAUDAÇÃO: Esta é a PRIMEIRA MENSAGEM do atendimento. Você DEVE saudar o cliente pelo nome (" . $displayName . "). É ESTRITAMENTE PROIBIDO escrever, inventar ou citar qualquer número de protocolo na sua resposta, pois o sistema adicionará o protocolo automaticamente no início da mensagem.\n";
                 } else {
                     $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA DE SAUDAÇÃO: Esta é a PRIMEIRA MENSAGEM do atendimento. Você DEVE obrigatoriamente saudar o cliente pelo nome (" . $displayName . ").\n";
                 }
@@ -1764,21 +1766,33 @@ class AssistantController extends Controller
             }
 
             if ($isFirstMessage) {
-                if (!empty($protocolo)) {
-                    $aiReply = str_replace(['#PROTOCOLO#', '[PROTOCOLO]', '[Número do Protocolo]'], $protocolo, $aiReply);
+                if (!empty($protocoloClean)) {
+                    $aiReply = str_replace(['#PROTOCOLO#', '[PROTOCOLO]', '[Número do Protocolo]'], $protocoloClean, $aiReply);
+                    $aiReply = preg_replace('/Seu protocolo (de atendimento )?[é|é]:?\s*\d*/i', '', $aiReply);
 
-                    if (strpos($aiReply, (string)$protocolo) === false) {
-                        $aiReply = "🎫 *Protocolo:* " . $protocolo . "\n\n" . $aiReply;
+                    if (strpos($aiReply, $protocoloClean) === false) {
+                        $aiReply = "🎫 *Protocolo:* " . $protocoloClean . "\n\n" . trim($aiReply);
                     }
                 }
             } else {
+                // HIGIENIZAÇÃO RIGOROSA DE PROTOCOLO EM MENSAGENS SUBSEQUENTES
                 $aiReply = str_replace(['#PROTOCOLO#', '[PROTOCOLO]', '[Número do Protocolo]'], '', $aiReply);
+                if (!empty($protocolo)) {
+                    $aiReply = str_replace($protocolo, '', $aiReply);
+                }
+                if (!empty($protocoloClean)) {
+                    $aiReply = str_replace($protocoloClean, '', $aiReply);
+                }
+                $aiReply = preg_replace('/🎫\s*\*?Protocolo:\*?\s*\d*\n*/i', '', $aiReply);
+                $aiReply = preg_replace('/\*?Protocolo:\*?\s*\d*\n*/i', '', $aiReply);
+                $aiReply = preg_replace('/Seu protocolo (de atendimento )?[é|é]:?\s*\d*/i', '', $aiReply);
             }
 
             $aiReply = str_replace('..', '.', $aiReply);
 
             $aiReply = $this->processAppointmentTag($assistant, $aiReply, $displayName, $cleanSender);
 
+            // ENVIO PARA O OMNI COM A RESPOSTA FINAL TRATADA E FORMATADA
             $this->sendToOmni($aiReply, $displayName !== 'Cliente' ? $displayName : $cleanSender, 'output', $cleanSender, $assistant->id);
 
             DB::table('chat_messages')->insert([
