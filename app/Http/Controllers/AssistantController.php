@@ -65,10 +65,17 @@ class AssistantController extends Controller
                 $table->id();
                 $table->unsignedBigInteger('assistant_id');
                 $table->string('phone_number')->index();
+                $table->string('protocol')->nullable();
                 $table->string('role');
                 $table->text('content');
                 $table->timestamps();
             });
+        } else {
+            if (!Schema::hasColumn('chat_messages', 'protocol')) {
+                Schema::table('chat_messages', function (Blueprint $table) {
+                    $table->string('protocol')->nullable()->after('phone_number');
+                });
+            }
         }
     }
 
@@ -1695,6 +1702,42 @@ class AssistantController extends Controller
                 $displayName = trim($omniUserName);
             }
 
+            // ==============================================================
+            // LÓGICA DE RESET DE SESSÃO (DINÂMICA COM E SEM OMNI)
+            // ==============================================================
+            $sessionTimeoutMinutes = (int) (Setting::where('assistant_id', $assistant->id)->where('key', 'session_timeout_minutes')->value('value') ?? 240);
+
+            $lastMessageRow = DB::table('chat_messages')
+                ->where('assistant_id', $assistant->id)
+                ->where('phone_number', $cleanSender)
+                ->orderBy('id', 'desc')
+                ->first();
+
+            $shouldResetSession = false;
+
+            if ($lastMessageRow) {
+                // Gatilho 1: Flag explícita de novo ticket do Omni
+                if ($isNewTicket) {
+                    $shouldResetSession = true;
+                }
+                // Gatilho 2: Protocolo alterado em relação à última mensagem salva
+                elseif (!empty($protocoloClean) && !empty($lastMessageRow->protocol) && $protocoloClean !== $lastMessageRow->protocol) {
+                    $shouldResetSession = true;
+                }
+                // Gatilho 3: Inatividade configurada dinamicamente (Com ou Sem Omni)
+                elseif ($sessionTimeoutMinutes > 0 && Carbon::parse($lastMessageRow->created_at)->diffInMinutes(now()->setTimezone($this->getTimezone($assistant->id))) >= $sessionTimeoutMinutes) {
+                    $shouldResetSession = true;
+                }
+            }
+
+            if ($shouldResetSession) {
+                DB::table('chat_messages')
+                    ->where('assistant_id', $assistant->id)
+                    ->where('phone_number', $cleanSender)
+                    ->delete();
+                $lastMessageRow = null;
+            }
+
             $contextLimit = (int) ($assistant->context_limit ?? 12);
 
             $historyRecords = DB::table('chat_messages')
@@ -1720,13 +1763,6 @@ class AssistantController extends Controller
 
             // DADOS DO ATENDIMENTO E PROTOCOLO APENAS SE FOR A PRIMEIRA MENSAGEM DO ASSISTENTE
             $isFirstMessage = ($assistantMsgCount === 0);
-
-            if ($isNewTicket && $assistantMsgCount === 0) {
-                DB::table('chat_messages')
-                    ->where('assistant_id', $assistant->id)
-                    ->where('phone_number', $cleanSender)
-                    ->delete();
-            }
 
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
 
@@ -1778,8 +1814,10 @@ class AssistantController extends Controller
 
             $aiReply = str_replace('..', '.', $aiReply);
 
-            // AGENDAMENTO: Chama o método processAppointmentTag
-            $aiReply = $this->processAppointmentTag($assistant, $aiReply, $displayName, $cleanSender);
+            // PROCESSA TAGS DE AGENDAMENTO
+            if (method_exists($this, 'processAppointmentTag')) {
+                $aiReply = $this->processAppointmentTag($assistant, $aiReply, $displayName, $cleanSender);
+            }
 
             // ENVIO PARA O OMNI COM A RESPOSTA FINAL TRATADA E FORMATADA
             $this->sendToOmni($aiReply, $displayName !== 'Cliente' ? $displayName : $cleanSender, 'output', $cleanSender, $assistant->id);
@@ -1788,6 +1826,7 @@ class AssistantController extends Controller
                 [
                     'assistant_id' => $assistant->id,
                     'phone_number' => $cleanSender,
+                    'protocol' => $protocoloClean,
                     'role' => 'user',
                     'content' => $userMessage,
                     'created_at' => $nowFormatted,
@@ -1796,6 +1835,7 @@ class AssistantController extends Controller
                 [
                     'assistant_id' => $assistant->id,
                     'phone_number' => $cleanSender,
+                    'protocol' => $protocoloClean,
                     'role' => 'assistant',
                     'content' => $aiReply,
                     'created_at' => $nowFormatted,
