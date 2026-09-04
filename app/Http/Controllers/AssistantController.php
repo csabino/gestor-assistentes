@@ -143,7 +143,7 @@ class AssistantController extends Controller
                 $appointmentCount = DB::table('appointments')
                     ->where('human_agent_id', $agent->id)
                     ->where('status', '!=', 'cancelled')
-                    count();
+                    ->count();
 
                 $availableAgents[] = [
                     'agent' => $agent,
