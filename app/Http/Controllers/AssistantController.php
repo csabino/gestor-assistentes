@@ -185,21 +185,33 @@ class AssistantController extends Controller
                 $startTime = Carbon::parse($checkDateStr);
                 $endTime = (clone $startTime)->addMinutes(30);
 
-                // Busca o departamento garantindo que só puxe departamentos COM agentes se for fallback
-                $dept = DB::table('departments')
-                    ->whereRaw('LOWER(TRIM(name)) = ?', [strtolower($deptName)])
-                    ->first();
+                // Busca flexível do departamento (nome exato ou contendo o termo)
+                $dept = null;
+                if (!empty($deptName)) {
+                    $cleanTerm = strtolower($deptName);
+                    $dept = DB::table('departments')
+                        ->whereRaw('LOWER(TRIM(name)) = ?', [$cleanTerm])
+                        ->orWhereRaw('LOWER(name) LIKE ?', ['%' . $cleanTerm . '%'])
+                        ->first();
+                }
+
+                // Fallback: Pega o departamento padrão ou o primeiro que possua agentes na equipe
+                if (!$dept) {
+                    $defaultDeptId = Setting::where('assistant_id', $assistant->id)->where('key', 'default_department_id')->value('value');
+                    if ($defaultDeptId) {
+                        $dept = DB::table('departments')->where('id', $defaultDeptId)->first();
+                    }
+                }
 
                 if (!$dept) {
                     $dept = DB::table('departments')
-                        ->whereIn('id', function($query) {
-                            $query->select('department_id')->from('department_members');
+                        ->whereIn('id', function($q) {
+                            $q->select('department_id')->from('department_members');
                         })->first();
                 }
 
                 if (!$dept) {
-                    $msg = "⚠️ Desculpe, mas não encontrei nenhum setor com agentes cadastrados para verificar a agenda.";
-                    return trim(preg_replace('/\[VERIFICAR_AGENDA:.*?\]/s', $msg, $aiReply));
+                    return "⚠️ Não foi possível localizar um setor configurado com agentes disponíveis para validação da agenda.";
                 }
 
                 $allocatedAgent = $this->allocateAgentRoundRobin(
@@ -210,17 +222,14 @@ class AssistantController extends Controller
                 );
 
                 if (!$allocatedAgent) {
-                    $msg = "⚠️ Poxa, infelizmente nossa equipe de *" . $dept->name . "* já está ocupada no dia " . $startTime->format('d/m/Y \à\s H:i') . ".\n\nVocê teria disponibilidade em **outra data ou horário**?";
-                    return trim(preg_replace('/\[VERIFICAR_AGENDA:.*?\]/s', $msg, $aiReply));
+                    return "⚠️ Poxa, infelizmente nossa equipe do setor *" . $dept->name . "* já está com a agenda ocupada para o dia " . $startTime->format('d/m/Y \à\s H:i') . ".\n\nVocê teria disponibilidade em **outra data ou horário**?";
                 }
 
-                // Resposta de Sucesso para o Cliente!
-                $msg = "✅ Agenda verificada! O horário de " . $startTime->format('d/m/Y \à\s H:i') . " está **LIVRE**.\n\nQual e-mail devo utilizar para enviar o convite oficial da reunião?";
-                return trim(preg_replace('/\[VERIFICAR_AGENDA:.*?\]/s', $msg, $aiReply));
+                return "✅ Agenda verificada! O horário de " . $startTime->format('d/m/Y \à\s H:i') . " está **LIVRE** com o setor *" . $dept->name . "*.\n\nQual o seu e-mail para enviarmos o convite da reunião?";
 
             } catch (\Throwable $e) {
-                $msg = "⚠️ Ocorreu um erro ao verificar o calendário. Pode repetir a data, por favor?";
-                return trim(preg_replace('/\[VERIFICAR_AGENDA:.*?\]/s', $msg, $aiReply));
+                Log::error("Erro na verificação de agenda: " . $e->getMessage());
+                return "⚠️ Ocorreu um erro ao verificar a agenda. Por favor, confirme a data e horário desejados.";
             }
         }
 
@@ -237,7 +246,7 @@ class AssistantController extends Controller
                 ->first();
 
             if (!$appointment) {
-                return "⚠️ Não encontramos nenhuma reunião ativa com o e-mail *{$emailInput}*. Verifique os dados.";
+                return "⚠️ Não encontramos nenhuma reunião ativa para o seu número associada ao e-mail *{$emailInput}*.";
             }
 
             if (!empty($appointment->google_event_id)) {
@@ -271,16 +280,21 @@ class AssistantController extends Controller
                 ->first();
 
             if (!$existingAppointment) {
-                return "⚠️ Não encontramos reunião para reagendar com o e-mail *{$emailInput}*.";
+                return "⚠️ Não encontramos nenhuma reunião ativa para reagendar associada ao e-mail *{$emailInput}*.";
             }
 
             try {
                 $newStartTime = Carbon::parse($newDateStr);
                 $newEndTime = (clone $newStartTime)->addMinutes(30);
 
-                $dept = DB::table('departments')
-                    ->whereRaw('LOWER(TRIM(name)) = ?', [strtolower($deptName)])
-                    ->first();
+                $dept = null;
+                if (!empty($deptName)) {
+                    $cleanTerm = strtolower($deptName);
+                    $dept = DB::table('departments')
+                        ->whereRaw('LOWER(TRIM(name)) = ?', [$cleanTerm])
+                        ->orWhereRaw('LOWER(name) LIKE ?', ['%' . $cleanTerm . '%'])
+                        ->first();
+                }
 
                 if (!$dept) {
                     $dept = DB::table('departments')
@@ -297,7 +311,7 @@ class AssistantController extends Controller
                 );
 
                 if (!$allocatedAgent) {
-                    return "⚠️ Nossa equipe *" . $dept->name . "* já está ocupada para (" . $newStartTime->format('d/m/Y \à\s H:i') . "). Sua reunião original foi mantida.";
+                    return "⚠️ Nossa equipe *" . $dept->name . "* já está ocupada para " . $newStartTime->format('d/m/Y \à\s H:i') . ". Sua reunião original foi mantida sem alterações.";
                 }
 
                 if (!empty($existingAppointment->google_event_id)) {
@@ -334,7 +348,7 @@ class AssistantController extends Controller
                     'updated_at' => now(),
                 ]);
 
-                $confirmation = "🔄 *REUNIÃO REAGENDADA!*\n\n";
+                $confirmation = "🔄 *REUNIÃO REAGENDADA COM SUCESSO!*\n\n";
                 $confirmation .= "👤 *Atendente:* " . $allocatedAgent->name . "\n";
                 $confirmation .= "📅 *Nova Data/Hora:* " . $newStartTime->format('d/m/Y \à\s H:i') . "\n";
                 if ($meetingResult['meet_link'] ?? false) $confirmation .= "🎥 *Novo Link:* " . $meetingResult['meet_link'] . "\n";
@@ -374,9 +388,14 @@ class AssistantController extends Controller
             $startTime = Carbon::parse($startDateTimeStr);
             $endTime = (clone $startTime)->addMinutes(30);
 
-            $dept = DB::table('departments')
-                ->whereRaw('LOWER(TRIM(name)) = ?', [strtolower($deptName)])
-                ->first();
+            $dept = null;
+            if (!empty($deptName)) {
+                $cleanTerm = strtolower($deptName);
+                $dept = DB::table('departments')
+                    ->whereRaw('LOWER(TRIM(name)) = ?', [$cleanTerm])
+                    ->orWhereRaw('LOWER(name) LIKE ?', ['%' . $cleanTerm . '%'])
+                    ->first();
+            }
 
             if (!$dept) {
                 $dept = DB::table('departments')
@@ -393,7 +412,7 @@ class AssistantController extends Controller
             );
 
             if (!$allocatedAgent) {
-                return "⚠️ Ocorreu um imprevisto e perdemos a janela. Não temos mais horários com a equipe *" . $dept->name . "* para " . $startTime->format('d/m/Y \à\s H:i') . ". Qual outra data podemos tentar?";
+                return "⚠️ Ocorreu um imprevisto e esse horário não está mais disponível no setor *" . $dept->name . "* para " . $startTime->format('d/m/Y \à\s H:i') . ". Qual outra data podemos agendar?";
             }
 
             $googleService = new GoogleCalendarService();
@@ -421,8 +440,9 @@ class AssistantController extends Controller
                 'updated_at' => now(),
             ]);
 
-            $confirmation = "✅ *REUNIÃO CONFIRMADA!*\n\n";
+            $confirmation = "✅ *REUNIÃO CONFIRMADA COM SUCESSO!*\n\n";
             $confirmation .= "👤 *Atendente:* " . $allocatedAgent->name . "\n";
+            $confirmation .= "🏢 *Setor:* " . $dept->name . "\n";
             $confirmation .= "📅 *Data/Hora:* " . $startTime->format('d/m/Y \à\s H:i') . "\n";
             $confirmation .= "✉️ *Convites enviados para:* " . implode(', ', array_unique(array_filter(array_merge([$clientEmail], $additionalEmails)))) . "\n";
 
@@ -430,11 +450,11 @@ class AssistantController extends Controller
                 $confirmation .= "🎥 *Link do Google Meet:* " . $meetingResult['meet_link'] . "\n";
             }
 
-            return trim(preg_replace('/\[AGENDAR_REUNIAO:.*?\]/s', $confirmation, $aiReply));
+            return $confirmation;
 
         } catch (\Throwable $e) {
-            Log::error("Erro ao processar tag final de agendamento: " . $e->getMessage());
-            return "⚠️ Ocorreu um erro técnico ao gerar a reunião no calendário. Tente em instantes.";
+            Log::error("Erro no agendamento final: " . $e->getMessage());
+            return "⚠️ Ocorreu um erro técnico ao registrar o agendamento no calendário. Tente em instantes.";
         }
     }
 
@@ -1105,28 +1125,36 @@ class AssistantController extends Controller
 
                 if ($defaultDept) {
                     $otherDepts = array_diff($deptNames, [$defaultDept->name]);
-                    $prompt .= "\nDIRETRIZ DE SETOR PADRÃO: Assuma o agendamento para o setor '{$defaultDept->name}'.\n";
+                    $prompt .= "\nDIRETRIZ DE SETOR PADRÃO: Sugira por padrão o agendamento para o setor '{$defaultDept->name}'. ";
+                    if (!empty($otherDepts)) {
+                        $prompt .= "Informe ao cliente que o setor sugerido é '{$defaultDept->name}', mas mencione também os outros setores disponíveis: " . implode(', ', $otherDepts) . ".\n";
+                    } else {
+                        $prompt .= "Informe ao cliente que o atendimento será realizado com o setor '{$defaultDept->name}'.\n";
+                    }
+                } else {
+                    $prompt .= "\nDIRETRIZ DE SETOR: Apresente os setores disponíveis acima para que o cliente escolha.\n";
                 }
 
                 if (!empty(trim($schedulingCustomPrompt ?? ''))) {
                     $prompt .= "\nINSTRUÇÕES CUSTOMIZADAS:\n" . trim($schedulingCustomPrompt) . "\n";
                 }
 
-                $prompt .= "\n*** FLUXO OBRIGATÓRIO PARA NOVAS REUNIÕES (SIGA ESTA ORDEM) ***\n";
-                $prompt .= "PASSO 1: Peça a DATA e HORA que o cliente deseja.\n";
-                $prompt .= "PASSO 2 (CHECAGEM): ASSIM QUE O CLIENTE DISSER A DATA E HORA, NÃO PERGUNTE O E-MAIL! Você deve confirmar a disponibilidade primeiro emitindo a tag:\n";
+                $prompt .= "\n*** REGRA CRÍTICA DE DISPONIBILIDADE ***\n";
+                $prompt .= "Você NÃO Sabe e NÃO PODE AFIRMAR se uma data/horário está disponível ou ocupada no texto da sua resposta. NUNCA diga 'não temos horários' ou 'temos horário livre' por conta própria.\n";
+                
+                $prompt .= "\n*** FLUXO OBRIGATÓRIO PARA NOVAS REUNIÕES ***\n";
+                $prompt .= "PASSO 1: Solicite a DATA e HORA desejadas.\n";
+                $prompt .= "PASSO 2: Quando o cliente informar DATA e HORA, NUNCA peça e-mail ainda! Emita APENAS a tag abaixo ao final para o sistema validar a agenda:\n";
                 $prompt .= '[VERIFICAR_AGENDA: departamento="NOME_DO_SETOR", data_hora="YYYY-MM-DD HH:MM:SS"]' . "\n";
-                $prompt .= "PASSO 3 (E-MAILS): O sistema irá informar se o horário está livre. Se estiver livre, continue a conversa coletando o e-mail do cliente (se já não tiver).\n";
-                $prompt .= "PASSO 4 (LOOP DE CONVIDADOS): Após obter o e-mail, PERGUNTE OBRIGATORIAMENTE se ele quer convidar mais pessoas. Continue perguntando 'Mais alguém?' até ele dizer claramente que NÃO.\n";
-                $prompt .= "PASSO 5 (FINALIZAÇÃO): Só quando o cliente afirmar que NÃO há mais convidados, emita a tag:\n";
+                $prompt .= "PASSO 3: Se o sistema confirmar que a data está livre, peça o e-mail do cliente.\n";
+                $prompt .= "PASSO 4 (LOOP DE CONVIDADOS): Após o e-mail principal, pergunte se há outros e-mails de convidados. Continue perguntando 'Deseja incluir mais algum e-mail?' até que o cliente diga 'não'.\n";
+                $prompt .= "PASSO 5: Quando o cliente disser 'não', finalize emitindo a tag:\n";
                 $prompt .= '[AGENDAR_REUNIAO: departamento="NOME_DO_SETOR", data_hora_inicio="YYYY-MM-DD HH:MM:SS", email_cliente="email@cliente.com", emails_adicionais="email2@..."]' . "\n";
 
                 $prompt .= "\n*** CANCELAMENTO ***\n";
-                $prompt .= "Emita no final da mensagem:\n";
                 $prompt .= '[CANCELAR_REUNIAO: email_cliente="email@cliente.com", data_hora="YYYY-MM-DD HH:MM:SS"]' . "\n";
 
                 $prompt .= "\n*** REAGENDAMENTO ***\n";
-                $prompt .= "Emita no final da mensagem:\n";
                 $prompt .= '[REAGENDAR_REUNIAO: departamento="NOME_DO_SETOR", nova_data_hora="YYYY-MM-DD HH:MM:SS", email_cliente="email@cliente.com"]' . "\n";
                 $prompt .= "===============================================\n";
             }
