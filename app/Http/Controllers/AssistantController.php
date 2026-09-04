@@ -1889,9 +1889,17 @@ class AssistantController extends Controller
 
             $aiReply = str_replace('..', '.', $aiReply);
 
+            // 🛑 NOVA REGRA: Verifica se a IA gerou alguma tag de agendamento antes de processá-la
+            $hasSchedulingTag = preg_match('/\[(VERIFICAR_AGENDA|AGENDAR_REUNIAO|CANCELAR_REUNIAO|REAGENDAR_REUNIAO):/i', $aiReply);
+
             // PROCESSA TAGS DE AGENDAMENTO
             if (method_exists($this, 'processAppointmentTag')) {
                 $aiReply = $this->processAppointmentTag($assistant, $aiReply, $displayName, $cleanSender);
+            }
+
+            // 🛑 NOVA REGRA: Se houver qualquer ação de agenda, desativa a flag de áudio e força texto
+            if (!empty($hasSchedulingTag)) {
+                $isAudioMessage = false;
             }
 
             // ENVIO PARA O OMNI COM A RESPOSTA FINAL TRATADA E FORMATADA
