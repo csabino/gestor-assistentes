@@ -4,14 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Assistant;
 use App\Models\Setting;
+use App\Services\GoogleCalendarService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Database\Schema\Blueprint;
-use Carbon\Carbon;
 
 class AssistantController extends Controller
 {
