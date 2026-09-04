@@ -1791,15 +1791,12 @@ class AssistantController extends Controller
             $shouldResetSession = false;
 
             if ($lastMessageRow) {
-                // Gatilho 1: Flag explícita de novo ticket do Omni
                 if ($isNewTicket) {
                     $shouldResetSession = true;
                 }
-                // Gatilho 2: Protocolo alterado em relação à última mensagem salva
                 elseif (!empty($protocoloClean) && !empty($lastMessageRow->protocol) && $protocoloClean !== $lastMessageRow->protocol) {
                     $shouldResetSession = true;
                 }
-                // Gatilho 3: Inatividade configurada dinamicamente (Com ou Sem Omni)
                 elseif ($sessionTimeoutMinutes > 0 && Carbon::parse($lastMessageRow->created_at)->diffInMinutes(now()->setTimezone($this->getTimezone($assistant->id))) >= $sessionTimeoutMinutes) {
                     $shouldResetSession = true;
                 }
@@ -1867,14 +1864,13 @@ class AssistantController extends Controller
             if ($isFirstMessage) {
                 if (!empty($protocoloClean)) {
                     $aiReply = str_replace(['#PROTOCOLO#', '[PROTOCOLO]', '[Número do Protocolo]'], $protocoloClean, $aiReply);
-                    $aiReply = preg_replace('/Seu protocolo (de atendimento )?[é|é]:?\s*\d*/i', '', $aiReply);
+                    $aiReply = preg_replace('/Seu protocolo (de atendimento )?[é|é]:?\s*\d*/i', '', $aiReply);
 
                     if (strpos($aiReply, $protocoloClean) === false) {
                         $aiReply = "🎫 *Protocolo:* " . $protocoloClean . "\n\n" . trim($aiReply);
                     }
                 }
             } else {
-                // HIGIENIZAÇÃO RIGOROSA DE PROTOCOLO EM MENSAGENS SUBSEQUENTES
                 $aiReply = str_replace(['#PROTOCOLO#', '[PROTOCOLO]', '[Número do Protocolo]'], '', $aiReply);
                 if (!empty($protocolo)) {
                     $aiReply = str_replace($protocolo, '', $aiReply);
@@ -1884,21 +1880,21 @@ class AssistantController extends Controller
                 }
                 $aiReply = preg_replace('/🎫\s*\*?Protocolo:\*?\s*\d*\n*/i', '', $aiReply);
                 $aiReply = preg_replace('/\*?Protocolo:\*?\s*\d*\n*/i', '', $aiReply);
-                $aiReply = preg_replace('/Seu protocolo (de atendimento )?[é|é]:?\s*\d*/i', '', $aiReply);
+                $aiReply = preg_replace('/Seu protocolo (de atendimento )?[é|é]:?\s*\d*/i', '', $aiReply);
             }
 
             $aiReply = str_replace('..', '.', $aiReply);
 
-            // 🛑 NOVA REGRA: Verifica se a IA gerou alguma tag de agendamento antes de processá-la
-            $hasSchedulingTag = preg_match('/\[(VERIFICAR_AGENDA|AGENDAR_REUNIAO|CANCELAR_REUNIAO|REAGENDAR_REUNIAO):/i', $aiReply);
+            // 🛑 DETECÇÃO BLINDADA: Identifica tags de agendamento (ignorando maiúsculas, espaços e quebras de linha)
+            $hasSchedulingTag = preg_match('/\[(VERIFICAR_AGENDA|AGENDAR_REUNIAO|CANCELAR_REUNIAO|REAGENDAR_REUNIAO)\s*:/is', $aiReply);
 
             // PROCESSA TAGS DE AGENDAMENTO
             if (method_exists($this, 'processAppointmentTag')) {
                 $aiReply = $this->processAppointmentTag($assistant, $aiReply, $displayName, $cleanSender);
             }
 
-            // 🛑 NOVA REGRA: Se houver qualquer ação de agenda, desativa a flag de áudio e força texto
-            if (!empty($hasSchedulingTag)) {
+            // 🛑 FORÇA TEXTO: Se houver tag de agendamento OU se a resposta contiver termos de confirmação da reunião
+            if ($hasSchedulingTag || preg_match('/(REUNIÃO CONFIRMADA|REUNIÃO CANCELADA|REUNIÃO REAGENDADA|está \*?LIVRE\*?|Google Meet|Atendente:)/i', $aiReply)) {
                 $isAudioMessage = false;
             }
 

@@ -60,18 +60,27 @@ class GoogleCalendarService
         $allEmails = array_unique(array_filter(array_merge([$agentEmail, $clientEmail], $additionalEmails)));
 
         foreach ($allEmails as $email) {
-            $attendees[] = ['email' => trim($email)];
+            $cleanEmail = trim($email);
+            if (filter_var($cleanEmail, FILTER_VALIDATE_EMAIL)) {
+                $attendees[] = [
+                    'email' => $cleanEmail,
+                    'responseStatus' => 'needsAction'
+                ];
+            }
         }
+
+        $startCarbon = Carbon::parse($startDateTime)->setTimezone('America/Sao_Paulo');
+        $endCarbon = Carbon::parse($endDateTime)->setTimezone('America/Sao_Paulo');
 
         $payload = [
             'summary' => $title,
             'description' => $description,
             'start' => [
-                'dateTime' => Carbon::parse($startDateTime)->toIso8601String(),
+                'dateTime' => $startCarbon->toIso8601String(),
                 'timeZone' => 'America/Sao_Paulo',
             ],
             'end' => [
-                'dateTime' => Carbon::parse($endDateTime)->toIso8601String(),
+                'dateTime' => $endCarbon->toIso8601String(),
                 'timeZone' => 'America/Sao_Paulo',
             ],
             'attendees' => $attendees,
