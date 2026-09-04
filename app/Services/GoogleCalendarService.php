@@ -62,10 +62,7 @@ class GoogleCalendarService
         foreach ($allEmails as $email) {
             $cleanEmail = trim($email);
             if (filter_var($cleanEmail, FILTER_VALIDATE_EMAIL)) {
-                $attendees[] = [
-                    'email' => $cleanEmail,
-                    'responseStatus' => 'needsAction'
-                ];
+                $attendees[] = ['email' => $cleanEmail];
             }
         }
 
@@ -76,11 +73,11 @@ class GoogleCalendarService
             'summary' => $title,
             'description' => $description,
             'start' => [
-                'dateTime' => $startCarbon->toIso8601String(),
+                'dateTime' => $startCarbon->format('Y-m-d\TH:i:sP'),
                 'timeZone' => 'America/Sao_Paulo',
             ],
             'end' => [
-                'dateTime' => $endCarbon->toIso8601String(),
+                'dateTime' => $endCarbon->format('Y-m-d\TH:i:sP'),
                 'timeZone' => 'America/Sao_Paulo',
             ],
             'attendees' => $attendees,

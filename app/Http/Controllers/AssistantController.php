@@ -173,7 +173,7 @@ class AssistantController extends Controller
 
     private function processAppointmentTag(Assistant $assistant, string $aiReply, string $displayName, string $cleanSender): string
     {
-        // 1. CHECAGEM PRÉVIA DA AGENDA (MANTÉM O TEXTO DA IA E SUBSTITUI APENAS A TAG)
+        // 1. CHECAGEM PRÉVIA DA AGENDA
         if (preg_match('/\[VERIFICAR_AGENDA:(.*?)\]/s', $aiReply, $matches)) {
             $tagContent = $matches[1];
             preg_match('/data_hora=["\']([^"\']+)["\']/i', $tagContent, $mDate);
@@ -186,7 +186,6 @@ class AssistantController extends Controller
                 $startTime = Carbon::parse($checkDateStr);
                 $endTime = (clone $startTime)->addMinutes(30);
 
-                // Busca o departamento correspondente (Ignora maiúsculas/minúsculas)
                 $dept = null;
                 if (!empty($deptName)) {
                     $cleanTerm = strtolower($deptName);
@@ -199,7 +198,6 @@ class AssistantController extends Controller
                         ->first();
                 }
 
-                // Fallback 1: Tenta o departamento configurado como padrão no Settings
                 if (!$dept) {
                     $defaultDeptId = Setting::where('assistant_id', $assistant->id)->where('key', 'default_department_id')->value('value');
                     if ($defaultDeptId) {
@@ -207,7 +205,6 @@ class AssistantController extends Controller
                     }
                 }
 
-                // Fallback 2: Pega o primeiro departamento cadastrado
                 if (!$dept) {
                     $dept = DB::table('departments')->where('assistant_id', $assistant->id)->first();
                 }
@@ -217,7 +214,6 @@ class AssistantController extends Controller
                     return trim(preg_replace('/\[VERIFICAR_AGENDA:.*?\]/s', $msg, $aiReply));
                 }
 
-                // Checa no seu método allocateAgentRoundRobin a disponibilidade REAL
                 $allocatedAgent = $this->allocateAgentRoundRobin(
                     $assistant->id,
                     $dept->id,
@@ -325,16 +321,6 @@ class AssistantController extends Controller
                     return trim(preg_replace('/\[REAGENDAR_REUNIAO:.*?\]/s', $msg, $aiReply));
                 }
 
-                if (!empty($existingAppointment->google_event_id)) {
-                    $googleService = new GoogleCalendarService();
-                    $googleService->cancelMeeting($assistant->id, $existingAppointment->google_event_id);
-                }
-
-                DB::table('appointments')->where('id', $existingAppointment->id)->update([
-                    'status' => 'rescheduled',
-                    'updated_at' => now()
-                ]);
-
                 $googleService = new GoogleCalendarService();
                 $meetingResult = $googleService->createMeeting(
                     $assistant->id,
@@ -345,6 +331,20 @@ class AssistantController extends Controller
                     $allocatedAgent->email,
                     $emailInput
                 );
+
+                if (!$meetingResult) {
+                    $msg = "\n\n⚠️ Erro técnico ao comunicar com o Google Calendar para o reagendamento. Tente em instantes.";
+                    return trim(preg_replace('/\[REAGENDAR_REUNIAO:.*?\]/s', $msg, $aiReply));
+                }
+
+                if (!empty($existingAppointment->google_event_id)) {
+                    $googleService->cancelMeeting($assistant->id, $existingAppointment->google_event_id);
+                }
+
+                DB::table('appointments')->where('id', $existingAppointment->id)->update([
+                    'status' => 'rescheduled',
+                    'updated_at' => now()
+                ]);
 
                 DB::table('appointments')->insert([
                     'human_agent_id' => $allocatedAgent->id,
@@ -436,6 +436,11 @@ class AssistantController extends Controller
                     $clientEmail,
                     $additionalEmails
                 );
+
+                if (!$meetingResult) {
+                    $msg = "\n\n⚠️ Erro técnico ao criar a reunião no Google Calendar. Tente em instantes.";
+                    return trim(preg_replace('/\[AGENDAR_REUNIAO:.*?\]/s', $msg, $aiReply));
+                }
 
                 DB::table('appointments')->insert([
                     'human_agent_id' => $allocatedAgent->id,
