@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Assistant;
 use App\Models\Setting;
-use App\Services\GoogleCalendarService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -78,45 +77,19 @@ class AssistantController extends Controller
         if (!Schema::hasTable('departments')) {
             Schema::create('departments', function (Blueprint $table) {
                 $table->id();
-                $table->unsignedBigInteger('assistant_id')->nullable();
                 $table->string('name');
                 $table->timestamps();
             });
         }
 
-        if (!Schema::hasTable('human_agents')) {
-            Schema::create('human_agents', function (Blueprint $table) {
+        if (!Schema::hasTable('department_members')) {
+            Schema::create('department_members', function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('department_id');
                 $table->string('name');
                 $table->string('email');
-                $table->boolean('is_active')->default(true);
                 $table->timestamps();
             });
-        }
-    }
-
-    private function ensureAppointmentsTableExists()
-    {
-        if (!Schema::hasTable('appointments')) {
-            Schema::create('appointments', function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('human_agent_id');
-                $table->string('google_event_id')->nullable();
-                $table->dateTime('start_time');
-                $table->dateTime('end_time');
-                $table->string('client_name');
-                $table->string('client_phone');
-                $table->string('client_email');
-                $table->string('status')->default('scheduled');
-                $table->timestamps();
-            });
-        } else {
-            if (!Schema::hasColumn('appointments', 'google_event_id')) {
-                Schema::table('appointments', function (Blueprint $table) {
-                    $table->string('google_event_id')->nullable()->after('human_agent_id');
-                });
-            }
         }
     }
 
@@ -133,7 +106,6 @@ class AssistantController extends Controller
         $this->ensureAssistantColumnsExist();
         $this->ensureChatMessagesTableExists();
         $this->ensureDepartmentTablesExist();
-        $this->ensureAppointmentsTableExists();
 
         $currentView = $request->input('view', 'robots');
 
@@ -161,7 +133,7 @@ class AssistantController extends Controller
 
         $assistants = Assistant::orderBy('name', 'asc')->get();
         $departments = DB::table('departments')->get();
-        $agents = DB::table('human_agents')->get();
+        $agents = DB::table('department_members')->get();
 
         $configuring = null;
         $lastWebhook = null;
@@ -549,7 +521,7 @@ class AssistantController extends Controller
             return redirect('/?view=equipe')->with('error', 'Preencha todos os campos do agente.');
         }
 
-        $duplicate = DB::table('human_agents')
+        $duplicate = DB::table('department_members')
             ->where('department_id', $departmentId)
             ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
             ->first();
@@ -558,11 +530,10 @@ class AssistantController extends Controller
             return redirect('/?view=equipe')->with('error', "Operação Bloqueada: O e-mail '{$email}' já está cadastrado para o agente '{$duplicate->name}' neste departamento.");
         }
 
-        DB::table('human_agents')->insert([
+        DB::table('department_members')->insert([
             'department_id' => $departmentId,
             'name' => $name,
             'email' => $email,
-            'is_active' => true,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -730,29 +701,7 @@ class AssistantController extends Controller
 
     private function buildSystemPromptWithKnowledge(Assistant $assistant): string
     {
-        $tz = $this->getTimezone($assistant->id);
-        $now = Carbon::now($tz);
-
-        $diasSemana = [
-            'Sunday' => 'Domingo',
-            'Monday' => 'Segunda-feira',
-            'Tuesday' => 'Terça-feira',
-            'Wednesday' => 'Quarta-feira',
-            'Thursday' => 'Quinta-feira',
-            'Friday' => 'Sexta-feira',
-            'Saturday' => 'Sábado'
-        ];
-        $diaPt = $diasSemana[$now->format('l')] ?? $now->format('l');
-
-        $prompt = "===============================================\n";
-        $prompt .= "CONTEXTO TEMPORAL DO SISTEMA (OBRIGATÓRIO):\n";
-        $prompt .= "• Data e Hora Atual: " . $now->format('d/m/Y \à\s H:i:s') . " ({$diaPt})\n";
-        $prompt .= "• Data Formato ISO: " . $now->format('Y-m-d') . "\n";
-        $prompt .= "• Ano Corrente: " . $now->year . "\n";
-        $prompt .= "DIRETRIZ TEMPORAL: Utilize SEMPRE a data e hora atual acima como referência absoluta para calcular datas relativas mencionadas pelo usuário (ex: 'hoje', 'amanhã', 'depois de amanhã', 'próxima quinta-feira', etc.). Nunca invente ou use anos/datas fictícias.\n";
-        $prompt .= "===============================================\n\n";
-
-        $prompt .= $assistant->system_prompt ?? '';
+        $prompt = $assistant->system_prompt ?? '';
 
         $leadFields = is_array($assistant->lead_fields) 
             ? $assistant->lead_fields 
@@ -771,58 +720,6 @@ class AssistantController extends Controller
             }
             $prompt .= "Solicite estas informações de forma natural e gradual durante a conversa. Não exija tudo de uma vez de forma robótica.\n";
             $prompt .= "===============================================\n";
-        }
-
-        // MÓDULO DINÂMICO DE DEPARTAMENTOS E AGENDAMENTO DE REUNIÕES
-        $schedulingEnabled = Setting::where('assistant_id', $assistant->id)->where('key', 'scheduling_enabled')->value('value') ?? '1';
-
-        if ($schedulingEnabled === '1') {
-            $depts = DB::table('departments')->get();
-            if ($depts->isNotEmpty()) {
-                $deptNames = $depts->pluck('name')->toArray();
-                $defaultDeptId = Setting::where('assistant_id', $assistant->id)->where('key', 'default_department_id')->value('value');
-                $defaultDept = $defaultDeptId ? DB::table('departments')->where('id', $defaultDeptId)->first() : null;
-                $schedulingCustomPrompt = Setting::where('assistant_id', $assistant->id)->where('key', 'scheduling_custom_prompt')->value('value');
-
-                $prompt .= "\n\n===============================================\n";
-                $prompt .= "MÓDULO DE AGENDAMENTO, CANCELAMENTO E REAGENDAMENTO:\n";
-                $prompt .= "Departamentos disponíveis no sistema:\n";
-                foreach ($depts as $d) {
-                    $prompt .= "• Setor/Departamento: {$d->name}\n";
-                }
-
-                if ($defaultDept) {
-                    $otherDepts = array_diff($deptNames, [$defaultDept->name]);
-                    $prompt .= "\nDIRETRIZ DE SETOR PADRÃO: Assuma por padrão que o agendamento é para o setor '{$defaultDept->name}'. ";
-                    if (!empty($otherDepts)) {
-                        $prompt .= "Mencione ao cliente que o setor padrão sugerido é '{$defaultDept->name}', mas informe que também estão disponíveis os setores: " . implode(', ', $otherDepts) . ".\n";
-                    } else {
-                        $prompt .= "Informe ao cliente que o agendamento será realizado com o setor '{$defaultDept->name}'.\n";
-                    }
-                } else {
-                    $prompt .= "\nDIRETRIZ DE SETOR: Apresente os setores disponíveis acima ao cliente para que ele escolha, sem assumir nenhum padrão prévio.\n";
-                }
-
-                if (!empty(trim($schedulingCustomPrompt ?? ''))) {
-                    $prompt .= "\nINSTRUÇÕES CUSTOMIZADAS DA EMPRESA PARA O FLUXO DE AGENDAMENTO:\n";
-                    $prompt .= trim($schedulingCustomPrompt) . "\n";
-                }
-
-                $prompt .= "\n1. AGENDAMENTO DE NOVA REUNIÃO:\n";
-                $prompt .= "Após obter a confirmação final dos dados do cliente, responda com uma frase neutra antes da checagem do sistema e inclua no FINAL da mensagem a tag:\n";
-                $prompt .= '[AGENDAR_REUNIAO: departamento="NOME_DO_SETOR", data_hora_inicio="YYYY-MM-DD HH:MM:SS", email_cliente="email@cliente.com", emails_adicionais="email2@empresa.com,email3@empresa.com"]' . "\n";
-
-                $prompt .= "\n2. CANCELAMENTO DE REUNIÃO EXISTENTE:\n";
-                $prompt .= "Se o cliente solicitar cancelamento e confirmar o e-mail e data/horário, adicione no FINAL da mensagem a tag:\n";
-                $prompt .= '[CANCELAR_REUNIAO: email_cliente="email@cliente.com", data_hora="YYYY-MM-DD HH:MM:SS"]' . "\n";
-
-                $prompt .= "\n3. REAGENDAMENTO / ALTERAÇÃO DE DATA E HORA:\n";
-                $prompt .= "Se o cliente solicitar alterar data/horário e confirmar os novos dados, adicione no FINAL da mensagem a tag:\n";
-                $prompt .= '[REAGENDAR_REUNIAO: departamento="NOME_DO_SETOR", nova_data_hora="YYYY-MM-DD HH:MM:SS", email_cliente="email@cliente.com"]' . "\n";
-
-                $prompt .= "\nNota: O formato das datas em todas as tags deve ser impreterivelmente YYYY-MM-DD HH:MM:SS.\n";
-                $prompt .= "===============================================\n";
-            }
         }
 
         $files = $assistant->knowledge_files;
@@ -1057,6 +954,11 @@ class AssistantController extends Controller
         return null;
     }
 
+    private function extractAudioBytesFromResponse($response): ?string
+    {
+        return $this->extractMediaBytesFromResponse($response);
+    }
+
     private function sendToOmni(string $message, string $pushName, string $type, string $phone, $assistantId = null)
     {
         try {
@@ -1102,287 +1004,11 @@ class AssistantController extends Controller
         return null;
     }
 
-    private function allocateAgentRoundRobin(int $assistantId, int $departmentId, string $startDateTime, string $endDateTime)
-    {
-        $agents = DB::table('human_agents')
-            ->where('department_id', $departmentId)
-            ->where('is_active', 1)
-            ->get();
-
-        if ($agents->isEmpty()) {
-            return null;
-        }
-
-        $availableAgents = [];
-
-        foreach ($agents as $agent) {
-            $hasConflict = DB::table('appointments')
-                ->where('human_agent_id', $agent->id)
-                ->where('status', '!=', 'cancelled')
-                ->where(function ($q) use ($startDateTime, $endDateTime) {
-                    $q->where('start_time', '<', $endDateTime)
-                      ->where('end_time', '>', $startDateTime);
-                })
-                ->exists();
-
-            if (!$hasConflict) {
-                $appointmentCount = DB::table('appointments')
-                    ->where('human_agent_id', $agent->id)
-                    ->where('status', '!=', 'cancelled')
-                    ->count();
-
-                $availableAgents[] = [
-                    'agent' => $agent,
-                    'count' => $appointmentCount
-                ];
-            }
-        }
-
-        if (empty($availableAgents)) {
-            return null;
-        }
-
-        usort($availableAgents, function ($a, $b) {
-            return $a['count'] <=> $b['count'];
-        });
-
-        return $availableAgents[0]['agent'];
-    }
-
-    private function processAppointmentTag(Assistant $assistant, string $aiReply, string $displayName, string $cleanSender): string
-    {
-        // 1. PROCESSA CANCELAMENTO DE REUNIÃO
-        if (preg_match('/\[CANCELAR_REUNIAO:(.*?)\]/s', $aiReply, $matches)) {
-            $tagContent = $matches[1];
-            preg_match('/email_cliente=["\']([^"\']+)["\']/i', $tagContent, $mEmail);
-            $emailInput = trim($mEmail[1] ?? '');
-
-            $appointment = DB::table('appointments')
-                ->where('client_phone', $cleanSender)
-                ->whereRaw('LOWER(TRIM(client_email)) = ?', [strtolower($emailInput)])
-                ->where('status', 'scheduled')
-                ->first();
-
-            if (!$appointment) {
-                return "⚠️ Não encontramos nenhuma reunião ativa para o seu número com o e-mail *{$emailInput}*. Por favor, verifique os dados e tente novamente.";
-            }
-
-            if (!empty($appointment->google_event_id)) {
-                $googleService = new GoogleCalendarService();
-                $googleService->cancelMeeting($assistant->id, $appointment->google_event_id);
-            }
-
-            DB::table('appointments')->where('id', $appointment->id)->update([
-                'status' => 'cancelled',
-                'updated_at' => now()
-            ]);
-
-            return "❌ *REUNIÃO CANCELADA COM SUCESSO!*\n\nO agendamento do dia " . Carbon::parse($appointment->start_time)->format('d/m/Y \à\s H:i') . " foi cancelado. Um e-mail de notificação foi enviado para os participantes.";
-        }
-
-        // 2. PROCESSA REAGENDAMENTO / ALTERAÇÃO DE REUNIÃO
-        if (preg_match('/\[REAGENDAR_REUNIAO:(.*?)\]/s', $aiReply, $matches)) {
-            $tagContent = $matches[1];
-            preg_match('/email_cliente=["\']([^"\']+)["\']/i', $tagContent, $mEmail);
-            preg_match('/nova_data_hora=["\']([^"\']+)["\']/i', $tagContent, $mDate);
-            preg_match('/departamento=["\']([^"\']+)["\']/i', $tagContent, $mDept);
-
-            $emailInput = trim($mEmail[1] ?? '');
-            $newDateStr = trim($mDate[1] ?? '');
-            $deptName = trim($mDept[1] ?? '');
-
-            $existingAppointment = DB::table('appointments')
-                ->where('client_phone', $cleanSender)
-                ->whereRaw('LOWER(TRIM(client_email)) = ?', [strtolower($emailInput)])
-                ->where('status', 'scheduled')
-                ->first();
-
-            if (!$existingAppointment) {
-                return "⚠️ Não encontramos nenhuma reunião ativa para o seu número com o e-mail *{$emailInput}*. Não foi possível alterar a data.";
-            }
-
-            try {
-                $newStartTime = Carbon::parse($newDateStr);
-                $newEndTime = (clone $newStartTime)->addMinutes(30);
-
-                $dept = DB::table('departments')
-                    ->whereRaw('LOWER(TRIM(name)) = ?', [strtolower($deptName)])
-                    ->first() ?? DB::table('departments')->first();
-
-                if (!$dept) {
-                    return "⚠️ O setor informado não foi localizado para alteração de agendamento.";
-                }
-
-                $allocatedAgent = $this->allocateAgentRoundRobin(
-                    $assistant->id,
-                    $dept->id,
-                    $newStartTime->toDateTimeString(),
-                    $newEndTime->toDateTimeString()
-                );
-
-                if (!$allocatedAgent) {
-                    return "⚠️ Não encontramos horários disponíveis na equipe do setor *" . $dept->name . "* para a nova data/horário (" . $newStartTime->format('d/m/Y \à\s H:i') . "). Sua reunião original permanece mantida sem alterações.";
-                }
-
-                if (!empty($existingAppointment->google_event_id)) {
-                    $googleService = new GoogleCalendarService();
-                    $googleService->cancelMeeting($assistant->id, $existingAppointment->google_event_id);
-                }
-
-                DB::table('appointments')->where('id', $existingAppointment->id)->update([
-                    'status' => 'rescheduled',
-                    'updated_at' => now()
-                ]);
-
-                $googleService = new GoogleCalendarService();
-                $meetingResult = $googleService->createMeeting(
-                    $assistant->id,
-                    "Reunião de Atendimento (Reagendada) - " . $displayName,
-                    "Agendamento reagendado via WhatsApp para o setor: " . $dept->name,
-                    $newStartTime->toDateTimeString(),
-                    $newEndTime->toDateTimeString(),
-                    $allocatedAgent->email,
-                    $emailInput
-                );
-
-                $meetLink = $meetingResult['meet_link'] ?? null;
-
-                DB::table('appointments')->insert([
-                    'human_agent_id' => $allocatedAgent->id,
-                    'google_event_id' => $meetingResult['event_id'] ?? null,
-                    'start_time' => $newStartTime->toDateTimeString(),
-                    'end_time' => $newEndTime->toDateTimeString(),
-                    'client_name' => $displayName,
-                    'client_phone' => $cleanSender,
-                    'client_email' => $emailInput,
-                    'status' => 'scheduled',
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-
-                $confirmation = "🔄 *REUNIÃO REAGENDADA COM SUCESSO!*\n\n";
-                $confirmation .= "👤 *Atendente:* " . $allocatedAgent->name . "\n";
-                $confirmation .= "🏢 *Setor:* " . $dept->name . "\n";
-                $confirmation .= "📅 *Nova Data/Hora:* " . $newStartTime->format('d/m/Y \à\s H:i') . "\n";
-                if ($meetLink) {
-                    $confirmation .= "🎥 *Novo Link do Google Meet:* " . $meetLink . "\n";
-                }
-
-                return $confirmation;
-
-            } catch (\Throwable $e) {
-                Log::error("Erro no reagendamento: " . $e->getMessage());
-                return "⚠️ Ocorreu uma falha ao alterar o agendamento. Tente novamente em instantes.";
-            }
-        }
-
-        // 3. PROCESSA NOVO AGENDAMENTO
-        if (!preg_match('/\[AGENDAR_REUNIAO:(.*?)\]/s', $aiReply, $matches)) {
-            return $aiReply;
-        }
-
-        $tagContent = $matches[1];
-        
-        $deptName = null;
-        $startDateTimeStr = null;
-        $clientEmail = null;
-        $additionalEmails = [];
-
-        if (preg_match('/departamento=["\']([^"\']+)["\']/i', $tagContent, $m)) {
-            $deptName = trim($m[1]);
-        }
-        if (preg_match('/data_hora_inicio=["\']([^"\']+)["\']/i', $tagContent, $m)) {
-            $startDateTimeStr = trim($m[1]);
-        }
-        if (preg_match('/email_cliente=["\']([^"\']+)["\']/i', $tagContent, $m)) {
-            $clientEmail = trim($m[1]);
-        }
-        if (preg_match('/emails_adicionais=["\']([^"\']+)["\']/i', $tagContent, $m)) {
-            $rawAdd = trim($m[1]);
-            if (!empty($rawAdd)) {
-                $additionalEmails = array_map('trim', explode(',', $rawAdd));
-            }
-        }
-
-        if (!$deptName || !$startDateTimeStr || !$clientEmail) {
-            return trim(preg_replace('/\[AGENDAR_REUNIAO:.*?\]/s', '', $aiReply));
-        }
-
-        try {
-            $startTime = Carbon::parse($startDateTimeStr);
-            $endTime = (clone $startTime)->addMinutes(30);
-
-            $dept = DB::table('departments')
-                ->whereRaw('LOWER(TRIM(name)) = ?', [strtolower($deptName)])
-                ->first() ?? DB::table('departments')->first();
-
-            if (!$dept) {
-                return "⚠️ Desculpe, não foi possível localizar um setor de atendimento configurado para este agendamento.";
-            }
-
-            $allocatedAgent = $this->allocateAgentRoundRobin(
-                $assistant->id,
-                $dept->id,
-                $startTime->toDateTimeString(),
-                $endTime->toDateTimeString()
-            );
-
-            if (!$allocatedAgent) {
-                return "⚠️ Não encontramos horários disponíveis com nossa equipe do setor *" . $dept->name . "* para " . $startTime->format('d/m/Y \à\s H:i') . ". Poderia escolher outro horário ou data?";
-            }
-
-            $googleService = new GoogleCalendarService();
-            $meetingResult = $googleService->createMeeting(
-                $assistant->id,
-                "Reunião de Atendimento - " . $displayName,
-                "Agendamento automatizado via WhatsApp para o setor: " . $dept->name,
-                $startTime->toDateTimeString(),
-                $endTime->toDateTimeString(),
-                $allocatedAgent->email,
-                $clientEmail,
-                $additionalEmails
-            );
-
-            $meetLink = $meetingResult['meet_link'] ?? null;
-            $eventId = $meetingResult['event_id'] ?? null;
-
-            DB::table('appointments')->insert([
-                'human_agent_id' => $allocatedAgent->id,
-                'google_event_id' => $eventId,
-                'start_time' => $startTime->toDateTimeString(),
-                'end_time' => $endTime->toDateTimeString(),
-                'client_name' => $displayName,
-                'client_phone' => $cleanSender,
-                'client_email' => $clientEmail,
-                'status' => 'scheduled',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            $confirmation = "✅ *REUNIÃO CONFIRMADA COM SUCESSO!*\n\n";
-            $confirmation .= "👤 *Atendente:* " . $allocatedAgent->name . "\n";
-            $confirmation .= "🏢 *Setor:* " . $dept->name . "\n";
-            $confirmation .= "📅 *Data/Hora:* " . $startTime->format('d/m/Y \à\s H:i') . "\n";
-            $confirmation .= "✉️ *Convites enviados para:* " . implode(', ', array_unique(array_filter(array_merge([$clientEmail], $additionalEmails)))) . "\n";
-
-            if ($meetLink) {
-                $confirmation .= "🎥 *Link do Google Meet:* " . $meetLink . "\n";
-            }
-
-            return $confirmation;
-
-        } catch (\Throwable $e) {
-            Log::error("Erro ao processar tag de agendamento: " . $e->getMessage());
-            return "⚠️ Ocorreu um erro ao gerar a reunião no calendário. Por favor, tente novamente em instantes.";
-        }
-    }
-
     public function webhook(Request $request, $id)
     {
         $this->configureTimezone($id);
         $this->ensureWebhookLogTableExists();
         $this->ensureChatMessagesTableExists();
-        $this->ensureAppointmentsTableExists();
 
         try {
             $assistant = Assistant::find($id);
@@ -1454,6 +1080,7 @@ class AssistantController extends Controller
             $mediaUrlPublic = null;
             $mediaExt = '';
 
+            // PROCESSAMENTO DE ANEXOS E ÁUDIOS
             if ($isMediaMessage) {
                 try {
                     $maxFileSizeMb = (int)(Setting::where('assistant_id', $assistant->id)->where('key', 'max_file_size_mb')->value('value') ?? 4);
@@ -1470,6 +1097,7 @@ class AssistantController extends Controller
 
                     $mediaBytes = null;
 
+                    // CAMADA 1: Leitura via Base64 enviado direto no webhook
                     $rawB64 = $msgPayload['base64'] 
                         ?? $msgPayload['content']['base64'] 
                         ?? $request->input('base64') 
@@ -1483,6 +1111,7 @@ class AssistantController extends Controller
                         }
                     }
 
+                    // CAMADA 2: Chamada do endpoint oficial de download (/message/download)
                     if (!$mediaBytes && $baseUrl && $token) {
                         $headers = [
                             'token' => $token,
@@ -1512,6 +1141,7 @@ class AssistantController extends Controller
                         }
                     }
 
+                    // CAMADA 3: Fallback por GET na URL direta da mídia
                     if (!$mediaBytes && !empty($mediaUrl) && str_starts_with($mediaUrl, 'http')) {
                         try {
                             $dl = Http::timeout(25)->get($mediaUrl);
@@ -1584,6 +1214,7 @@ class AssistantController extends Controller
                             }
 
                             if (file_exists($fullFilePath) && filesize($fullFilePath) > 100) {
+                                // ROTA DIRETA QUE EVITA 404 DO DOCKER / NGINX
                                 $mediaUrlPublic = $request->getSchemeAndHttpHost() . '/?view_file=' . $relativePath;
                                 $savePath = $fullFilePath;
                                 $mediaSaved = true;
@@ -1618,6 +1249,7 @@ class AssistantController extends Controller
                     $nowFormatted = now()->setTimezone($this->getTimezone($assistant->id))->toDateTimeString();
                     $rejectMsg = "⚠️ " . $mediaErrorDetails;
                     
+                    // ENVIA MENSAGEM COM O NÚMERO LIMPO DO WHATSAPP
                     $waResult = $this->sendWhatsappMessage($assistant, $cleanSender, $rejectMsg);
 
                     DB::table('webhook_logs')->insert([
@@ -1696,15 +1328,15 @@ class AssistantController extends Controller
                 $omniUserName = $dataArr['user_name'] ?? null;
             }
 
-            // LIMPEZA DOS ZEROS À ESQUERDA DO PROTOCOLO
-            $protocoloClean = null;
-            if (!empty($protocolo)) {
-                $protocoloClean = ltrim((string)$protocolo, '0');
-                if ($protocoloClean === '') $protocoloClean = '0';
-            }
-
             if (!empty($omniUserName) && !preg_match('/^[0-9]+$/', trim($omniUserName))) {
                 $displayName = trim($omniUserName);
+            }
+
+            if ($isNewTicket) {
+                DB::table('chat_messages')
+                    ->where('assistant_id', $assistant->id)
+                    ->where('phone_number', $cleanSender)
+                    ->delete();
             }
 
             $contextLimit = (int) ($assistant->context_limit ?? 12);
@@ -1730,15 +1362,7 @@ class AssistantController extends Controller
                 ];
             }
 
-            // DADOS DO ATENDIMENTO E PROTOCOLO APENAS SE FOR A PRIMEIRA MENSAGEM DO ASSISTENTE
-            $isFirstMessage = ($assistantMsgCount === 0);
-
-            if ($isNewTicket && $assistantMsgCount === 0) {
-                DB::table('chat_messages')
-                    ->where('assistant_id', $assistant->id)
-                    ->where('phone_number', $cleanSender)
-                    ->delete();
-            }
+            $isFirstMessage = ($assistantMsgCount === 0 || $isNewTicket);
 
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
 
@@ -1747,8 +1371,9 @@ class AssistantController extends Controller
 
             if ($isFirstMessage) {
                 $systemPrompt .= "• Nome do Cliente: " . $displayName . "\n";
-                if (!empty($protocoloClean)) {
-                    $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA DE SAUDAÇÃO: Esta é a PRIMEIRA MENSAGEM do atendimento. Você DEVE saudar o cliente pelo nome (" . $displayName . "). É ESTRITAMENTE PROIBIDO escrever, inventar ou citar qualquer número de protocolo na sua resposta, pois o sistema adicionará o protocolo automaticamente no início da mensagem.\n";
+                if (!empty($protocolo)) {
+                    $systemPrompt .= "• Número do Protocolo: " . $protocolo . "\n";
+                    $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA DE SAUDAÇÃO: Esta é a PRIMEIRA MENSAGEM do atendimento. Você DEVE obrigatoriamente saudar o cliente pelo nome (" . $displayName . ") e informar o número do protocolo (" . $protocolo . ").\n";
                 } else {
                     $systemPrompt .= "INSTRUÇÃO OBRIGATÓRIA DE SAUDAÇÃO: Esta é a PRIMEIRA MENSAGEM do atendimento. Você DEVE obrigatoriamente saudar o cliente pelo nome (" . $displayName . ").\n";
                 }
@@ -1766,33 +1391,19 @@ class AssistantController extends Controller
             }
 
             if ($isFirstMessage) {
-                if (!empty($protocoloClean)) {
-                    $aiReply = str_replace(['#PROTOCOLO#', '[PROTOCOLO]', '[Número do Protocolo]'], $protocoloClean, $aiReply);
-                    $aiReply = preg_replace('/Seu protocolo (de atendimento )?[é|é]:?\s*\d*/i', '', $aiReply);
+                if (!empty($protocolo)) {
+                    $aiReply = str_replace(['#PROTOCOLO#', '[PROTOCOLO]', '[Número do Protocolo]'], $protocolo, $aiReply);
 
-                    if (strpos($aiReply, $protocoloClean) === false) {
-                        $aiReply = "🎫 *Protocolo:* " . $protocoloClean . "\n\n" . trim($aiReply);
+                    if (strpos($aiReply, (string)$protocolo) === false) {
+                        $aiReply = "🎫 *Protocolo:* " . $protocolo . "\n\n" . $aiReply;
                     }
                 }
             } else {
-                // HIGIENIZAÇÃO RIGOROSA DE PROTOCOLO EM MENSAGENS SUBSEQUENTES
                 $aiReply = str_replace(['#PROTOCOLO#', '[PROTOCOLO]', '[Número do Protocolo]'], '', $aiReply);
-                if (!empty($protocolo)) {
-                    $aiReply = str_replace($protocolo, '', $aiReply);
-                }
-                if (!empty($protocoloClean)) {
-                    $aiReply = str_replace($protocoloClean, '', $aiReply);
-                }
-                $aiReply = preg_replace('/🎫\s*\*?Protocolo:\*?\s*\d*\n*/i', '', $aiReply);
-                $aiReply = preg_replace('/\*?Protocolo:\*?\s*\d*\n*/i', '', $aiReply);
-                $aiReply = preg_replace('/Seu protocolo (de atendimento )?[é|é]:?\s*\d*/i', '', $aiReply);
             }
 
             $aiReply = str_replace('..', '.', $aiReply);
 
-            $aiReply = $this->processAppointmentTag($assistant, $aiReply, $displayName, $cleanSender);
-
-            // ENVIO PARA O OMNI COM A RESPOSTA FINAL TRATADA E FORMATADA
             $this->sendToOmni($aiReply, $displayName !== 'Cliente' ? $displayName : $cleanSender, 'output', $cleanSender, $assistant->id);
 
             DB::table('chat_messages')->insert([
