@@ -298,7 +298,7 @@ class AssistantController extends Controller
             $existingAppointment = $query->first();
 
             if (!$existingAppointment) {
-                $msg = "\n\n⚠️ Não encontramos nenhuma reunião ativa para reagendar com o e-mail *{$emailInput}*.";
+                $msg = "\n\n⚠️ Não encontramos nenhuma reunião ativa para a data/e-mail fornecidos (*{$emailInput}*).";
                 return trim(preg_replace('/\[REAGENDAR_REUNIAO:.*?\]/s', $msg, $aiReply));
             }
 
@@ -335,51 +335,52 @@ class AssistantController extends Controller
                 }
 
                 $googleService = new GoogleCalendarService();
-                $meetingResult = $googleService->createMeeting(
-                    $assistant->id,
-                    "Reunião de Atendimento (Reagendada) - " . $displayName,
-                    "Agendamento reagendado via WhatsApp para o setor: " . $dept->name,
-                    $newStartTime->toDateTimeString(),
-                    $newEndTime->toDateTimeString(),
-                    $allocatedAgent->email,
-                    $emailInput
-                );
+                $meetingResult = null;
+
+                if (!empty($existingAppointment->google_event_id)) {
+                    $meetingResult = $googleService->updateMeeting(
+                        $assistant->id,
+                        $existingAppointment->google_event_id,
+                        $newStartTime->toDateTimeString(),
+                        $newEndTime->toDateTimeString(),
+                        $allocatedAgent->email
+                    );
+                }
+
+                if (!$meetingResult) {
+                    $meetingResult = $googleService->createMeeting(
+                        $assistant->id,
+                        "Reunião de Atendimento (Reagendada) - " . $displayName,
+                        "Agendamento reagendado via WhatsApp para o setor: " . $dept->name,
+                        $newStartTime->toDateTimeString(),
+                        $newEndTime->toDateTimeString(),
+                        $allocatedAgent->email,
+                        $emailInput
+                    );
+                }
 
                 if (!$meetingResult) {
                     $msg = "\n\n⚠️ Erro técnico ao comunicar com o Google Calendar para o reagendamento. Tente em instantes.";
                     return trim(preg_replace('/\[REAGENDAR_REUNIAO:.*?\]/s', $msg, $aiReply));
                 }
 
-                if (!empty($existingAppointment->google_event_id)) {
-                    $googleService->cancelMeeting($assistant->id, $existingAppointment->google_event_id);
-                }
-
                 DB::table('appointments')->where('id', $existingAppointment->id)->update([
-                    'status' => 'rescheduled',
-                    'updated_at' => now()
-                ]);
-
-                DB::table('appointments')->insert([
                     'human_agent_id' => $allocatedAgent->id,
-                    'google_event_id' => $meetingResult['event_id'] ?? null,
+                    'google_event_id' => $meetingResult['event_id'] ?? $existingAppointment->google_event_id,
                     'start_time' => $newStartTime->toDateTimeString(),
                     'end_time' => $newEndTime->toDateTimeString(),
-                    'client_name' => $displayName,
-                    'client_phone' => $cleanSender,
-                    'client_email' => $emailInput,
-                    'status' => 'scheduled',
-                    'created_at' => now(),
-                    'updated_at' => now(),
+                    'updated_at' => now()
                 ]);
 
                 $msg = "\n\n🔄 *REUNIÃO REAGENDADA COM SUCESSO!*\n\n";
                 $msg .= "👤 *Atendente:* " . $allocatedAgent->name . "\n";
                 $msg .= "📅 *Nova Data/Hora:* " . $newStartTime->format('d/m/Y \à\s H:i') . "\n";
-                if ($meetingResult['meet_link'] ?? false) $msg .= "🎥 *Novo Link:* " . $meetingResult['meet_link'] . "\n";
+                if ($meetingResult['meet_link'] ?? false) $msg .= "🎥 *Link do Google Meet:* " . $meetingResult['meet_link'] . "\n";
 
                 return trim(preg_replace('/\[REAGENDAR_REUNIAO:.*?\]/s', $msg, $aiReply));
 
             } catch (\Throwable $e) {
+                Log::error("Erro ao reagendar reunião: " . $e->getMessage());
                 $msg = "\n\n⚠️ Falha ao alterar o agendamento. Tente em instantes.";
                 return trim(preg_replace('/\[REAGENDAR_REUNIAO:.*?\]/s', $msg, $aiReply));
             }

@@ -121,6 +121,81 @@ class GoogleCalendarService
         return null;
     }
 
+    public function updateMeeting(
+        int $assistantId,
+        string $eventId,
+        string $startDateTime,
+        string $endDateTime,
+        ?string $newAgentEmail = null
+    ): ?array {
+        if (empty($eventId)) return null;
+
+        $accessToken = $this->getAccessToken($assistantId);
+        if (!$accessToken) return null;
+
+        $calendarId = Setting::where('assistant_id', $assistantId)->where('key', 'google_calendar_id')->value('value') ?? 'primary';
+        if (empty($calendarId)) $calendarId = 'primary';
+
+        $startCarbon = Carbon::parse($startDateTime)->setTimezone('America/Sao_Paulo');
+        $endCarbon = Carbon::parse($endDateTime)->setTimezone('America/Sao_Paulo');
+
+        $payload = [
+            'start' => [
+                'dateTime' => $startCarbon->format('Y-m-d\TH:i:sP'),
+                'timeZone' => 'America/Sao_Paulo',
+            ],
+            'end' => [
+                'dateTime' => $endCarbon->format('Y-m-d\TH:i:sP'),
+                'timeZone' => 'America/Sao_Paulo',
+            ],
+        ];
+
+        try {
+            $url = "https://www.googleapis.com/calendar/v3/calendars/" . urlencode($calendarId) . "/events/" . urlencode($eventId) . "?sendUpdates=all";
+
+            if (!empty($newAgentEmail) && filter_var($newAgentEmail, FILTER_VALIDATE_EMAIL)) {
+                $getRes = Http::withToken($accessToken)->get("https://www.googleapis.com/calendar/v3/calendars/" . urlencode($calendarId) . "/events/" . urlencode($eventId));
+                if ($getRes->successful()) {
+                    $eventData = $getRes->json();
+                    $attendees = $eventData['attendees'] ?? [];
+                    
+                    $hasAgent = false;
+                    foreach ($attendees as $att) {
+                        if (strtolower(trim($att['email'] ?? '')) === strtolower(trim($newAgentEmail))) {
+                            $hasAgent = true;
+                            break;
+                        }
+                    }
+                    if (!$hasAgent) {
+                        $attendees[] = ['email' => trim($newAgentEmail)];
+                        $payload['attendees'] = $attendees;
+                    }
+                }
+            }
+
+            $response = Http::withToken($accessToken)
+                ->contentType('application/json')
+                ->patch($url, $payload);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                $meetLink = $data['hangoutLink'] ?? ($data['conferenceData']['entryPoints'][0]['uri'] ?? null);
+
+                return [
+                    'event_id' => $data['id'] ?? $eventId,
+                    'meet_link' => $meetLink,
+                    'raw' => $data
+                ];
+            }
+
+            Log::error("Erro na atualização do evento Google Calendar: " . $response->body());
+        } catch (\Throwable $e) {
+            Log::error("Exceção ao atualizar evento no Google Calendar: " . $e->getMessage());
+        }
+
+        return null;
+    }
+
     public function cancelMeeting(int $assistantId, string $eventId): bool
     {
         if (empty($eventId)) return false;
