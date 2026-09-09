@@ -75,23 +75,28 @@ class CalendarController extends Controller
     {
         $agentId = $request->input('agent_id', 'all');
         
-        $query = Appointment::query();
+        $query = \Illuminate\Support\Facades\DB::table('appointments')
+            ->leftJoin('human_agents', 'appointments.human_agent_id', '=', 'human_agents.id')
+            ->leftJoin('departments', 'human_agents.department_id', '=', 'departments.id')
+            ->select(
+                'appointments.*',
+                'human_agents.name as agent_name',
+                'departments.name as department_name'
+            )
+            ->where('appointments.status', '!=', 'cancelled');
         
         if ($agentId !== 'all' && $agentId) {
-            // Traz eventos de um agente específico
-            $query->where('human_agent_id', $agentId);
+            $query->where('appointments.human_agent_id', $agentId);
         } else {
-            // Traz eventos de TODOS os agentes do Assistente atual
             $astId = session('last_agenda_ast_id');
             if ($astId) {
-                $ast = Assistant::with('departments.agents')->find($astId);
-                $agentIds = [];
-                if ($ast) {
-                    foreach ($ast->departments as $dept) {
-                        $agentIds = array_merge($agentIds, $dept->agents->pluck('id')->toArray());
-                    }
-                }
-                $query->whereIn('human_agent_id', $agentIds);
+                $agentIds = \Illuminate\Support\Facades\DB::table('human_agents')
+                    ->join('departments', 'human_agents.department_id', '=', 'departments.id')
+                    ->where('departments.assistant_id', $astId)
+                    ->pluck('human_agents.id')
+                    ->toArray();
+
+                $query->whereIn('appointments.human_agent_id', $agentIds);
             } else {
                 return response()->json([]);
             }
@@ -101,11 +106,14 @@ class CalendarController extends Controller
         
         $events = $appointments->map(function($app) {
             $isBlock = ($app->client_name === 'BLOQUEIO_MANUAL');
+            $startTime = \Carbon\Carbon::parse($app->start_time);
+            $endTime = \Carbon\Carbon::parse($app->end_time);
+
             return [
                 'id' => $app->id,
-                'title' => $isBlock ? '🚫 Indisponível' : "📅 {$app->client_name}",
-                'start' => $app->start_time->format('Y-m-d\TH:i:s'),
-                'end' => $app->end_time->format('Y-m-d\TH:i:s'),
+                'title' => $isBlock ? '🚫 Indisponível' : "Reunião com {$app->client_name}",
+                'start' => $startTime->format('Y-m-d\TH:i:s'),
+                'end' => $endTime->format('Y-m-d\TH:i:s'),
                 'backgroundColor' => $isBlock ? '#ef4444' : '#4f46e5',
                 'borderColor' => $isBlock ? '#dc2626' : '#4338ca',
                 'extendedProps' => [
@@ -113,7 +121,11 @@ class CalendarController extends Controller
                     'client_name' => $app->client_name,
                     'client_email' => $app->client_email,
                     'client_phone' => $app->client_phone,
-                    'status' => $app->status
+                    'agent_name' => $app->agent_name ?? 'Não atribuído',
+                    'department_name' => $app->department_name ?? 'Geral',
+                    'status' => $app->status === 'rescheduled' ? 'Reagendada' : 'Agendada',
+                    'start_formatted' => $startTime->format('d/m/Y \à\s H:i'),
+                    'end_formatted' => $endTime->format('H:i')
                 ]
             ];
         });
