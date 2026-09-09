@@ -268,22 +268,34 @@ class AssistantController extends Controller
             return trim(preg_replace('/\[CANCELAR_REUNIAO:.*?\]/s', $msg, $aiReply));
         }
 
-        // 3. REAGENDAR REUNIÃO
+        // 3. REAGENDAR REUNIAO
         if (preg_match('/\[REAGENDAR_REUNIAO:(.*?)\]/s', $aiReply, $matches)) {
             $tagContent = $matches[1];
             preg_match('/email_cliente=["\']([^"\']+)["\']/i', $tagContent, $mEmail);
+            preg_match('/data_hora_original=["\']([^"\']+)["\']/i', $tagContent, $mOrigDate);
             preg_match('/nova_data_hora=["\']([^"\']+)["\']/i', $tagContent, $mDate);
             preg_match('/departamento=["\']([^"\']+)["\']/i', $tagContent, $mDept);
 
             $emailInput = trim($mEmail[1] ?? '');
+            $origDateStr = trim($mOrigDate[1] ?? '');
             $newDateStr = trim($mDate[1] ?? '');
             $deptName = trim($mDept[1] ?? '');
 
-            $existingAppointment = DB::table('appointments')
+            $query = DB::table('appointments')
                 ->where('client_phone', $cleanSender)
                 ->whereRaw('LOWER(TRIM(client_email)) = ?', [strtolower($emailInput)])
-                ->where('status', 'scheduled')
-                ->first();
+                ->where('status', 'scheduled');
+
+            if (!empty($origDateStr)) {
+                try {
+                    $origStartTime = Carbon::parse($origDateStr)->toDateTimeString();
+                    $query->where('start_time', $origStartTime);
+                } catch (\Throwable $e) {
+                    Log::warning("Falha ao parsear data_hora_original: " . $origDateStr);
+                }
+            }
+
+            $existingAppointment = $query->first();
 
             if (!$existingAppointment) {
                 $msg = "\n\n⚠️ Não encontramos nenhuma reunião ativa para reagendar com o e-mail *{$emailInput}*.";
@@ -1179,7 +1191,7 @@ class AssistantController extends Controller
                 $prompt .= "Emita: [CANCELAR_REUNIAO: email_cliente=\"email@cliente.com\", data_hora=\"YYYY-MM-DD HH:MM:SS\"]\n\n";
 
                 $prompt .= "4. REAGENDAMENTO:\n";
-                $prompt .= "Emita: [REAGENDAR_REUNIAO: departamento=\"NOME_DO_SETOR\", nova_data_hora=\"YYYY-MM-DD HH:MM:SS\", email_cliente=\"email@cliente.com\"]\n";
+                $prompt .= "Emita: [REAGENDAR_REUNIAO: departamento=\"NOME_DO_SETOR\", data_hora_original=\"YYYY-MM-DD HH:MM:SS\", nova_data_hora=\"YYYY-MM-DD HH:MM:SS\", email_cliente=\"email@cliente.com\"]\n";
                 $prompt .= "===============================================\n";
             }
         }
