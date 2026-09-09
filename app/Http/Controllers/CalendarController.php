@@ -74,8 +74,11 @@ class CalendarController extends Controller
     private function getEvents(Request $request)
     {
         $agentId = $request->input('agent_id', 'all');
+        // Puxa o assistente_id diretamente da URL para não depender só da sessão
+        $astId = $request->input('assistant_id') ?: session('last_agenda_ast_id');
         
-        $query = \Illuminate\Support\Facades\DB::table('appointments')
+        // Retornamos ao uso do Appointment::query() para evitar bugs de conversão do Laravel
+        $query = Appointment::query()
             ->leftJoin('human_agents', 'appointments.human_agent_id', '=', 'human_agents.id')
             ->leftJoin('departments', 'human_agents.department_id', '=', 'departments.id')
             ->select(
@@ -88,7 +91,6 @@ class CalendarController extends Controller
         if ($agentId !== 'all' && $agentId) {
             $query->where('appointments.human_agent_id', $agentId);
         } else {
-            $astId = session('last_agenda_ast_id');
             if ($astId) {
                 $agentIds = \Illuminate\Support\Facades\DB::table('human_agents')
                     ->join('departments', 'human_agents.department_id', '=', 'departments.id')
@@ -106,8 +108,10 @@ class CalendarController extends Controller
         
         $events = $appointments->map(function($app) {
             $isBlock = ($app->client_name === 'BLOQUEIO_MANUAL');
-            $startTime = \Carbon\Carbon::parse($app->start_time);
-            $endTime = \Carbon\Carbon::parse($app->end_time);
+            
+            // Garante a conversão blindada da data para o calendário ler sem dar erro
+            $startTime = $app->start_time instanceof \Carbon\Carbon ? $app->start_time : \Carbon\Carbon::parse($app->start_time);
+            $endTime = $app->end_time instanceof \Carbon\Carbon ? $app->end_time : \Carbon\Carbon::parse($app->end_time);
 
             return [
                 'id' => $app->id,
@@ -118,9 +122,9 @@ class CalendarController extends Controller
                 'borderColor' => $isBlock ? '#dc2626' : '#4338ca',
                 'extendedProps' => [
                     'type' => $isBlock ? 'block' : 'appointment',
-                    'client_name' => $app->client_name,
-                    'client_email' => $app->client_email,
-                    'client_phone' => $app->client_phone,
+                    'client_name' => $app->client_name ?? 'Cliente',
+                    'client_email' => $app->client_email ?? '-',
+                    'client_phone' => $app->client_phone ?? '-',
                     'agent_name' => $app->agent_name ?? 'Não atribuído',
                     'department_name' => $app->department_name ?? 'Geral',
                     'status' => $app->status === 'rescheduled' ? 'Reagendada' : 'Agendada',

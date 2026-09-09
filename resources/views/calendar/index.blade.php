@@ -229,6 +229,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             const calendarEl = document.getElementById('calendar');
             const agentId = '{{ $currentAgentId }}';
+            const assistantId = '{{ $currentAssistantId }}'; // <-- Adicionamos o Assistente atual
             const csrfToken = '{{ csrf_token() }}';
 
             const calendar = new FullCalendar.Calendar(calendarEl, {
@@ -244,7 +245,8 @@
                 nowIndicator: true, 
                 scrollTimeReset: false,
                 
-                events: '/?action=get_events&agent_id=' + agentId,
+                // Agora enviamos o assistente e o agente para evitar que o ajax se perca
+                events: '/?action=get_events&agent_id=' + agentId + '&assistant_id=' + assistantId,
 
                 // RENDERIZAÇÃO DOS CARDS
                 eventContent: function(arg) {
