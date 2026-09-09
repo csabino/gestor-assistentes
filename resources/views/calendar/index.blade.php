@@ -229,7 +229,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             const calendarEl = document.getElementById('calendar');
             const agentId = '{{ $currentAgentId }}';
-            const assistantId = '{{ $currentAssistantId }}'; // <-- Adicionamos o Assistente atual
+            const assistantId = '{{ $currentAssistantId }}';
             const csrfToken = '{{ csrf_token() }}';
 
             const calendar = new FullCalendar.Calendar(calendarEl, {
@@ -245,8 +245,8 @@
                 nowIndicator: true, 
                 scrollTimeReset: false,
                 
-                // Agora enviamos o assistente e o agente para evitar que o ajax se perca
-                events: '/?action=get_events&agent_id=' + agentId + '&assistant_id=' + assistantId,
+                // CORREÇÃO 1: Adicionado o view=agenda na URL de busca
+                events: '/?view=agenda&action=get_events&agent_id=' + agentId + '&assistant_id=' + assistantId,
 
                 // RENDERIZAÇÃO DOS CARDS
                 eventContent: function(arg) {
@@ -297,7 +297,8 @@
                         return;
                     }
                     if (confirm('Criar BLOQUEIO neste horário?')) {
-                        fetch('/', {
+                        // CORREÇÃO 2: Adicionado view=agenda no fetch
+                        fetch('/?view=agenda', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
                             body: JSON.stringify({
@@ -315,7 +316,8 @@
                 },
 
                 eventDrop: function(info) {
-                    fetch('/', {
+                    // CORREÇÃO 3: Adicionado view=agenda no fetch
+                    fetch('/?view=agenda', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
                         body: JSON.stringify({
@@ -330,7 +332,8 @@
                 },
 
                 eventResize: function(info) {
-                    fetch('/', {
+                    // CORREÇÃO 4: Adicionado view=agenda no fetch
+                    fetch('/?view=agenda', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
                         body: JSON.stringify({
@@ -360,7 +363,8 @@
             // FUNÇÃO GLOBAL DE EXCLUSÃO DO EVENTO VIA MODAL
             window.deleteCurrentEvent = function(id) {
                 if (confirm('Deseja realmente excluir este registro?')) {
-                    fetch('/', {
+                    // CORREÇÃO 5: Adicionado view=agenda no fetch
+                    fetch('/?view=agenda', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
                         body: JSON.stringify({ action: 'delete_event', id: id })
