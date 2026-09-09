@@ -241,22 +241,40 @@ class AssistantController extends Controller
         if (preg_match('/\[CANCELAR_REUNIAO:(.*?)\]/s', $aiReply, $matches)) {
             $tagContent = $matches[1];
             preg_match('/email_cliente=["\']([^"\']+)["\']/i', $tagContent, $mEmail);
-            $emailInput = trim($mEmail[1] ?? '');
+            preg_match('/data_hora=["\']([^"\']+)["\']/i', $tagContent, $mDate);
 
-            $appointment = DB::table('appointments')
+            $emailInput = trim($mEmail[1] ?? '');
+            $origDateStr = trim($mDate[1] ?? '');
+
+            $query = DB::table('appointments')
                 ->where('client_phone', $cleanSender)
                 ->whereRaw('LOWER(TRIM(client_email)) = ?', [strtolower($emailInput)])
-                ->where('status', 'scheduled')
-                ->first();
+                ->where('status', 'scheduled');
+
+            if (!empty($origDateStr)) {
+                try {
+                    $origStartTime = Carbon::parse($origDateStr)->toDateTimeString();
+                    $query->where('start_time', $origStartTime);
+                } catch (\Throwable $e) {
+                    Log::warning("Falha ao parsear data_hora no cancelamento: " . $origDateStr);
+                }
+            }
+
+            $appointment = $query->first();
 
             if (!$appointment) {
-                $msg = "\n\n⚠️ Não encontramos nenhuma reunião ativa associada ao seu número com o e-mail *{$emailInput}*.";
+                $msg = "\n\n⚠️ Não encontramos nenhuma reunião ativa associada ao seu e-mail *{$emailInput}* para essa data e horário exatos.";
                 return trim(preg_replace('/\[CANCELAR_REUNIAO:.*?\]/s', $msg, $aiReply));
             }
 
             if (!empty($appointment->google_event_id)) {
                 $googleService = new GoogleCalendarService();
-                $googleService->cancelMeeting($assistant->id, $appointment->google_event_id);
+                $cancelResult = $googleService->cancelMeeting($assistant->id, $appointment->google_event_id);
+                
+                if (!$cancelResult) {
+                    $msg = "\n\n⚠️ Erro técnico ao comunicar com o Google Calendar para o cancelamento. Tente novamente em instantes.";
+                    return trim(preg_replace('/\[CANCELAR_REUNIAO:.*?\]/s', $msg, $aiReply));
+                }
             }
 
             DB::table('appointments')->where('id', $appointment->id)->update([
@@ -264,7 +282,7 @@ class AssistantController extends Controller
                 'updated_at' => now()
             ]);
 
-            $msg = "\n\n❌ *REUNIÃO CANCELADA COM SUCESSO!*\n\nO agendamento do dia " . Carbon::parse($appointment->start_time)->format('d/m/Y \à\s H:i') . " foi cancelado.";
+            $msg = "\n\n❌ *REUNIÃO CANCELADA COM SUCESSO!*\n\nO agendamento do dia " . Carbon::parse($appointment->start_time)->format('d/m/Y \à\s H:i') . " foi cancelado na agenda e os participantes foram notificados.";
             return trim(preg_replace('/\[CANCELAR_REUNIAO:.*?\]/s', $msg, $aiReply));
         }
 
