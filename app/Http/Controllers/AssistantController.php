@@ -1980,6 +1980,9 @@ class AssistantController extends Controller
             }
             $systemPrompt .= "===============================================\n";
 
+            // ATIVA O 'DIGITANDO...' ENQUANTO A IA PROCESSA A RESPOSTA
+            $this->sendWhatsappPresence($assistant, $cleanSender, 'composing');
+
             $aiReply = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
 
             if (!empty($displayName) && $displayName !== 'Cliente') {
@@ -2228,39 +2231,6 @@ class AssistantController extends Controller
             $baseUrl = rtrim($assistant->whatsapp_url, '/');
             $token = trim($assistant->whatsapp_token);
 
-            // 1. DISPARA O STATUS "DIGITANDO..." PARA O WHATSAPP
-            try {
-                if (str_contains($baseUrl, 'uazapi.com') || $assistant->whatsapp_provider === 'uazapi') {
-                    Http::withHeaders([
-                        'token' => $token,
-                        'Client-Token' => $token,
-                        'client-token' => $token,
-                        'apikey' => $token,
-                        'Content-Type' => 'application/json'
-                    ])->post($baseUrl . '/send/presence?token=' . urlencode($token), [
-                        'token' => $token,
-                        'number' => $cleanTo,
-                        'presence' => 'composing'
-                    ]);
-                } else {
-                    Http::withHeaders([
-                        'token' => $token,
-                        'apikey' => $token,
-                        'Content-Type' => 'application/json'
-                    ])->post($baseUrl . '/chat/sendPresence/' . $assistant->whatsapp_instance, [
-                        'number' => $cleanTo,
-                        'presence' => 'composing',
-                        'delay' => 4000
-                    ]);
-                }
-            } catch (\Throwable $ePresence) {
-                Log::warning("Aviso: Falha ao enviar status de presença/digitando: " . $ePresence->getMessage());
-            }
-
-            // 2. AGUARDA 4 SEGUNDOS MOSTRANDO O BALÃOZINHO ANTES DE ENVIAR A MENSAGEM
-            sleep(4);
-
-            // 3. ENVIA A MENSAGEM DE TEXTO
             if (str_contains($baseUrl, 'uazapi.com') || $assistant->whatsapp_provider === 'uazapi') {
                 $endpoint = $baseUrl . '/send/text';
                 
@@ -2391,6 +2361,45 @@ class AssistantController extends Controller
 
         } catch (\Throwable $e) {
             return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    private function sendWhatsappPresence(Assistant $assistant, string $to, string $status = 'composing'): void
+    {
+        if (empty($assistant->whatsapp_url) || empty($assistant->whatsapp_token)) {
+            return;
+        }
+
+        try {
+            $cleanTo = preg_replace('/[^0-9]/', '', $to);
+            $baseUrl = rtrim($assistant->whatsapp_url, '/');
+            $token = trim($assistant->whatsapp_token);
+
+            if (str_contains($baseUrl, 'uazapi.com') || $assistant->whatsapp_provider === 'uazapi') {
+                Http::withHeaders([
+                    'token' => $token,
+                    'Client-Token' => $token,
+                    'client-token' => $token,
+                    'apikey' => $token,
+                    'Content-Type' => 'application/json'
+                ])->post($baseUrl . '/send/presence?token=' . urlencode($token), [
+                    'token' => $token,
+                    'number' => $cleanTo,
+                    'presence' => $status
+                ]);
+            } else {
+                Http::withHeaders([
+                    'token' => $token,
+                    'apikey' => $token,
+                    'Content-Type' => 'application/json'
+                ])->post($baseUrl . '/chat/sendPresence/' . $assistant->whatsapp_instance, [
+                    'number' => $cleanTo,
+                    'presence' => $status,
+                    'delay' => 12000
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning("Aviso: Falha ao enviar presença WhatsApp: " . $e->getMessage());
         }
     }
 }
