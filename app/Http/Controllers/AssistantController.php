@@ -282,8 +282,9 @@ class AssistantController extends Controller
                 'updated_at' => now()
             ]);
 
-            $msg = "\n\n❌ *REUNIÃO CANCELADA COM SUCESSO!*\n\nO agendamento do dia " . Carbon::parse($appointment->start_time)->format('d/m/Y \à\s H:i') . " foi cancelado na agenda e os participantes foram notificados.";
-            return trim(preg_replace('/\[CANCELAR_REUNIAO:.*?\]/s', $msg, $aiReply));
+            $msg = "\n\n❌ *REUNIÃO CANCELADA COM SUCESSO!*\n\nO agendamento do dia " . Carbon::parse($appointment->start_time)->format('d/m/Y \à\s H:i') . " foi cancelado na agenda e os participantes foram notificados.\n\nRestou mais alguma dúvida ou posso te ajudar em algo mais?\n\nPor favor, selecione uma das opções:\n1️⃣ Tenho mais dúvidas\n2️⃣ Encerrar o atendimento";
+
+            return trim(preg_replace('/\[CANCELAR_REUNIAO:.*?\](.*)$/s', $msg, $aiReply));
         }
 
         // 3. REAGENDAR REUNIAO
@@ -401,9 +402,11 @@ class AssistantController extends Controller
                 $msg = "\n\n🔄 *REUNIÃO REAGENDADA COM SUCESSO!*\n\n";
                 $msg .= "👤 *Atendente:* " . $allocatedAgent->name . "\n";
                 $msg .= "📅 *Nova Data/Hora:* " . $newStartTime->format('d/m/Y \à\s H:i') . "\n";
-                if ($meetingResult['meet_link'] ?? false) $msg .= "🎥 *Link do Google Meet:* " . $meetingResult['meet_link'] . "\n";
+                if ($meetingResult['meet_link'] ?? false) $msg .= "🎥 *Link do Google Meet:* " . $meetingResult['meet_link'] . "\n\n";
 
-                return trim(preg_replace('/\[REAGENDAR_REUNIAO:.*?\]/s', $msg, $aiReply));
+                $msg .= "Restou mais alguma dúvida ou posso te ajudar em algo mais?\n\nPor favor, selecione uma das opções:\n1️⃣ Tenho mais dúvidas\n2️⃣ Encerrar o atendimento";
+
+                return trim(preg_replace('/\[REAGENDAR_REUNIAO:.*?\](.*)$/s', $msg, $aiReply));
 
             } catch (\Throwable $e) {
                 Log::error("Erro ao reagendar reunião: " . $e->getMessage());
@@ -465,7 +468,6 @@ class AssistantController extends Controller
                     return trim(preg_replace('/\[AGENDAR_REUNIAO:.*?\]/s', $msg, $aiReply));
                 }
 
-                // CORPO / RESUMO ESTRUTURADO PARA O E-MAIL E EVENTO DO GOOGLE CALENDAR
                 $eventDescription = "📋 Agendamento via WhatsApp - InHouse Contact Center\n\n" .
                                    "👤 Cliente: " . $displayName . "\n" .
                                    "📱 Telefone: " . $cleanSender . "\n" .
@@ -516,7 +518,9 @@ class AssistantController extends Controller
                     $msg .= "🎥 *Link do Google Meet:* " . $meetingResult['meet_link'] . "\n";
                 }
 
-                return trim(preg_replace('/\[AGENDAR_REUNIAO:.*?\]/s', $msg, $aiReply));
+                $msg .= "\nRestou mais alguma dúvida ou posso te ajudar em algo mais?\n\nPor favor, selecione uma das opções:\n1️⃣ Tenho mais dúvidas\n2️⃣ Encerrar o atendimento";
+
+                return trim(preg_replace('/\[AGENDAR_REUNIAO:.*?\](.*)$/s', $msg, $aiReply));
 
             } catch (\Throwable $e) {
                 Log::error("Erro no agendamento final: " . $e->getMessage());
