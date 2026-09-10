@@ -17,10 +17,38 @@
         .fc-col-header-cell { background-color: #f8fafc; padding: 0.5rem 0; font-weight: 700; color: #334155; text-transform: uppercase; font-size: 0.75rem; }
         .fc-timegrid-slot-label { font-size: 0.75rem; color: #94a3b8; font-weight: 600; }
         .fc .fc-timegrid-slot-minor { border-top-style: dashed; }
-        .fc-event { cursor: pointer; }
+        .fc-event { cursor: pointer; border: none !important; }
         .fc .fc-day-today { background-color: #eef2ff !important; }
         .fc-theme-standard .fc-timegrid-now-indicator-line { border-color: #ef4444; border-width: 2px; }
         .fc-theme-standard .fc-timegrid-now-indicator-arrow { border-color: #ef4444; border-width: 6px; margin-top: -6px; }
+
+        /* ESTILIZAÇÃO FORÇADA DE CONTRASTE E DESDOBRAMENTO DOS CARDS */
+        .fc-daygrid-event, .fc-timegrid-event {
+            background-color: #4f46e5 !important;
+            border-color: #4338ca !important;
+            color: #ffffff !important;
+            border-radius: 6px !important;
+            opacity: 1 !important;
+        }
+
+        .fc-daygrid-event-hmain,
+        .fc-daygrid-event {
+            padding: 3px 6px !important;
+            margin-top: 2px !important;
+            margin-bottom: 2px !important;
+        }
+
+        .fc-timegrid-event .fc-event-main {
+            padding: 4px 6px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: flex-start !important;
+            overflow: hidden !important;
+        }
+
+        .fc-event * {
+            color: #ffffff !important;
+        }
     </style>
 </head>
 <body class="bg-gray-50 font-sans text-gray-900 min-h-screen flex overflow-hidden" 
@@ -244,11 +272,12 @@
                 selectable: true,
                 nowIndicator: true, 
                 scrollTimeReset: false,
-                
-                // CORREÇÃO 1: Adicionado o view=agenda na URL de busca
+                eventDisplay: 'block', // Força renderização em bloco sólido na visão mensal
+
+                // BUSCA DOS EVENTOS VIA API
                 events: '/?view=agenda&action=get_events&agent_id=' + agentId + '&assistant_id=' + assistantId,
 
-                // RENDERIZAÇÃO DOS CARDS
+                // RENDERIZAÇÃO PERSONALIZADA E ROBUSTA DOS CARDS
                 eventContent: function(arg) {
                     if (arg.event.extendedProps.type === 'block') {
                         return { html: '<div class="p-1 font-bold text-xs truncate text-white">🚫 Indisponível</div>' };
@@ -256,9 +285,9 @@
                     const client = arg.event.extendedProps.client_name || 'Cliente';
                     const agent = arg.event.extendedProps.agent_name || 'Atendente';
                     return {
-                        html: `<div class="p-1 leading-tight overflow-hidden text-xs text-white">
-                                <div class="font-bold truncate">📅 Reunião com ${client}</div>
-                                <div class="text-[11px] opacity-90 truncate">👤 Atendente: ${agent}</div>
+                        html: `<div class="p-1 leading-snug overflow-hidden text-xs text-white h-full flex flex-col justify-start">
+                                <div class="font-bold truncate text-white">📅 Reunião com ${client}</div>
+                                <div class="text-[11px] opacity-95 truncate text-white font-medium">👤 Atendente: ${agent}</div>
                                </div>`
                     };
                 },
@@ -297,7 +326,6 @@
                         return;
                     }
                     if (confirm('Criar BLOQUEIO neste horário?')) {
-                        // CORREÇÃO 2: Adicionado view=agenda no fetch
                         fetch('/?view=agenda', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
@@ -316,7 +344,6 @@
                 },
 
                 eventDrop: function(info) {
-                    // CORREÇÃO 3: Adicionado view=agenda no fetch
                     fetch('/?view=agenda', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
@@ -332,7 +359,6 @@
                 },
 
                 eventResize: function(info) {
-                    // CORREÇÃO 4: Adicionado view=agenda no fetch
                     fetch('/?view=agenda', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
@@ -363,7 +389,6 @@
             // FUNÇÃO GLOBAL DE EXCLUSÃO DO EVENTO VIA MODAL
             window.deleteCurrentEvent = function(id) {
                 if (confirm('Deseja realmente excluir este registro?')) {
-                    // CORREÇÃO 5: Adicionado view=agenda no fetch
                     fetch('/?view=agenda', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
