@@ -57,10 +57,22 @@ class GoogleCalendarService
         $calendarId = Setting::where('assistant_id', $assistantId)->where('key', 'google_calendar_id')->value('value') ?? 'primary';
         if (empty($calendarId)) $calendarId = 'primary';
 
+        $rawEmails = array_merge([$agentEmail, $clientEmail], $additionalEmails);
         $attendees = [];
-        $allEmails = array_unique(array_filter(array_merge([$agentEmail, $clientEmail], $additionalEmails)));
 
-        foreach ($allEmails as $email) {
+        // Filtra para remover o e-mail do organizador (calendarId) da lista de convidados
+        $filteredEmails = array_unique(array_filter($rawEmails, function ($email) use ($calendarId) {
+            $clean = strtolower(trim($email));
+            if (empty($clean)) return false;
+            
+            // Se o calendarId for o próprio e-mail da conta do Google, não inclui como convidado
+            if (filter_var($calendarId, FILTER_VALIDATE_EMAIL) && $clean === strtolower(trim($calendarId))) {
+                return false;
+            }
+            return true;
+        }));
+
+        foreach ($filteredEmails as $email) {
             $cleanEmail = trim($email);
             if (filter_var($cleanEmail, FILTER_VALIDATE_EMAIL)) {
                 $attendees[] = ['email' => $cleanEmail];
