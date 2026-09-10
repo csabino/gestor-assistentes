@@ -238,7 +238,7 @@ class AssistantController extends Controller
         }
 
         // 2. CANCELAR REUNIÃO
-        if (preg_match('/\[CANCELAR_REUNIAO:(.*?)\]/s', $aiReply, $matches)) {
+        if (preg_match('/\[(?:CANCELAR_REUNIAO|Cancelar reunião|CANCELAR_AGENDAMENTO|CANCELAR)\s*:(.*?)\]/is', $aiReply, $matches)) {
             $tagContent = $matches[1];
             preg_match('/email_cliente=["\']([^"\']+)["\']/i', $tagContent, $mEmail);
             preg_match('/data_hora=["\']([^"\']+)["\']/i', $tagContent, $mDate);
@@ -253,8 +253,12 @@ class AssistantController extends Controller
 
             if (!empty($origDateStr)) {
                 try {
-                    $origStartTime = Carbon::parse($origDateStr)->toDateTimeString();
-                    $query->where('start_time', $origStartTime);
+                    $parsedDate = Carbon::parse($origDateStr);
+                    // Busca flexível: margem de 15 minutos para garantir o acerto do horário
+                    $query->whereBetween('start_time', [
+                        (clone $parsedDate)->subMinutes(15)->toDateTimeString(),
+                        (clone $parsedDate)->addMinutes(15)->toDateTimeString()
+                    ]);
                 } catch (\Throwable $e) {
                     Log::warning("Falha ao parsear data_hora no cancelamento: " . $origDateStr);
                 }
@@ -284,7 +288,7 @@ class AssistantController extends Controller
 
             $msg = "\n\n❌ *REUNIÃO CANCELADA COM SUCESSO!*\n\nO agendamento do dia " . Carbon::parse($appointment->start_time)->format('d/m/Y \à\s H:i') . " foi cancelado na agenda e os participantes foram notificados.\n\nRestou mais alguma dúvida ou posso te ajudar em algo mais?\n\nPor favor, selecione uma das opções:\n1️⃣ Tenho mais dúvidas\n2️⃣ Encerrar o atendimento";
 
-            return trim(preg_replace('/\[CANCELAR_REUNIAO:.*?\](.*)$/s', $msg, $aiReply));
+            return trim(preg_replace('/\[(?:CANCELAR_REUNIAO|Cancelar reunião|CANCELAR_AGENDAMENTO|CANCELAR):.*?\](.*)$/is', $msg, $aiReply));
         }
 
         // 3. REAGENDAR REUNIAO
@@ -529,7 +533,11 @@ class AssistantController extends Controller
             }
         }
 
-        return $aiReply;
+        // Trava de segurança: remove qualquer tag residual de agendamento em colchetes
+        $aiReply = preg_replace('/\[(?:VERIFICAR_AGENDA|AGENDAR_REUNIAO|CANCELAR_REUNIAO|REAGENDAR_REUNIAO|Cancelar reunião|CANCELAR|REAGENDAR).*?\]/is', '', $aiReply);
+
+        return trim($aiReply);
+    }
     }
 
     public function index(Request $request)
