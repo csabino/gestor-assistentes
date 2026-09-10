@@ -1416,6 +1416,7 @@ class AssistantController extends Controller
             $userMessage = (string)$request->input('message');
             $history = $request->input('history', []);
             if (!is_array($history)) $history = [];
+            $history = array_slice($history, -12);
 
             $systemPrompt = $this->buildSystemPromptWithKnowledge($assistant);
             $response = $this->callAiApi($assistant, $systemPrompt, $userMessage, $history);
