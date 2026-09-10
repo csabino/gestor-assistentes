@@ -268,7 +268,7 @@ class AssistantController extends Controller
 
             if (!$appointment) {
                 $msg = "\n\n⚠️ Não encontramos nenhuma reunião ativa associada ao seu e-mail *{$emailInput}* para essa data e horário exatos.";
-                return trim(preg_replace('/\[CANCELAR_REUNIAO:.*?\]/s', $msg, $aiReply));
+                return trim(preg_replace('/\[(?:CANCELAR_REUNIAO|Cancelar reunião|CANCELAR_AGENDAMENTO|CANCELAR):.*?\]/is', $msg, $aiReply));
             }
 
             if (!empty($appointment->google_event_id)) {
@@ -277,7 +277,7 @@ class AssistantController extends Controller
                 
                 if (!$cancelResult) {
                     $msg = "\n\n⚠️ Erro técnico ao comunicar com o Google Calendar para o cancelamento. Tente novamente em instantes.";
-                    return trim(preg_replace('/\[CANCELAR_REUNIAO:.*?\]/s', $msg, $aiReply));
+                    return trim(preg_replace('/\[(?:CANCELAR_REUNIAO|Cancelar reunião|CANCELAR_AGENDAMENTO|CANCELAR):.*?\]/is', $msg, $aiReply));
                 }
             }
 
@@ -537,7 +537,6 @@ class AssistantController extends Controller
         $aiReply = preg_replace('/\[(?:VERIFICAR_AGENDA|AGENDAR_REUNIAO|CANCELAR_REUNIAO|REAGENDAR_REUNIAO|Cancelar reunião|CANCELAR|REAGENDAR).*?\]/is', '', $aiReply);
 
         return trim($aiReply);
-    }
     }
 
     public function index(Request $request)
@@ -2397,11 +2396,7 @@ class AssistantController extends Controller
                     'audio' => !empty($b64Raw) ? 'data:audio/mp3;base64,' . $b64Raw : $possiblePath
                 ];
 
-                $response = Http::withHeaders([
-                    'token' => $token,
-                    'apikey' => $token,
-                    'Content-Type' => 'application/json'
-                ])->post($endpoint, $payload);
+                $response = Http::withHeaders($headers)->post($endpoint, $payload);
 
                 return ['success' => $response->successful(), 'error' => $response->failed() ? $response->body() : null];
             }
