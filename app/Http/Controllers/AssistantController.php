@@ -2384,33 +2384,22 @@ class AssistantController extends Controller
             ];
 
             if (str_contains($baseUrl, 'uazapi.com') || $assistant->whatsapp_provider === 'uazapi') {
-                $candidates = [
-                    '/send/presence' => [
-                        'token' => $token,
-                        'number' => $cleanTo,
-                        'presence' => $status
-                    ],
-                    '/presence' => [
-                        'token' => $token,
-                        'number' => $cleanTo,
-                        'presence' => $status
-                    ],
-                    '/presence/send' => [
-                        'token' => $token,
-                        'number' => $cleanTo,
-                        'presence' => $status
-                    ],
-                    '/message/sendPresence' => [
-                        'number' => $cleanTo,
-                        'presence' => $status
-                    ]
+                $tests = [
+                    ['method' => 'POST', 'path' => '/presence', 'payload' => ['token' => $token, 'number' => $cleanTo, 'presence' => $status]],
+                    ['method' => 'GET',  'path' => '/presence', 'payload' => ['token' => $token, 'number' => $cleanTo, 'presence' => $status]],
+                    ['method' => 'GET',  'path' => '/send/presence', 'payload' => ['token' => $token, 'number' => $cleanTo, 'presence' => $status]],
+                    ['method' => 'POST', 'path' => '/chat/sendPresence', 'payload' => ['number' => $cleanTo, 'presence' => $status]],
                 ];
 
-                foreach ($candidates as $path => $payload) {
-                    $url = $baseUrl . $path . '?token=' . urlencode($token);
-                    $res = Http::withHeaders($headers)->timeout(4)->post($url, $payload);
-                    
-                    Log::info("Tentativa Presenca Uazapi [{$path}]: HTTP " . $res->status() . " - " . $res->body());
+                foreach ($tests as $t) {
+                    $url = $baseUrl . $t['path'];
+                    if ($t['method'] === 'POST') {
+                        $res = Http::withHeaders($headers)->timeout(4)->post($url, $t['payload']);
+                    } else {
+                        $res = Http::withHeaders($headers)->timeout(4)->get($url, $t['payload']);
+                    }
+
+                    Log::info("Test Presenca Uazapi [{$t['method']} {$t['path']}]: HTTP " . $res->status() . " - " . $res->body());
 
                     if ($res->successful()) {
                         break;
