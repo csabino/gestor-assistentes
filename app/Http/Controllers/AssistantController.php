@@ -185,7 +185,7 @@ class AssistantController extends Controller
 
             try {
                 $startTime = Carbon::parse($checkDateStr);
-                $endTime = (clone $startTime)->addMinutes(30);
+                $endTime = (clone $startTime)->addMinutes(60);
 
                 $dept = null;
                 if (!empty($deptName)) {
@@ -323,7 +323,7 @@ class AssistantController extends Controller
 
             try {
                 $newStartTime = Carbon::parse($newDateStr);
-                $newEndTime = (clone $newStartTime)->addMinutes(30);
+                $newEndTime = (clone $newStartTime)->addMinutes(60);
 
                 $dept = null;
                 if (!empty($deptName)) {
@@ -438,7 +438,7 @@ class AssistantController extends Controller
 
             try {
                 $startTime = Carbon::parse($startDateTimeStr);
-                $endTime = (clone $startTime)->addMinutes(30);
+                $endTime = (clone $startTime)->addMinutes(60);
 
                 $dept = null;
                 if (!empty($deptName)) {
