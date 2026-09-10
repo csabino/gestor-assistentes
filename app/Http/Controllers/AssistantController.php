@@ -2375,31 +2375,38 @@ class AssistantController extends Controller
             $baseUrl = rtrim($assistant->whatsapp_url, '/');
             $token = trim($assistant->whatsapp_token);
 
+            $headers = [
+                'token' => $token,
+                'Client-Token' => $token,
+                'client-token' => $token,
+                'apikey' => $token,
+                'Content-Type' => 'application/json'
+            ];
+
             if (str_contains($baseUrl, 'uazapi.com') || $assistant->whatsapp_provider === 'uazapi') {
-                Http::withHeaders([
-                    'token' => $token,
-                    'Client-Token' => $token,
-                    'client-token' => $token,
-                    'apikey' => $token,
-                    'Content-Type' => 'application/json'
-                ])->post($baseUrl . '/send/presence?token=' . urlencode($token), [
+                $endpoint = $baseUrl . '/send/presence?token=' . urlencode($token);
+                $payload = [
                     'token' => $token,
                     'number' => $cleanTo,
-                    'presence' => $status
-                ]);
+                    'chatid' => $cleanTo . '@s.whatsapp.net',
+                    'presence' => $status,
+                    'type' => $status
+                ];
             } else {
-                Http::withHeaders([
-                    'token' => $token,
-                    'apikey' => $token,
-                    'Content-Type' => 'application/json'
-                ])->post($baseUrl . '/chat/sendPresence/' . $assistant->whatsapp_instance, [
+                $endpoint = $baseUrl . '/chat/sendPresence/' . $assistant->whatsapp_instance;
+                $payload = [
                     'number' => $cleanTo,
                     'presence' => $status,
-                    'delay' => 12000
-                ]);
+                    'delay' => 15000
+                ];
             }
+
+            $res = Http::withHeaders($headers)->timeout(5)->post($endpoint, $payload);
+            
+            Log::info("Disparo de Presenca ({$assistant->whatsapp_provider}): Status HTTP " . $res->status() . " - Resposta: " . $res->body());
+
         } catch (\Throwable $e) {
-            Log::warning("Aviso: Falha ao enviar presença WhatsApp: " . $e->getMessage());
+            Log::warning("Aviso: Falha ao enviar presenca WhatsApp: " . $e->getMessage());
         }
     }
 }
