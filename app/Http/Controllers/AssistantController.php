@@ -2386,28 +2386,19 @@ class AssistantController extends Controller
 
             if (str_contains($baseUrl, 'uazapi.com') || $assistant->whatsapp_provider === 'uazapi') {
                 $tests = [
-                    ['method' => 'PUT',   'path' => '/presence', 'payload' => ['token' => $token, 'number' => $cleanTo, 'presence' => $status]],
-                    ['method' => 'PUT',   'path' => '/send/presence', 'payload' => ['token' => $token, 'number' => $cleanTo, 'presence' => $status]],
-                    ['method' => 'PATCH', 'path' => '/presence', 'payload' => ['token' => $token, 'number' => $cleanTo, 'presence' => $status]],
-                    ['method' => 'POST',  'path' => '/presence/composing', 'payload' => ['token' => $token, 'number' => $cleanTo]],
+                    ['path' => '/send/typing', 'payload' => ['token' => $token, 'number' => $cleanTo]],
+                    ['path' => '/send/state', 'payload' => ['token' => $token, 'number' => $cleanTo, 'state' => 'composing']],
+                    ['path' => '/chat/presence', 'payload' => ['token' => $token, 'number' => $cleanTo, 'presence' => $status]],
+                    ['path' => '/message/presence', 'payload' => ['token' => $token, 'number' => $cleanTo, 'presence' => $status]],
+                    ['path' => '/instance/presence', 'payload' => ['token' => $token, 'number' => $cleanTo, 'presence' => $status]],
                 ];
-
-                if (!empty($instance)) {
-                    $tests[] = ['method' => 'POST', 'path' => '/presence/' . $instance, 'payload' => ['number' => $cleanTo, 'presence' => $status]];
-                }
 
                 foreach ($tests as $t) {
                     $url = $baseUrl . $t['path'] . '?token=' . urlencode($token);
-                    
-                    if ($t['method'] === 'PUT') {
-                        $res = Http::withHeaders($headers)->timeout(4)->put($url, $t['payload']);
-                    } elseif ($t['method'] === 'PATCH') {
-                        $res = Http::withHeaders($headers)->timeout(4)->patch($url, $t['payload']);
-                    } else {
-                        $res = Http::withHeaders($headers)->timeout(4)->post($url, $t['payload']);
-                    }
+                    $res = Http::withHeaders($headers)->timeout(4)->post($url, $t['payload']);
 
-                    Log::info("Test Presenca Uazapi [{$t['method']} {$t['path']}]: HTTP " . $res->status() . " - " . $res->body());
+                    $allowHeader = $res->header('Allow') ?? 'N/A';
+                    Log::info("Test Uazapi [POST {$t['path']}]: HTTP " . $res->status() . " (Allow: {$allowHeader}) - " . $res->body());
 
                     if ($res->successful()) {
                         break;
