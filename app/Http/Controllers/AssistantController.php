@@ -2384,23 +2384,37 @@ class AssistantController extends Controller
             ];
 
             if (str_contains($baseUrl, 'uazapi.com') || $assistant->whatsapp_provider === 'uazapi') {
-                // Rota primária para uazapiGO
-                $endpoint = $baseUrl . '/chat/sendPresence';
-                $payload = [
-                    'number' => $cleanTo,
-                    'presence' => $status,
-                    'delay' => 10000
-                ];
-                $res = Http::withHeaders($headers)->timeout(5)->post($endpoint . '?token=' . urlencode($token), $payload);
-
-                // Fallback caso a instância utilize o endpoint antigo /send/presence
-                if ($res->failed()) {
-                    $endpointAlt = $baseUrl . '/send/presence?token=' . urlencode($token);
-                    $res = Http::withHeaders($headers)->timeout(5)->post($endpointAlt, [
+                $candidates = [
+                    '/send/presence' => [
                         'token' => $token,
                         'number' => $cleanTo,
                         'presence' => $status
-                    ]);
+                    ],
+                    '/presence' => [
+                        'token' => $token,
+                        'number' => $cleanTo,
+                        'presence' => $status
+                    ],
+                    '/presence/send' => [
+                        'token' => $token,
+                        'number' => $cleanTo,
+                        'presence' => $status
+                    ],
+                    '/message/sendPresence' => [
+                        'number' => $cleanTo,
+                        'presence' => $status
+                    ]
+                ];
+
+                foreach ($candidates as $path => $payload) {
+                    $url = $baseUrl . $path . '?token=' . urlencode($token);
+                    $res = Http::withHeaders($headers)->timeout(4)->post($url, $payload);
+                    
+                    Log::info("Tentativa Presenca Uazapi [{$path}]: HTTP " . $res->status() . " - " . $res->body());
+
+                    if ($res->successful()) {
+                        break;
+                    }
                 }
             } else {
                 $endpoint = $baseUrl . '/chat/sendPresence/' . $assistant->whatsapp_instance;
@@ -2410,9 +2424,8 @@ class AssistantController extends Controller
                     'delay' => 12000
                 ];
                 $res = Http::withHeaders($headers)->timeout(5)->post($endpoint, $payload);
+                Log::info("Tentativa Presenca Evolution: HTTP " . $res->status() . " - " . $res->body());
             }
-
-            Log::info("Disparo de Presenca ({$assistant->whatsapp_provider}): Status HTTP " . $res->status() . " - Resposta: " . $res->body());
 
         } catch (\Throwable $e) {
             Log::warning("Aviso: Falha ao enviar presenca WhatsApp: " . $e->getMessage());
