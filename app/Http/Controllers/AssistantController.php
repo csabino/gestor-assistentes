@@ -2228,6 +2228,39 @@ class AssistantController extends Controller
             $baseUrl = rtrim($assistant->whatsapp_url, '/');
             $token = trim($assistant->whatsapp_token);
 
+            // 1. DISPARA O STATUS "DIGITANDO..." PARA O WHATSAPP
+            try {
+                if (str_contains($baseUrl, 'uazapi.com') || $assistant->whatsapp_provider === 'uazapi') {
+                    Http::withHeaders([
+                        'token' => $token,
+                        'Client-Token' => $token,
+                        'client-token' => $token,
+                        'apikey' => $token,
+                        'Content-Type' => 'application/json'
+                    ])->post($baseUrl . '/send/presence?token=' . urlencode($token), [
+                        'token' => $token,
+                        'number' => $cleanTo,
+                        'presence' => 'composing'
+                    ]);
+                } else {
+                    Http::withHeaders([
+                        'token' => $token,
+                        'apikey' => $token,
+                        'Content-Type' => 'application/json'
+                    ])->post($baseUrl . '/chat/sendPresence/' . $assistant->whatsapp_instance, [
+                        'number' => $cleanTo,
+                        'presence' => 'composing',
+                        'delay' => 4000
+                    ]);
+                }
+            } catch (\Throwable $ePresence) {
+                Log::warning("Aviso: Falha ao enviar status de presença/digitando: " . $ePresence->getMessage());
+            }
+
+            // 2. AGUARDA 4 SEGUNDOS MOSTRANDO O BALÃOZINHO ANTES DE ENVIAR A MENSAGEM
+            sleep(4);
+
+            // 3. ENVIA A MENSAGEM DE TEXTO
             if (str_contains($baseUrl, 'uazapi.com') || $assistant->whatsapp_provider === 'uazapi') {
                 $endpoint = $baseUrl . '/send/text';
                 
