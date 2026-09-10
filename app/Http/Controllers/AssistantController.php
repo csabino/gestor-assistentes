@@ -2075,12 +2075,30 @@ class AssistantController extends Controller
 
             if ($isAudioMessage) {
                 $separated = $audioService->separateLinksFromText($aiReply);
+                
+                // === INÍCIO DO FILTRO DE ÁUDIO (LIMPEZA PARA O TTS) ===
+                $textForAudio = $separated['audio_text'];
+                
+                // 1. Remove emojis (Mantém o texto de voz limpo)
+                $textForAudio = preg_replace('/[\x{1F300}-\x{1F64F}\x{1F680}-\x{1F6FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}\x{1F900}-\x{1F9FF}\x{1FA00}-\x{1FAFF}\x{1F1E6}-\x{1F1FF}\x{2300}-\x{23FF}\x{2500}-\x{25FF}\x{2B00}-\x{2BFF}]/u', '', $textForAudio);
+                
+                // 2. Converte as horas para leitura correta (ex: 17h -> 17 horas, 09h30 -> 9 horas e 30 minutos)
+                $textForAudio = preg_replace('/\b(\d{1,2})h(\d{2})\b/i', '$1 horas e $2 minutos', $textForAudio);
+                $textForAudio = preg_replace('/\b(\d{1,2})h\b/i', '$1 horas', $textForAudio);
+                
+                // 3. Substitui traços isolados por vírgula para forçar pausa ao invés de falar "menos"
+                $textForAudio = preg_replace('/\s+[-–—]\s+/', ', ', $textForAudio);
+                
+                // 4. Remove pontuações extras e ícones textuais que o TTS pode verbalizar
+                $textForAudio = str_replace(['*', '#', '_', '✅', '⚠️', '🎥', '🏢', '👤', '📅', '✉️', '📋', '🎫'], '', $textForAudio);
+                // === FIM DO FILTRO DE ÁUDIO ===
+
                 $googleKey = env('GOOGLE_API_KEY_TTS') 
                     ?? env('GOOGLE_APIKEY_TTS') 
                     ?? (defined('GOOGLE_APIKEY_TTS') ? GOOGLE_APIKEY_TTS : null) 
                     ?? env('GOOGLE_API_KEY');
 
-                $audioData = $audioService->textToSpeech($separated['audio_text'], $googleKey);
+                $audioData = $audioService->textToSpeech($textForAudio, $googleKey);
 
                 if ($audioData) {
                     $waResult = $this->sendWhatsappAudioMessage($assistant, $cleanSender, $audioData);
