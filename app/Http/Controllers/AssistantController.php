@@ -851,37 +851,109 @@ class AssistantController extends Controller
         if (!$domain) return response()->json(['success' => false, 'message' => 'URL inválida.']);
         
         $domainStr = str_replace('www.', '', $domain);
+        $baseUrl = 'https://' . $domainStr;
 
-        $content = $this->fetchContentFromUrl($url);
-        if (!$content) {
-            return response()->json(['success' => false, 'message' => 'Falha ao acessar o site inicial. Ele pode estar bloqueando a extração.']);
+        $discoveredLinks = [$url];
+
+        // 1. BUSCA INTELIGENTE VIA SITEMAPS DO WORDPRESS (Captura 100% dos posts e artigos)
+        $sitemapUrls = [
+            $baseUrl . '/wp-sitemap.xml',
+            $baseUrl . '/sitemap.xml',
+            $baseUrl . '/sitemap_index.xml'
+        ];
+
+        foreach ($sitemapUrls as $sitemapUrl) {
+            try {
+                $smRes = Http::timeout(8)->get($sitemapUrl);
+                if ($smRes->successful()) {
+                    $xmlContent = $smRes->body();
+                    preg_match_all('/<loc>(https?:\/\/[^<]+)<\/loc>/i', $xmlContent, $locMatches);
+                    
+                    if (!empty($locMatches[1])) {
+                        foreach ($locMatches[1] as $loc) {
+                            if (str_contains($loc, '.xml')) {
+                                // Se for um índice de sitemaps, lê os sub-sitemaps (ex: posts, páginas)
+                                try {
+                                    $subRes = Http::timeout(6)->get($loc);
+                                    if ($subRes->successful()) {
+                                        preg_match_all('/<loc>(https?:\/\/[^<]+)<\/loc>/i', $subRes->body(), $subLocs);
+                                        if (!empty($subLocs[1])) {
+                                            foreach ($subLocs[1] as $subLoc) {
+                                                $discoveredLinks[] = $subLoc;
+                                            }
+                                        }
+                                    }
+                                } catch (\Throwable $eSub) {}
+                            } else {
+                                $discoveredLinks[] = $loc;
+                            }
+                        }
+                    }
+                }
+            } catch (\Throwable $eSm) {}
         }
 
-        $links = [$url];
-        preg_match_all('/\[[^\]]*\]\((https?:\/\/[^\)]+)\)/i', $content, $matches);
-
-        if (!empty($matches[1])) {
-            foreach ($matches[1] as $link) {
-                $link = explode('?', $link)[0];
-                $link = explode('#', $link)[0];
-                $link = rtrim($link, '/');
-                $linkDomain = parse_url($link, PHP_URL_HOST);
+        // 2. FALLBACK: NAVEGAÇÃO DE SEGUNDO NÍVEL (Se o sitemap não retornar links suficientes)
+        if (count($discoveredLinks) <= 5) {
+            $content = $this->fetchContentFromUrl($url);
+            if ($content) {
+                $discoveredLinks = array_merge($discoveredLinks, $this->extractLinksFromText($content));
                 
-                if ($linkDomain) {
-                    $linkDomainStr = str_replace('www.', '', $linkDomain);
-                    if (str_ends_with($linkDomainStr, $domainStr)) {
-                        if (!preg_match('/\.(jpg|jpeg|png|gif|pdf|zip|rar|mp4|mp3|css|js|svg|webp|doc|docx)$/i', $link)) {
-                            if (!in_array($link, $links)) {
-                                $links[] = $link;
-                            }
+                // Abre as 5 primeiras subpáginas (como /blog) para extrair os links internos delas
+                $subPagesToScan = array_slice($discoveredLinks, 1, 5);
+                foreach ($subPagesToScan as $subUrl) {
+                    $subContent = $this->fetchContentFromUrl($subUrl);
+                    if ($subContent) {
+                        $discoveredLinks = array_merge($discoveredLinks, $this->extractLinksFromText($subContent));
+                    }
+                }
+            }
+        }
+
+        // 3. FILTRAGEM E TRATAMENTO DOS LINKS ENCONTRADOS
+        $cleanLinks = [];
+        foreach ($discoveredLinks as $link) {
+            $link = explode('?', $link)[0];
+            $link = explode('#', $link)[0];
+            $link = rtrim($link, '/');
+            
+            $linkDomain = parse_url($link, PHP_URL_HOST);
+            if ($linkDomain) {
+                $linkDomainStr = str_replace('www.', '', $linkDomain);
+                if (str_ends_with($linkDomainStr, $domainStr)) {
+                    if (!preg_match('/\.(jpg|jpeg|png|gif|pdf|zip|rar|mp4|mp3|css|js|svg|webp|doc|docx|xml)$/i', $link)) {
+                        if (!in_array($link, $cleanLinks)) {
+                            $cleanLinks[] = $link;
                         }
                     }
                 }
             }
         }
-        
-        $links = array_slice($links, 0, 150);
-        return response()->json(['success' => true, 'urls' => array_values($links)]);
+
+        if (empty($cleanLinks)) {
+            return response()->json(['success' => false, 'message' => 'Falha ao acessar o site inicial. Ele pode estar bloqueando a extração.']);
+        }
+
+        $cleanLinks = array_slice($cleanLinks, 0, 150);
+        return response()->json(['success' => true, 'urls' => array_values($cleanLinks)]);
+    }
+
+    private function extractLinksFromText(string $content): array
+    {
+        $links = [];
+        preg_match_all('/\[[^\]]*\]\((https?:\/\/[^\)]+)\)/i', $content, $matches);
+        if (!empty($matches[1])) {
+            foreach ($matches[1] as $link) {
+                $links[] = $link;
+            }
+        }
+        preg_match_all('/https?:\/\/[^\s<>"\'\)\\]]+/i', $content, $rawMatches);
+        if (!empty($rawMatches[0])) {
+            foreach ($rawMatches[0] as $link) {
+                $links[] = $link;
+            }
+        }
+        return $links;
     }
 
     private function scrapeSingleUrl(Request $request)
