@@ -366,10 +366,18 @@ class AssistantController extends Controller
                 }
 
                 if (!$meetingResult) {
+                    $eventDescription = "📋 Agendamento Reagendado via WhatsApp - InHouse Contact Center\n\n" .
+                                       "👤 Cliente: " . $displayName . "\n" .
+                                       "📱 Telefone: " . $cleanSender . "\n" .
+                                       "📧 E-mail: " . $emailInput . "\n" .
+                                       "🏢 Setor: " . $dept->name . "\n" .
+                                       "🎧 Atendente Responsável: " . $allocatedAgent->name . "\n" .
+                                       "📅 Nova Data e Hora: " . $newStartTime->format('d/m/Y \à\s H:i');
+
                     $meetingResult = $googleService->createMeeting(
                         $assistant->id,
-                        "Reunião de Atendimento (Reagendada) - " . $displayName,
-                        "Agendamento reagendado via WhatsApp para o setor: " . $dept->name,
+                        "Reunião - InHouse x " . $displayName,
+                        $eventDescription,
                         $newStartTime->toDateTimeString(),
                         $newEndTime->toDateTimeString(),
                         $allocatedAgent->email,
@@ -457,11 +465,20 @@ class AssistantController extends Controller
                     return trim(preg_replace('/\[AGENDAR_REUNIAO:.*?\]/s', $msg, $aiReply));
                 }
 
+                // CORPO / RESUMO ESTRUTURADO PARA O E-MAIL E EVENTO DO GOOGLE CALENDAR
+                $eventDescription = "📋 Agendamento via WhatsApp - InHouse Contact Center\n\n" .
+                                   "👤 Cliente: " . $displayName . "\n" .
+                                   "📱 Telefone: " . $cleanSender . "\n" .
+                                   "📧 E-mail: " . $clientEmail . "\n" .
+                                   "🏢 Setor: " . $dept->name . "\n" .
+                                   "🎧 Atendente Responsável: " . $allocatedAgent->name . "\n" .
+                                   "📅 Data e Hora: " . $startTime->format('d/m/Y \à\s H:i');
+
                 $googleService = new GoogleCalendarService();
                 $meetingResult = $googleService->createMeeting(
                     $assistant->id,
-                    "Reunião de Atendimento - " . $displayName,
-                    "Agendamento via WhatsApp - Setor: " . $dept->name,
+                    "Reunião - InHouse x " . $displayName,
+                    $eventDescription,
                     $startTime->toDateTimeString(),
                     $endTime->toDateTimeString(),
                     $allocatedAgent->email,
