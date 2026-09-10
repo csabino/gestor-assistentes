@@ -1287,24 +1287,42 @@ class AssistantController extends Controller
             }
         }
 
-        // 4. BASE DE CONHECIMENTO
+        // 4. BASE DE CONHECIMENTO (COM TRAVA BLINDADA DE TOKENS)
         $files = $assistant->knowledge_files;
         if (is_array($files) && !empty($files)) {
             $prompt .= "\n\n### BASE DE CONHECIMENTO OFICIAL DA EMPRESA ###\n";
+            
+            $accumulatedChars = 0;
+            $maxAllowedKbChars = 120000; // Trava máxima (~30k tokens) para evitar estouro da OpenAI
+
             foreach ($files as $file) {
+                if ($accumulatedChars >= $maxAllowedKbChars) {
+                    break;
+                }
+
                 $name = $file['name'] ?? 'Arquivo Desconhecido';
                 $content = $file['content'] ?? '';
                 if (empty($content) && !empty($file['path']) && Storage::exists($file['path'])) {
                     $content = $this->extractTextFromFile(Storage::path($file['path']), $name);
                 }
+
                 if (!empty($content)) {
                     $cleanUrl = str_replace('🌐 ', '', $name);
-                    $trimmedContent = mb_substr($content, 0, 5000);
+                    // Limita a 1.200 caracteres por arquivo/página
+                    $trimmedContent = mb_substr($content, 0, 1200);
+                    $contentLength = mb_strlen($trimmedContent);
+
+                    if ($accumulatedChars + $contentLength > $maxAllowedKbChars) {
+                        $trimmedContent = mb_substr($trimmedContent, 0, $maxAllowedKbChars - $accumulatedChars);
+                    }
+
                     if (str_starts_with($name, '🌐')) {
                         $prompt .= "\n[TIPO: PAGINA_WEB]\n[URL: {$cleanUrl}]\n[CONTEÚDO]:\n" . $trimmedContent . "\n[FIM DE PAGINA_WEB]\n";
                     } else {
                         $prompt .= "\n[TIPO: DOCUMENTO_ARQUIVO]\n[NOME_ARQUIVO: {$name}]\n[CONTEÚDO]:\n" . $trimmedContent . "\n[FIM DE DOCUMENTO_ARQUIVO]\n";
                     }
+
+                    $accumulatedChars += mb_strlen($trimmedContent);
                 }
             }
         }
